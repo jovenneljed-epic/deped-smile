@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Project S.M.I.L.E. | DepEd Security Monitoring{% endblock %}</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0B3B6D',
+              darkblue: '#072648',
+              gold: '#F5A623',
+              accent: '#E65100',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #F4F7FC; }
+    h1, h2, h3, h4, .font-heading { font-family: 'Outfit', sans-serif; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+  <!-- DepEd Top Banner -->
+  <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60">
+    <div class="w-full max-w-[1600px] mx-auto px-4 sm:px-6 py-2">
+      <div class="flex items-center justify-between gap-3">
+        
+        <!-- Brand / School Title with Official DepEd Logo -->
+        <a href="/" class="flex items-center space-x-3 shrink-0 group">
+          <img src="/static/images/deped_seal.svg" alt="DepEd Official Seal" class="w-12 h-12 object-contain drop-shadow shrink-0 transition group-hover:scale-105">
+          <div class="flex flex-col justify-center">
+            <div class="flex items-center space-x-2">
+              <span class="font-heading font-black text-lg sm:text-xl tracking-wide text-white drop-shadow-sm leading-tight">PROJECT S.M.I.L.E.</span>
+              <span class="bg-amber-400 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm tracking-wider">DepEd</span>
+            </div>
+            <p class="text-xs sm:text-sm font-black text-amber-300 tracking-wide flex items-center gap-1.5 mt-0.5 leading-tight drop-shadow-sm">
+              <i class="fa-solid fa-school text-amber-400 text-xs"></i> {{ school_name }}
+            </p>
+          </div>
+        </a>
+
+        <!-- Navigation Links (Role-Aware) -->
+        <nav class="flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
+          <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
+          </a>
+          <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center">
+            <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-200 animate-pulse"></i> Gate Kiosk
+          </a>
+          <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> Enroll
+          </a>
+          <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
+          </a>
+          <a href="/parent" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-mobile-screen mr-1 text-[11px] text-amber-300"></i> Parent App
+          </a>
+          <a href="/database" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/database' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-database mr-1 text-[11px]"></i> Database
+          </a>
+
+          <!-- SUPER ADMIN ONLY CONTROLS -->
+          {% if current_user and current_user.is_admin %}
+          <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+
+          <a href="/admin/billing" class="px-2.5 py-1.5 rounded-lg text-xs font-black transition flex items-center {% if request.path == '/admin/billing' %}bg-amber-400 text-slate-950 shadow-sm{% else %}text-amber-300 hover:bg-white/10{% endif %}" title="SaaS Subscriptions & Income">
+            <i class="fa-solid fa-coins mr-1 text-[11px]"></i> Billing
+          </a>
+
+          <a href="/admin/settings" class="px-2.5 py-1.5 rounded-lg text-xs font-black transition flex items-center {% if request.path.startswith('/admin/settings') %}bg-rose-600 text-white shadow-sm{% else %}text-rose-300 hover:bg-white/10{% endif %}" title="Super Admin System Settings">
+            <i class="fa-solid fa-sliders mr-1 text-[11px]"></i> Settings
+          </a>
+          {% endif %}
+
+          <!-- USER PROFILE & AUTHENTICATION -->
+          <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+
+          {% if current_user %}
+          <div class="flex items-center gap-1.5 pl-1">
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-xs">
+              <span class="w-2 h-2 rounded-full {% if current_user.is_admin %}bg-amber-400{% else %}bg-emerald-400{% endif %} animate-pulse"></span>
+              <span class="font-extrabold text-white text-[11px] max-w-[100px] sm:max-w-[130px] truncate">{{ current_user.full_name }}</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'TEACHER' %}bg-emerald-400 text-slate-950{% else %}bg-purple-400 text-slate-950{% endif %}">
+                {{ current_user.role }}
+              </span>
+            </div>
+            <a href="/logout" class="w-8 h-8 rounded-lg bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 flex items-center justify-center text-xs transition border border-rose-500/30" title="Sign Out">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </a>
+          </div>
+          {% else %}
+          <a href="/login" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-lg shadow transition flex items-center gap-1">
+            <i class="fa-solid fa-key text-[10px]"></i> Staff Sign In
+          </a>
+          {% endif %}
+
+        </nav>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 text-xs py-4">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+      <div>
+        <span class="font-semibold text-slate-200">Project S.M.I.L.E.</span> &copy; 2026 Department of Education. RA 10173 Data Privacy Compliant.
+      </div>
+      <div class="flex items-center space-x-4">
+        <button onclick="document.getElementById('phoneModal').classList.remove('hidden')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-deped-gold font-bold transition flex items-center gap-1.5 border border-slate-700">
+          <i class="fa-solid fa-qrcode"></i> Install on Phone (QR)
+        </button>
+        <span><i class="fa-solid fa-shield-halved text-emerald-400 mr-1"></i> RA 10173 Smart ID Compliant</span>
+        <span><i class="fa-solid fa-signal text-deped-gold mr-1"></i> SMS Gateway Ready</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Phone QR Modal -->
+  <div id="phoneModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl border border-slate-200">
+      <div class="flex justify-between items-center">
+        <h3 class="font-heading font-black text-slate-900 text-base">Open Parent App on Phone</h3>
+        <button onclick="document.getElementById('phoneModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-500">
+        Scan this QR code with your iPhone or Android phone camera (connected to the same Wi-Fi) to install the real Parent App!
+      </p>
+
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center">
+        <img src="/api/parent/qr-code" alt="Scan to open on phone" class="w-full h-full object-contain">
+      </div>
+
+      <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-deped-blue font-mono font-bold break-all">
+        http://192.168.1.9:5000/parent
+      </div>
+
+      <button onclick="document.getElementById('phoneModal').classList.add('hidden')" class="w-full py-2.5 bg-deped-darkblue hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition">
+        Close
+      </button>
+    </div>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | Project S.M.I.L.E. - DepEd{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-slate-200">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold font-heading text-deped-darkblue">School Security & Attendance Dashboard</h1>
+      <p class="text-sm text-slate-500 mt-1"><i class="fa-regular fa-calendar-check text-deped-blue mr-1"></i> {{ today_date }} &bull; Gate Activity Overview</p>
+    </div>
+    <div class="mt-4 sm:mt-0 flex items-center space-x-3">
+      <a href="/kiosk" target="_blank" class="inline-flex items-center px-4 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-sm font-semibold rounded-lg shadow-sm transition">
+        <i class="fa-solid fa-expand mr-2"></i> Launch Gate Kiosk
+      </a>
+      <a href="/export/csv" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition">
+        <i class="fa-solid fa-file-excel mr-2"></i> Export DepEd SF2 (CSV)
+      </a>
+    </div>
+  </div>
+
+  <!-- KPI Metric Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    
+    <!-- Total Enrolled -->
+    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-deped-blue flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Enrolled</p>
+        <h3 id="stat-enrolled" class="text-3xl font-extrabold text-deped-darkblue mt-1">{{ total_enrolled }}</h3>
+        <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-id-card text-deped-blue"></i> DepEd LRN Profiles</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-user-graduate"></i>
+      </div>
+    </div>
+
+    <!-- Scans Today -->
+    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-emerald-500 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Today's Gate Scans</p>
+        <h3 id="stat-scans" class="text-3xl font-extrabold text-emerald-700 mt-1">{{ total_scans_today }}</h3>
+        <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-clock-rotate-left text-emerald-600"></i> Time-In & Time-Out</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-camera"></i>
+      </div>
+    </div>
+
+    <!-- Present Today -->
+    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-deped-gold flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Students Present</p>
+        <h3 id="stat-unique" class="text-3xl font-extrabold text-amber-700 mt-1">{{ unique_students_today }}</h3>
+        <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-users-viewfinder text-amber-600"></i> Distinct Learners</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-clipboard-user"></i>
+      </div>
+    </div>
+
+    <!-- SMS Sent Today -->
+    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-indigo-500 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Parent SMS Alerts</p>
+        <h3 id="stat-sms" class="text-3xl font-extrabold text-indigo-700 mt-1">{{ total_sms_today }}</h3>
+        <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-paper-plane text-indigo-500"></i> Instant Parent Notifiers</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-message"></i>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Live Attendance Activity Table -->
+  <div class="glass-card rounded-2xl shadow-sm overflow-hidden border border-slate-200">
+    <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold font-heading text-slate-800 flex items-center">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping mr-2.5"></span>
+          Live Gate Attendance Stream
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">Real-time log of students passing through the gate Smart ID scanner</p>
+      </div>
+      
+      <!-- Search & Voice Controls -->
+      <div class="flex items-center space-x-2.5 w-full sm:w-auto">
+        <button id="dashVoiceBtn" onclick="toggleDashVoice()" title="Toggle Real-Time Voice Announcements" class="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center shadow-sm">
+          <i id="dashVoiceIcon" class="fa-solid fa-volume-xmark mr-1.5 text-slate-400"></i>
+          <span id="dashVoiceText">Voice Off</span>
+        </button>
+        <div class="relative w-full sm:w-64">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
+          <input type="text" id="searchInput" placeholder="Filter by Name, LRN..." 
+                 class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue transition">
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead>
+          <tr class="bg-slate-50/80 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-3 px-4">Time</th>
+            <th class="py-3 px-4">Student Name</th>
+            <th class="py-3 px-4">LRN</th>
+            <th class="py-3 px-4">Grade & Section</th>
+            <th class="py-3 px-4">Type</th>
+            <th class="py-3 px-4">Parent Mobile</th>
+            <th class="py-3 px-4 text-center">SMS Alert</th>
+          </tr>
+        </thead>
+        <tbody id="attendanceTbody" class="divide-y divide-slate-100 font-normal">
+          {% for log in logs %}
+          <tr class="hover:bg-blue-50/40 transition">
+            <td class="py-3 px-4 font-mono text-xs text-slate-500 whitespace-nowrap">{{ log.timestamp }}</td>
+            <td class="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap flex items-center space-x-2">
+              <span class="w-7 h-7 rounded-full bg-blue-100 text-deped-blue font-bold text-xs flex items-center justify-center">
+                {{ log.student_name[0] }}
+              </span>
+              <span>{{ log.student_name }}</span>
+            </td>
+            <td class="py-3 px-4 font-mono text-xs text-slate-600">{{ log.lrn }}</td>
+            <td class="py-3 px-4 text-slate-600">{{ log.grade_section or 'N/A' }}</td>
+            <td class="py-3 px-4">
+              {% if log.scan_type == 'TIME_IN' %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                <i class="fa-solid fa-right-to-bracket mr-1"></i> TIME-IN
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                <i class="fa-solid fa-right-from-bracket mr-1"></i> TIME-OUT
+              </span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-4 font-mono text-xs text-slate-600">{{ log.parent_phone or 'N/A' }}</td>
+            <td class="py-3 px-4 text-center">
+              {% if log.sms_status in ['SENT', 'MOCKED'] %}
+              <span class="inline-flex items-center text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <i class="fa-solid fa-check-double mr-1"></i> Delivered
+              </span>
+              {% elif log.sms_status == 'DISPATCHING' %}
+              <span class="inline-flex items-center text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 animate-pulse">
+                <i class="fa-solid fa-spinner fa-spin mr-1"></i> Sending...
+              </span>
+              {% else %}
+              <span class="inline-flex items-center text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {{ log.sms_status }}
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr id="no-records-row">
+            <td colspan="7" class="py-12 text-center text-slate-400">
+              <i class="fa-solid fa-user-clock text-4xl mb-3 text-slate-300"></i>
+              <p class="font-medium text-slate-600">No attendance scans recorded yet today.</p>
+              <p class="text-xs mt-1">Open the <a href="/kiosk" class="text-deped-blue font-semibold underline">Gate Kiosk</a> to begin monitoring student arrivals.</p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Filter table by search term
+  const searchInput = document.getElementById('searchInput');
+  searchInput.addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('#attendanceTbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(term) ? '' : 'none';
+    });
+  });
+
+  // Auto-refresh attendance records every 3.5 seconds
+  async function pollAttendance() {
+    try {
+      const res = await fetch('/api/recent-scans');
+      if (!res.ok) return;
+      const logs = await res.json();
+      
+      const tbody = document.getElementById('attendanceTbody');
+      if (logs.length > 0) {
+        tbody.innerHTML = logs.map(log => `
+          <tr class="hover:bg-blue-50/40 transition">
+            <td class="py-3 px-4 font-mono text-xs text-slate-500 whitespace-nowrap">${log.timestamp}</td>
+            <td class="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap flex items-center space-x-2">
+              <span class="w-7 h-7 rounded-full bg-blue-100 text-deped-blue font-bold text-xs flex items-center justify-center">
+                ${log.student_name[0]}
+              </span>
+              <span>${log.student_name}</span>
+            </td>
+            <td class="py-3 px-4 font-mono text-xs text-slate-600">${log.lrn}</td>
+            <td class="py-3 px-4 text-slate-600">${log.grade_section || 'N/A'}</td>
+            <td class="py-3 px-4">
+              ${log.scan_type === 'TIME_IN' 
+                ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-right-to-bracket mr-1"></i> TIME-IN</span>'
+                : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-right-from-bracket mr-1"></i> TIME-OUT</span>'
+              }
+            </td>
+            <td class="py-3 px-4 font-mono text-xs text-slate-600">${log.parent_phone || 'N/A'}</td>
+            <td class="py-3 px-4 text-center">
+              ${log.sms_status === 'SENT' || log.sms_status === 'MOCKED'
+                ? '<span class="inline-flex items-center text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"><i class="fa-solid fa-check-double mr-1"></i> Delivered</span>'
+                : '<span class="inline-flex items-center text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">' + log.sms_status + '</span>'
+              }
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // Update KPIs
+      const statsRes = await fetch('/api/stats');
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        document.getElementById('stat-enrolled').innerText = stats.total_enrolled;
+        document.getElementById('stat-scans').innerText = stats.total_scans;
+        document.getElementById('stat-unique').innerText = stats.unique_students;
+      }
+    } catch(err) {
+      console.error("Polling error:", err);
+    }
+  }
+
+  setInterval(pollAttendance, 3500);
+
+  // Voice Announcement System
+  let dashVoiceActive = false;
+  let lastAnnouncedEventId = 0;
+
+  function toggleDashVoice() {
+    dashVoiceActive = !dashVoiceActive;
+    const btn = document.getElementById('dashVoiceBtn');
+    const icon = document.getElementById('dashVoiceIcon');
+    const text = document.getElementById('dashVoiceText');
+    if (dashVoiceActive) {
+      btn.className = 'px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-500 bg-indigo-50 text-indigo-700 transition flex items-center shadow-sm';
+      icon.className = 'fa-solid fa-volume-high mr-1.5 text-indigo-600';
+      text.innerText = 'Voice On';
+      speakVoiceOver("Voice announcements enabled for Don Montano Central Integrated School.");
+    } else {
+      btn.className = 'px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center shadow-sm';
+      icon.className = 'fa-solid fa-volume-xmark mr-1.5 text-slate-400';
+      text.innerText = 'Voice Off';
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+  }
+
+  function speakVoiceOver(text) {
+    if (!text || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.96;
+      u.pitch = 1.05;
+      const voices = window.speechSynthesis.getVoices();
+      const ph = voices.find(v => v.lang === 'en-PH' || v.lang.startsWith('en-PH'));
+      const en = voices.find(v => v.lang === 'en-US' || v.lang.startsWith('en-US')) || voices.find(v => v.lang.startsWith('en'));
+      if (ph) u.voice = ph;
+      else if (en) u.voice = en;
+      window.speechSynthesis.speak(u);
+    } catch(e) {
+      console.warn("Speech error:", e);
+    }
+  }
+
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+  }
+
+  async function pollLatestVoiceEvent() {
+    if (!dashVoiceActive) return;
+    try {
+      const res = await fetch('/api/latest-event');
+      if (!res.ok) return;
+      const ev = await res.json();
+      if (ev && ev.event_id && ev.event_id > lastAnnouncedEventId) {
+        lastAnnouncedEventId = ev.event_id;
+        if (ev.voice_text) {
+          speakVoiceOver(ev.voice_text);
+        }
+      }
+    } catch(e) {}
+  }
+  setInterval(pollLatestVoiceEvent, 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,556 @@
+{% extends 'base.html' %}
+
+{% block title %}Database Explorer | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-200 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold font-heading text-deped-darkblue flex items-center">
+        <i class="fa-solid fa-database text-deped-gold mr-2.5"></i>
+        Enterprise Database Management & SQL Explorer
+      </h1>
+      <p class="text-sm text-slate-500">Relational Database Engine &middot; DepEd RA 10173 Smart ID Store</p>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button onclick="reseedDatabase()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center">
+        <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Re-seed DepEd Population
+      </button>
+      <a href="/api/db-backup" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center">
+        <i class="fa-solid fa-download mr-1.5"></i> Export Database Backup (JSON)
+      </a>
+    </div>
+  </div>
+
+  <!-- Database Connection Banner -->
+  <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div class="flex items-center space-x-4">
+      <div class="w-12 h-12 rounded-xl bg-deped-blue/10 text-deped-blue flex items-center justify-center text-2xl flex-shrink-0">
+        <i class="fa-solid fa-server"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h3 class="font-bold text-slate-900 text-base">Active Database: <span class="font-mono text-deped-blue font-black uppercase">{{ db_stats.database_type }}</span></h3>
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span> ONLINE
+          </span>
+        </div>
+        <p class="text-xs font-mono text-slate-500 mt-0.5">Target: {{ db_stats.connection_url }}</p>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 md:text-right">
+      <p>ORM Layer: <strong>SQLAlchemy 2.1</strong> &middot; Multi-Client Safe</p>
+      <p class="text-[11px] text-slate-400 mt-0.5">Supports MySQL, PostgreSQL, MSSQL, SQLite</p>
+    </div>
+  </div>
+
+  <!-- KPI Record Count Cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    
+    <div class="glass-card p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Students Enrolled</p>
+      <h3 class="text-2xl font-black text-deped-darkblue mt-1">{{ db_stats.total_students }}</h3>
+      <p class="text-[11px] text-slate-500">QR & RFID Smart ID Profiles</p>
+    </div>
+
+    <div class="glass-card p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Class Sections</p>
+      <h3 class="text-2xl font-black text-amber-700 mt-1">{{ db_stats.total_sections }}</h3>
+      <p class="text-[11px] text-slate-500">Grade 7 to Grade 12</p>
+    </div>
+
+    <div class="glass-card p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Attendance Logs</p>
+      <h3 class="text-2xl font-black text-emerald-700 mt-1">{{ db_stats.total_attendance_records }}</h3>
+      <p class="text-[11px] text-slate-500">Time-In / Time-Out Logs</p>
+    </div>
+
+    <div class="glass-card p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">SMS Dispatches</p>
+      <h3 class="text-2xl font-black text-indigo-700 mt-1">{{ db_stats.total_sms_sent }}</h3>
+      <p class="text-[11px] text-slate-500">Parent Notifier Logs</p>
+    </div>
+
+  </div>
+
+  <!-- Table Browser Tabs -->
+  <div class="glass-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    
+    <!-- Tab Headers -->
+    <div class="border-b border-slate-200 bg-slate-50 px-5 flex space-x-6 text-sm font-semibold text-slate-600 overflow-x-auto">
+      <button onclick="switchTab('studentsTab')" id="btn-studentsTab" class="py-3.5 border-b-2 border-deped-blue text-deped-blue font-bold flex items-center whitespace-nowrap">
+        <i class="fa-solid fa-users mr-2"></i> Students Table ({{ students|length }})
+      </button>
+      <button onclick="switchTab('sectionsTab')" id="btn-sectionsTab" class="py-3.5 border-b-2 border-transparent hover:text-slate-900 transition flex items-center whitespace-nowrap">
+        <i class="fa-solid fa-chalkboard-user mr-2"></i> Sections Table ({{ sections|length }})
+      </button>
+      <button onclick="switchTab('attendanceTab')" id="btn-attendanceTab" class="py-3.5 border-b-2 border-transparent hover:text-slate-900 transition flex items-center whitespace-nowrap">
+        <i class="fa-solid fa-clock-rotate-left mr-2"></i> Attendance Logs Table ({{ attendance_logs|length }})
+      </button>
+      <button onclick="switchTab('networkTab')" id="btn-networkTab" class="py-3.5 border-b-2 border-transparent hover:text-slate-900 transition flex items-center whitespace-nowrap">
+        <i class="fa-solid fa-network-wired mr-2"></i> Connect to MySQL / XAMPP
+      </button>
+    </div>
+
+    <!-- Tab 1: Students Table -->
+    <div id="studentsTab" class="tab-content p-5 overflow-x-auto">
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-2.5 px-3">LRN (Primary Key)</th>
+            <th class="py-2.5 px-3">Student Name</th>
+            <th class="py-2.5 px-3">Gender</th>
+            <th class="py-2.5 px-3">Grade & Section</th>
+            <th class="py-2.5 px-3">Track / Strand</th>
+            <th class="py-2.5 px-3">Parent Name</th>
+            <th class="py-2.5 px-3">Parent Phone</th>
+            <th class="py-2.5 px-3">Smart ID Badge</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for s in students %}
+          <tr class="hover:bg-blue-50/30">
+            <td class="py-2.5 px-3 font-mono font-bold text-deped-blue">{{ s.lrn }}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-800">{{ s.full_name }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ s.gender }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ s.grade_section }}</td>
+            <td class="py-2.5 px-3 text-slate-500">{{ s.track_strand }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ s.parent_name }}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-700">{{ s.parent_phone }}</td>
+            <td class="py-2.5 px-3">
+              <a href="/id-card/{{ s.lrn }}" target="_blank" class="inline-flex items-center text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition">
+                <i class="fa-solid fa-qrcode mr-1"></i> View / Print ID
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tab 2: Sections Table -->
+    <div id="sectionsTab" class="tab-content hidden p-5 overflow-x-auto space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-slate-100">
+        <div class="flex items-center space-x-2">
+          <span class="text-xs font-bold text-slate-700 uppercase">Filter Grade:</span>
+          <select id="sectionGradeFilter" onchange="filterSectionsTable(this.value)" class="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium focus:ring-2 focus:ring-deped-blue/30">
+            <option value="ALL">All Grade Levels ({{ sections|length }} Total)</option>
+            <option value="Kindergarten">Kindergarten</option>
+            <option value="Grade 1">Grade 1</option>
+            <option value="Grade 2">Grade 2</option>
+            <option value="Grade 3">Grade 3</option>
+            <option value="Grade 4">Grade 4</option>
+            <option value="Grade 5">Grade 5</option>
+            <option value="Grade 6">Grade 6</option>
+            <option value="Grade 7">Grade 7</option>
+            <option value="Grade 8">Grade 8</option>
+            <option value="Grade 9">Grade 9</option>
+            <option value="Grade 10">Grade 10</option>
+            <option value="Grade 11">Grade 11</option>
+            <option value="Grade 12">Grade 12</option>
+          </select>
+        </div>
+        <button onclick="openAddSectionModal()" class="px-3 py-1.5 bg-deped-blue hover:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
+          <i class="fa-solid fa-plus mr-1.5"></i> Add New Section
+        </button>
+      </div>
+
+      <table class="w-full text-left text-xs border-collapse" id="sectionsTable">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-2.5 px-3">ID</th>
+            <th class="py-2.5 px-3">Grade Level</th>
+            <th class="py-2.5 px-3">Section Name</th>
+            <th class="py-2.5 px-3">Adviser Teacher</th>
+            <th class="py-2.5 px-3">Classroom / Location</th>
+            <th class="py-2.5 px-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for sec in sections %}
+          <tr class="hover:bg-blue-50/30 section-row" data-grade="{{ sec.grade_level }}">
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-500">{{ sec.id }}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-800">{{ sec.grade_level }}</td>
+            <td class="py-2.5 px-3 font-bold text-deped-blue">{{ sec.section_name }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ sec.adviser_teacher or '—' }}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-500">{{ sec.room_number or '—' }}</td>
+            <td class="py-2.5 px-3 text-right whitespace-nowrap">
+              <div class="flex items-center justify-end space-x-1.5">
+                <button onclick="openEditSectionModal({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}', '{{ sec.adviser_teacher }}', '{{ sec.room_number }}')"
+                        class="px-2.5 py-1 text-[11px] font-bold text-deped-blue hover:text-white hover:bg-deped-blue rounded transition border border-blue-200 hover:border-transparent inline-flex items-center">
+                  <i class="fa-solid fa-pen-to-square mr-1 text-[10px]"></i> Edit
+                </button>
+                <button onclick="deleteSection({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}')"
+                        class="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:text-white hover:bg-rose-600 rounded transition border border-rose-200 hover:border-transparent inline-flex items-center">
+                  <i class="fa-solid fa-trash-can mr-1 text-[10px]"></i> Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tab 3: Attendance Logs Table -->
+    <div id="attendanceTab" class="tab-content hidden p-5 overflow-x-auto">
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-2.5 px-3">Timestamp</th>
+            <th class="py-2.5 px-3">LRN</th>
+            <th class="py-2.5 px-3">Student Name</th>
+            <th class="py-2.5 px-3">Type</th>
+            <th class="py-2.5 px-3">Device Gate</th>
+            <th class="py-2.5 px-3">Confidence</th>
+            <th class="py-2.5 px-3">SMS Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for a in attendance_logs %}
+          <tr class="hover:bg-blue-50/30">
+            <td class="py-2.5 px-3 font-mono text-slate-500">{{ a.timestamp }}</td>
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-700">{{ a.lrn }}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900">{{ a.student_name }}</td>
+            <td class="py-2.5 px-3">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if a.scan_type == 'TIME_IN' %}bg-emerald-100 text-emerald-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                {{ a.scan_type }}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 font-mono text-slate-500">{{ a.device_id }}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-600">{{ a.confidence_score }}</td>
+            <td class="py-2.5 px-3">
+              <span class="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <i class="fa-solid fa-check mr-1"></i> {{ a.sms_status }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tab 4: Connect to MySQL / XAMPP Guide -->
+    <div id="networkTab" class="tab-content hidden p-6 space-y-4">
+      <h3 class="text-base font-bold text-slate-900">How to Connect to MySQL / MariaDB (XAMPP or Campus Server)</h3>
+      <p class="text-xs text-slate-600">You can connect multiple computers (Gate, Guardhouse, Principal's Office) to a single central MySQL server:</p>
+
+      <div class="bg-slate-900 text-slate-200 p-4 rounded-xl text-xs font-mono space-y-2">
+        <p class="text-amber-400"># 1. In phpMyAdmin or MySQL, create the school database:</p>
+        <p>CREATE DATABASE deped_smile CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;</p>
+        <p class="text-amber-400 mt-2"># 2. In smile_config.py, set:</p>
+        <p>DATABASE_TYPE = "MYSQL"</p>
+        <p>MYSQL_URL = "mysql+pymysql://root:@localhost:3306/deped_smile"</p>
+      </div>
+
+      <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-slate-700 flex items-start space-x-3">
+        <i class="fa-solid fa-circle-check text-deped-blue text-base mt-0.5"></i>
+        <div>
+          <p class="font-bold text-deped-blue">Zero Migration Hassle</p>
+          <p>Project S.M.I.L.E.'s SQLAlchemy ORM will automatically create all tables, indexes, and relationships in MySQL the moment you start the server!</p>
+        </div>
+      </div>
+    </div>
+
+  <!-- Add Section Modal Dialog -->
+  <div id="addSectionModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-deped-darkblue to-blue-900 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-400 text-deped-darkblue flex items-center justify-center font-black">
+            <i class="fa-solid fa-layer-group"></i>
+          </div>
+          <div>
+            <h3 class="font-heading font-black text-base text-white">Add New Class Section</h3>
+            <p class="text-[11px] text-blue-200">Connect Section Directly to Database</p>
+          </div>
+        </div>
+        <button onclick="closeAddSectionModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="addSectionForm" onsubmit="submitAddSection(event)" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Grade Level *</label>
+          <select name="grade_level" id="modalGradeLevel" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="" disabled selected>-- Select Grade Level --</option>
+            <option value="Kindergarten">Kindergarten</option>
+            <option value="Grade 1">Grade 1</option>
+            <option value="Grade 2">Grade 2</option>
+            <option value="Grade 3">Grade 3</option>
+            <option value="Grade 4">Grade 4</option>
+            <option value="Grade 5">Grade 5</option>
+            <option value="Grade 6">Grade 6</option>
+            <option value="Grade 7">Grade 7</option>
+            <option value="Grade 8">Grade 8</option>
+            <option value="Grade 9">Grade 9</option>
+            <option value="Grade 10">Grade 10</option>
+            <option value="Grade 11">Grade 11</option>
+            <option value="Grade 12">Grade 12</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Section Name *</label>
+          <input type="text" name="section_name" id="modalSectionName" required placeholder="e.g. Rizal, Sampaguita, Diamond, STEM - Archimedes"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Adviser Teacher</label>
+          <input type="text" name="adviser_teacher" id="modalAdviserTeacher" placeholder="e.g. Mrs. Elena Santos"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Classroom / Room Number</label>
+          <input type="text" name="room_number" id="modalRoomNumber" placeholder="e.g. Bldg 2 - Room 104"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <!-- Buttons -->
+        <div class="pt-2 flex items-center justify-end space-x-3">
+          <button type="button" onclick="closeAddSectionModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+            Cancel
+          </button>
+          <button type="submit" id="btnSaveSectionModal" class="px-5 py-2 bg-deped-blue hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center">
+            <i class="fa-solid fa-check mr-1.5"></i> Save Section to Database
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- Edit Section Modal Dialog -->
+  <div id="editSectionModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in fade-in duration-150">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <h3 class="font-heading font-black text-base text-white">Edit Class Section</h3>
+            <p class="text-[11px] text-blue-200">Update Section Information in Database</p>
+          </div>
+        </div>
+        <button onclick="closeEditSectionModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="editSectionForm" onsubmit="submitEditSection(event)" class="p-6 space-y-4">
+        <input type="hidden" id="editSectionId">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Grade Level *</label>
+          <select id="editGradeLevel" required
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="Kindergarten">Kindergarten</option>
+            <option value="Grade 1">Grade 1</option>
+            <option value="Grade 2">Grade 2</option>
+            <option value="Grade 3">Grade 3</option>
+            <option value="Grade 4">Grade 4</option>
+            <option value="Grade 5">Grade 5</option>
+            <option value="Grade 6">Grade 6</option>
+            <option value="Grade 7">Grade 7</option>
+            <option value="Grade 8">Grade 8</option>
+            <option value="Grade 9">Grade 9</option>
+            <option value="Grade 10">Grade 10</option>
+            <option value="Grade 11">Grade 11</option>
+            <option value="Grade 12">Grade 12</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Section Name *</label>
+          <input type="text" id="editSectionName" required placeholder="e.g. Rizal, Sampaguita, Diamond"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Class Adviser Teacher</label>
+          <input type="text" id="editAdviserTeacher" placeholder="e.g. Mrs. Elena Santos"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Classroom / Room Number</label>
+          <input type="text" id="editRoomNumber" placeholder="e.g. Bldg 2 - Room 104"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <!-- Buttons -->
+        <div class="pt-2 flex items-center justify-end space-x-3">
+          <button type="button" onclick="closeEditSectionModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+            Cancel
+          </button>
+          <button type="submit" id="btnSaveEditSection" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center">
+            <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Changes
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('[id^="btn-"]').forEach(btn => {
+      btn.className = "py-3.5 border-b-2 border-transparent hover:text-slate-900 transition flex items-center whitespace-nowrap";
+    });
+
+    document.getElementById(tabId).classList.remove('hidden');
+    const activeBtn = document.getElementById('btn-' + tabId);
+    activeBtn.className = "py-3.5 border-b-2 border-deped-blue text-deped-blue font-bold flex items-center whitespace-nowrap";
+  }
+
+  function filterSectionsTable(grade) {
+    const rows = document.querySelectorAll('.section-row');
+    rows.forEach(r => {
+      const g = r.dataset.grade || '';
+      if (grade === 'ALL' || g.toLowerCase() === grade.toLowerCase()) {
+        r.classList.remove('hidden');
+      } else {
+        r.classList.add('hidden');
+      }
+    });
+  }
+
+  function openAddSectionModal() {
+    document.getElementById('addSectionModal').classList.remove('hidden');
+  }
+
+  function closeAddSectionModal() {
+    document.getElementById('addSectionModal').classList.add('hidden');
+    document.getElementById('addSectionForm').reset();
+  }
+
+  async function submitAddSection(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveSectionModal');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving...';
+
+    const payload = {
+      grade_level: document.getElementById('modalGradeLevel').value.trim(),
+      section_name: document.getElementById('modalSectionName').value.trim(),
+      adviser_teacher: document.getElementById('modalAdviserTeacher').value.trim(),
+      room_number: document.getElementById('modalRoomNumber').value.trim()
+    };
+
+    try {
+      const res = await fetch('/api/sections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i> Save Section to Database';
+    }
+  }
+
+  function openEditSectionModal(id, grade, name, adviser, room) {
+    document.getElementById('editSectionId').value = id;
+    document.getElementById('editGradeLevel').value = grade;
+    document.getElementById('editSectionName').value = name;
+    document.getElementById('editAdviserTeacher').value = (adviser && adviser !== '—') ? adviser : '';
+    document.getElementById('editRoomNumber').value = (room && room !== '—') ? room : '';
+    document.getElementById('editSectionModal').classList.remove('hidden');
+  }
+
+  function closeEditSectionModal() {
+    document.getElementById('editSectionModal').classList.add('hidden');
+    document.getElementById('editSectionForm').reset();
+  }
+
+  async function submitEditSection(e) {
+    e.preventDefault();
+    const id = document.getElementById('editSectionId').value;
+    const btn = document.getElementById('btnSaveEditSection');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving...';
+
+    const payload = {
+      grade_level: document.getElementById('editGradeLevel').value.trim(),
+      section_name: document.getElementById('editSectionName').value.trim(),
+      adviser_teacher: document.getElementById('editAdviserTeacher').value.trim(),
+      room_number: document.getElementById('editRoomNumber').value.trim()
+    };
+
+    try {
+      const res = await fetch(`/api/sections/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Changes';
+    }
+  }
+
+  async function deleteSection(id, grade, name) {
+    if (!confirm(`Are you sure you want to delete section "${grade} - ${name}" from the database?`)) return;
+    try {
+      const res = await fetch(`/api/sections/${id}/delete`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+    }
+  }
+
+  async function reseedDatabase() {
+    if (!confirm("Re-seed the database with standard DepEd student population and class sections?")) return;
+    try {
+      const res = await fetch('/api/db-seed', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      window.location.reload();
+    } catch(err) {
+      alert("Error: " + err.message);
+    }
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{ active_student.first_name }}'s Safety Portal | Project S.M.I.L.E.</title>
+
+  <!-- PWA Metadata & Native App Icons -->
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple_touch_icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/images/pwa_icon_192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/images/pwa_icon_512.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SMILE Parent">
+  <meta name="application-name" content="Project SMILE Parent App">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0B192C">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0038A8',
+              red: '#CE1126',
+              gold: '#FCD116',
+              darkblue: '#0B192C',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0f172a;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(12px);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center text-slate-800">
+
+  <!-- Mobile Phone Viewport Shell (Full screen on phones, smartphone frame on desktop) -->
+  <div class="w-full max-w-md min-h-screen bg-slate-100 flex flex-col shadow-2xl relative pb-24 border-x border-slate-700/20">
+
+    <!-- Top Mobile App Header -->
+    <header class="bg-deped-darkblue text-white px-5 pt-5 pb-4 sticky top-0 z-40 border-b border-slate-800 shadow-md">
+      <div class="flex items-center justify-between">
+        
+        <!-- School Crest / Parent Info -->
+        <div class="flex items-center gap-2.5">
+          <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-9 h-9 object-contain drop-shadow shrink-0">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-300 block">DepEd Parent App</span>
+            <h1 class="text-xs font-bold text-white truncate max-w-[170px]">{{ school_name }}</h1>
+          </div>
+        </div>
+
+        <!-- Child Switcher & App Actions -->
+        <div class="flex items-center gap-2">
+          {% if students|length > 1 %}
+          <select onchange="switchStudent(this.value)" class="bg-slate-800 text-white text-[11px] font-bold rounded-lg px-2 py-1.5 border border-slate-700 focus:outline-none">
+            {% for s in students %}
+            <option value="{{ s.lrn }}" {% if s.lrn == active_student.lrn %}selected{% endif %}>{{ s.first_name }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
+
+          <button onclick="testMobileNotification()" class="px-2 py-1 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 font-extrabold text-[10px] rounded-lg border border-amber-400/40 transition flex items-center gap-1" title="Test Notification">
+            <i class="fa-solid fa-bell-ring text-[10px]"></i> Test
+          </button>
+
+          <button onclick="requestPushPermission()" id="btnPushBell" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-amber-300 transition" title="Notification Settings">
+            <i class="fa-solid fa-bell"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Live Real-Time Banner (Appears on verified gate scan) -->
+      <div id="liveAlertBanner" class="hidden mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce transition-all">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-white text-emerald-700 flex items-center justify-center text-lg flex-shrink-0">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div class="flex-grow">
+            <h4 id="alertTitle" class="text-xs font-black uppercase tracking-wide">GATE SCAN VERIFIED</h4>
+            <p id="alertBody" class="text-[11px] text-emerald-100 leading-tight">Your child has checked in.</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- PWA Install Banner (Android Auto-prompt / iOS Safari Guidance) -->
+    <div id="pwaInstallBanner" class="hidden bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 px-4 py-2.5 flex items-center justify-between shadow-md border-b border-amber-400">
+      <div class="flex items-center gap-2.5">
+        <img src="/static/images/pwa_icon_192.png" alt="SMILE App" class="w-8 h-8 rounded-lg shadow-sm border border-amber-300 shrink-0">
+        <div>
+          <span class="text-[11px] font-black uppercase tracking-wide block leading-tight">Install Official Parent App</span>
+          <span class="text-[10px] text-amber-950 font-medium">Add to phone home screen for instant alerts</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="btnPwaInstall" onclick="handlePwaInstallClick()" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-[11px] rounded-lg shadow transition flex items-center gap-1">
+          <i class="fa-solid fa-download"></i> Install
+        </button>
+        <button onclick="dismissInstallBanner()" class="w-6 h-6 flex items-center justify-center text-slate-900 hover:text-black text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Standalone Status Pill (Shown when running inside installed PWA) -->
+    <div id="pwaInstalledPill" class="hidden bg-slate-900 text-emerald-400 px-4 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px]">
+      <span class="inline-flex items-center gap-1.5 font-bold">
+        <i class="fa-solid fa-shield-check text-emerald-400"></i>
+        <span>Official DepEd Installed App • Active</span>
+      </span>
+      <span class="text-[10px] text-slate-400 font-mono">v2.4 Online</span>
+    </div>
+
+    <!-- TAB 1: HOME & LIVE SAFETY STATUS -->
+    <main id="tabContentHome" class="tab-pane flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+
+      <!-- Push Notification Enablement Banner -->
+      <div id="pushPromptCard" class="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-900 to-blue-900 text-white shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 text-base flex-shrink-0">
+            <i class="fa-solid fa-bell-ring"></i>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold leading-tight">Instant Gate Push Alerts</h4>
+            <p class="text-[10px] text-blue-200">Receive alerts when {{ active_student.first_name }} scans</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="requestPushPermission()" id="btnPushAction" class="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs shadow transition">
+            Enable
+          </button>
+        </div>
+      </div>
+
+      <!-- Campus Presence Status Hero Card -->
+      <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm text-center relative overflow-hidden">
+        
+        <!-- Live Status Badge -->
+        <div class="flex justify-center mb-3">
+          <div id="statusBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black tracking-wide {% if latest_log and latest_log.scan_type == 'TIME_IN' %}bg-emerald-100 text-emerald-900 border border-emerald-300{% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}bg-blue-100 text-blue-900 border border-blue-300{% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
+            <span class="w-2.5 h-2.5 rounded-full {% if latest_log and latest_log.scan_type == 'TIME_IN' %}bg-emerald-500 animate-pulse{% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}bg-blue-500{% else %}bg-slate-400{% endif %}"></span>
+            <span id="statusText">
+              {% if latest_log and latest_log.scan_type == 'TIME_IN' %}
+                INSIDE CAMPUS (Since {{ latest_log.time_formatted }})
+              {% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}
+                SAFELY EXITED (At {{ latest_log.time_formatted }})
+              {% else %}
+                AWAITING ARRIVAL AT GATE
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        <!-- Student Photo & Verified Ring -->
+        <div class="relative w-28 h-28 mx-auto mb-3">
+          {% if active_student.photo_path %}
+          <img src="{{ active_student.photo_path }}" alt="{{ active_student.full_name }}" class="w-28 h-28 rounded-3xl object-cover border-4 border-white shadow-lg mx-auto">
+          {% else %}
+          <div class="w-28 h-28 rounded-3xl bg-blue-50 border-4 border-white shadow-lg text-deped-blue flex items-center justify-center text-4xl mx-auto">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          {% endif %}
+          <div class="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm shadow-md border-2 border-white" title="Verified Biometric Learner">
+            <i class="fa-solid fa-shield-check"></i>
+          </div>
+        </div>
+
+        <h2 class="font-heading font-black text-xl text-slate-900 uppercase tracking-tight">{{ active_student.full_name }}</h2>
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-deped-blue font-bold text-xs mt-1">
+          <span>{{ active_student.grade_section }}</span>
+          <span>•</span>
+          <span>Room 201</span>
+        </div>
+        <p class="text-[11px] font-mono text-slate-400 mt-1">LRN: <span class="font-bold text-slate-700">{{ active_student.lrn }}</span></p>
+
+        <!-- Adviser & Class Info -->
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 px-2">
+          <div class="text-left">
+            <span class="text-[10px] text-slate-400 uppercase font-bold block">Class Adviser</span>
+            <span class="font-bold text-slate-800">{{ active_student.class_adviser or (active_student.section_rel.adviser_teacher if active_student.section_rel else 'Assigned Faculty') }}</span>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] text-slate-400 uppercase font-bold block">Dual SMS Channel</span>
+            <span class="font-bold text-emerald-600 font-mono">{{ active_student.parent_phone }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Grid -->
+      <div class="grid grid-cols-3 gap-2.5">
+        <button onclick="switchTab('excuse')" class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-deped-blue shadow-sm flex flex-col items-center text-center transition">
+          <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg mb-1.5">
+            <i class="fa-solid fa-file-signature"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-800">Excuse Letter</span>
+          <span class="text-[9px] text-slate-400">Notify adviser</span>
+        </button>
+
+        <button onclick="switchTab('profile')" class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-deped-blue shadow-sm flex flex-col items-center text-center transition">
+          <div class="w-10 h-10 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center text-lg mb-1.5">
+            <i class="fa-solid fa-qrcode"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-800">Pick-Up Pass</span>
+          <span class="text-[9px] text-slate-400">Guardian QR</span>
+        </button>
+
+        <a href="tel:09171234567" class="p-3 rounded-2xl bg-white border border-slate-200 hover:border-deped-blue shadow-sm flex flex-col items-center text-center transition">
+          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg mb-1.5">
+            <i class="fa-solid fa-phone"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-800">Call School</span>
+          <span class="text-[9px] text-slate-400">Security Gate 1</span>
+        </a>
+      </div>
+
+      <!-- Today's Gate Timeline -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-deped-blue"></i>
+            Today's Gate Timeline
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono">{{ today_date }}</span>
+        </div>
+
+        <div id="timelineContainer" class="space-y-2.5">
+          {% for log in logs %}
+          <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl {% if log.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-600 border border-emerald-200{% else %}bg-blue-50 text-blue-600 border border-blue-200{% endif %} flex items-center justify-center text-sm font-bold flex-shrink-0">
+                <i class="fa-solid {% if log.scan_type == 'TIME_IN' %}fa-right-to-bracket{% else %}fa-right-from-bracket{% endif %}"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <h4 class="text-xs font-black uppercase text-slate-800">
+                    {% if log.scan_type == 'TIME_IN' %}GATE ENTRY (TIME-IN){% else %}GATE EXIT (TIME-OUT){% endif %}
+                  </h4>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase">{{ log.verification_method or 'AI' }}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono mt-0.5">{{ log.timestamp }}</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-extrabold text-slate-700 block">{{ log.time_formatted }}</span>
+              <span class="text-[10px] text-emerald-600 font-semibold"><i class="fa-solid fa-check-double text-[9px]"></i> SMS Sent</span>
+            </div>
+          </div>
+          {% else %}
+          <div id="emptyTimelineMsg" class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+            <i class="fa-solid fa-school text-3xl text-slate-300"></i>
+            <p class="text-xs font-medium">No gate scans recorded yet today.</p>
+            <p class="text-[10px] text-slate-400">When {{ active_student.first_name }} checks in at the gate, this feed updates in real time.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </main>
+
+    <!-- TAB 2: ATTENDANCE HISTORY -->
+    <main id="tabContentHistory" class="tab-pane hidden flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <h2 class="text-base font-black font-heading text-slate-900">Attendance Records</h2>
+        <span class="text-xs text-slate-500 font-medium">School Year 2026–2027</span>
+      </div>
+
+      <!-- KPI Summary Chips -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attendance Rate</span>
+          <h3 class="text-2xl font-black text-emerald-600 font-heading">98.5%</h3>
+          <span class="text-[10px] text-emerald-700 font-medium"><i class="fa-solid fa-arrow-trend-up"></i> Excellent Standing</span>
+        </div>
+        <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Days Present</span>
+          <h3 class="text-2xl font-black text-slate-800 font-heading">45 <span class="text-xs text-slate-400 font-normal">/ 46</span></h3>
+          <span class="text-[10px] text-slate-500 font-medium">0 Unexcused Absences</span>
+        </div>
+      </div>
+
+      <!-- Recent Attendance History Table -->
+      <div class="glass-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-3.5 border-b border-slate-100 flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Past Gate Activity</h3>
+          <span class="text-[10px] font-mono text-slate-400">Last 10 Scans</span>
+        </div>
+        <div class="divide-y divide-slate-100 text-xs">
+          {% for h in all_logs %}
+          <div class="p-3 flex items-center justify-between hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg {% if h.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-700{% else %}bg-blue-50 text-blue-700{% endif %} flex items-center justify-center text-xs font-bold">
+                <i class="fa-solid {% if h.scan_type == 'TIME_IN' %}fa-arrow-right-to-bracket{% else %}fa-arrow-right-from-bracket{% endif %}"></i>
+              </div>
+              <div>
+                <span class="font-bold text-slate-800">{{ h.scan_type }} ({{ h.verification_method }})</span>
+                <p class="text-[10px] font-mono text-slate-400">{{ h.timestamp }}</p>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">VERIFIED</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 3: SCHOOL ADVISORIES & NEWS FEED -->
+    <main id="tabContentAdvisories" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div>
+          <h2 class="text-base font-black font-heading text-slate-900">School Advisories & News</h2>
+          <span class="text-[10px] text-slate-500 font-medium">Official DepEd & Don Montano CIS Bulletins</span>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-deped-blue border border-blue-200">
+          {{ announcements|length }} Advisories
+        </span>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <button onclick="filterAnnouncements('ALL')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-deped-blue text-white shrink-0 shadow-sm transition" data-category="ALL">All</button>
+        <button onclick="filterAnnouncements('WEATHER_ALERT')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-category="WEATHER_ALERT">⛈️ Weather</button>
+        <button onclick="filterAnnouncements('DEPED_MEMO')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-category="DEPED_MEMO">📜 DepEd Memos</button>
+        <button onclick="filterAnnouncements('ANNOUNCEMENT')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-category="ANNOUNCEMENT">📢 General / PTA</button>
+        <button onclick="filterAnnouncements('HEALTH_ALERT')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-category="HEALTH_ALERT">🩺 Clinic</button>
+      </div>
+
+      <!-- Real Database Announcements Feed -->
+      <div id="announcementsFeed" class="space-y-3">
+        {% for a in announcements %}
+        <div class="announcement-card p-4 rounded-2xl bg-white border {% if a.is_urgent %}border-rose-300 ring-2 ring-rose-100 bg-rose-50/20{% else %}border-slate-200{% endif %} shadow-sm space-y-2 transition hover:shadow-md" data-category="{{ a.category }}">
+          
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              {% if a.category == 'WEATHER_ALERT' %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+                <i class="fa-solid fa-cloud-bolt text-rose-600"></i> Weather Alert
+              </span>
+              {% elif a.category == 'DEPED_MEMO' %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-deped-blue border border-blue-200 inline-flex items-center gap-1">
+                <i class="fa-solid fa-award"></i> DepEd Memo
+              </span>
+              {% elif a.category == 'HEALTH_ALERT' %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                <i class="fa-solid fa-heart-pulse"></i> Clinic Advisory
+              </span>
+              {% else %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                <i class="fa-solid fa-bullhorn"></i> Announcement
+              </span>
+              {% endif %}
+
+              {% if a.is_urgent %}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-600 text-white animate-pulse">URGENT</span>
+              {% endif %}
+            </div>
+            
+            <span class="text-[10px] font-mono text-slate-400">{{ a.date_formatted or a.created_at }}</span>
+          </div>
+
+          <h3 class="text-xs font-black text-slate-900 leading-snug">{{ a.title }}</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">{{ a.content }}</p>
+
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-building-columns text-slate-400"></i> {{ a.author }}</span>
+            <span class="font-bold text-slate-500">For: {{ a.target_grade }}</span>
+          </div>
+
+        </div>
+        {% else %}
+        <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+          <i class="fa-solid fa-newspaper text-3xl text-slate-300"></i>
+          <p class="text-xs font-medium">No bulletins published at this moment.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </main>
+
+    <!-- TAB 4: EXCUSE NOTES / ABSENCE SUBMISSION -->
+    <main id="tabContentExcuse" class="tab-pane hidden flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <h2 class="text-base font-black font-heading text-slate-900">Excuse Letter to Adviser</h2>
+        <span class="text-xs text-slate-500 font-medium">Official Notice</span>
+      </div>
+
+      <!-- Excuse Note Form -->
+      <form id="excuseForm" class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Reason for Absence / Tardiness</label>
+          <select id="excuseReason" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="Illness / Fever">🤒 Illness / Medical Fever</option>
+            <option value="Medical Appointment">🏥 Doctor / Dental Appointment</option>
+            <option value="Family Emergency">🚨 Urgent Family Emergency</option>
+            <option value="Transportation Delay">🚌 Transportation / Commute Delay</option>
+            <option value="Official DepEd Event">🏅 Official Competition / DepEd Event</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Effective Date</label>
+          <input type="date" id="excuseDate" required value="{{ today_iso }}"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Details & Message to Adviser</label>
+          <textarea id="excuseDetails" rows="3" required placeholder="Good day teacher, I would like to excuse {{ active_student.first_name }} today because..." 
+                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue"></textarea>
+        </div>
+
+        <button type="submit" id="btnSubmitExcuse" 
+                class="w-full py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-paper-plane"></i> Submit Excuse Letter
+        </button>
+        <div id="excuseFeedback" class="hidden text-xs p-3 rounded-xl"></div>
+      </form>
+
+      <!-- Past Excuse Notes History -->
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Submitted Excuse Letters</h3>
+        <div id="excuseList" class="space-y-2">
+          {% for note in excuse_notes %}
+          <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-slate-800">{{ note.reason }}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">{{ note.status }}</span>
+            </div>
+            <p class="text-[11px] text-slate-600">{{ note.details }}</p>
+            <span class="text-[10px] font-mono text-slate-400 block pt-1">Date: {{ note.date_effective }} • Submitted: {{ note.created_at }}</span>
+          </div>
+          {% else %}
+          <p id="emptyExcuseMsg" class="text-center py-4 text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">No excuse letters submitted yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </main>
+
+    <!-- TAB 5: GUARDIAN PICK-UP PASS & PROFILE -->
+    <main id="tabContentProfile" class="tab-pane hidden flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <h2 class="text-base font-black font-heading text-slate-900">Guardian Digital Pass</h2>
+        <span class="text-xs text-slate-500 font-medium">Authorized Entry</span>
+      </div>
+
+      <!-- Digital Authorized Pick-Up Card -->
+      <div class="p-5 rounded-3xl bg-gradient-to-br from-deped-darkblue via-blue-950 to-slate-900 text-white shadow-xl border border-slate-700/50 text-center space-y-4 relative overflow-hidden">
+        <div class="space-y-1">
+          <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-amber-400/20 text-amber-300 border border-amber-400/30 inline-block">
+            AUTHORIZED GUARDIAN PASS
+          </span>
+          <h3 class="text-base font-black font-heading tracking-tight">{{ active_student.parent_name }}</h3>
+          <p class="text-xs text-blue-200">{{ active_student.parent_relationship }} of {{ active_student.full_name }}</p>
+        </div>
+
+        <!-- Authorized QR Code -->
+        <div class="bg-white p-3 rounded-2xl w-40 h-40 mx-auto shadow-md flex items-center justify-center">
+          <img src="{{ active_student.qr_code_path }}" alt="Authorized Guardian QR" class="w-full h-full object-contain">
+        </div>
+
+        <p class="text-[10px] text-blue-200 max-w-xs mx-auto">
+          Present this official digital badge to school security guards at Gate 1 when picking up your child.
+        </p>
+      </div>
+
+      <!-- Notification Preferences & Test -->
+      <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Notification Preferences</h3>
+        
+        <div class="flex items-center justify-between text-xs">
+          <div>
+            <h4 class="font-bold text-slate-800">Phone Vibration Feedback</h4>
+            <p class="text-[10px] text-slate-400">Vibrate when child scans at school gate</p>
+          </div>
+          <input type="checkbox" id="prefVibrate" checked class="w-4 h-4 text-deped-blue rounded focus:ring-deped-blue">
+        </div>
+
+        <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+          <div>
+            <h4 class="font-bold text-slate-800">Synthesized Audio Chime</h4>
+            <p class="text-[10px] text-slate-400">Dual-frequency gate entry/exit tone</p>
+          </div>
+          <input type="checkbox" id="prefSound" checked class="w-4 h-4 text-deped-blue rounded focus:ring-deped-blue">
+        </div>
+
+        <div class="pt-2 border-t border-slate-100">
+          <button onclick="testMobileNotification()" id="btnTabTestAlert" class="w-full py-2.5 bg-gradient-to-r from-deped-blue to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-bell-ring"></i> Test Gate Alert On This Phone
+          </button>
+        </div>
+      <!-- VIP SMS & Gate Alerts Monetization / Subscription Pack -->
+      <div class="p-4 rounded-3xl bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-white border-2 border-amber-300 shadow-md space-y-3 relative overflow-hidden">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-xs font-black shadow-sm">
+              <i class="fa-solid fa-crown text-amber-950"></i>
+            </span>
+            <div>
+              <h3 class="text-xs font-black uppercase text-slate-900 tracking-wider">VIP SMS & Instant Alerts</h3>
+              <p class="text-[10px] text-slate-500">Real-Time Gate Entry/Exit notifications</p>
+            </div>
+          </div>
+          <span id="vipBadgeStatus" class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <i class="fa-solid fa-circle-check mr-0.5"></i> ACTIVE
+          </span>
+        </div>
+
+        <div class="p-3 bg-white/90 rounded-2xl border border-amber-200/80 text-xs space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 text-[11px]">Subscription Plan:</span>
+            <span class="font-extrabold text-slate-900 text-[11px]" id="currentParentPlanName">Parent VIP SMS Pack</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 text-[11px]">Active Pricing:</span>
+            <span class="font-black text-amber-700 text-xs" id="currentParentPlanPrice">₱49.00 / month</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 text-[11px]">Included Benefits:</span>
+            <span class="text-[10px] font-bold text-emerald-700">Immediate SMS + Audio Chime Push</span>
+          </div>
+        </div>
+
+        <button onclick="openParentCheckoutModal()" class="w-full py-2.5 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-wallet"></i> Subscribe / Renew (GCash / Maya)
+        </button>
+      </div>
+
+      <!-- App Installation & System Diagnostics -->
+      <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center justify-between">
+          <span>App Installation Status</span>
+          <span id="pwaStatusTag" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-600">Checking...</span>
+        </h3>
+
+        <div class="space-y-2 text-xs">
+          <div class="flex items-center justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500">App Mode</span>
+            <span id="diagAppMode" class="font-bold text-slate-800 font-mono text-[11px]">Browser</span>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500">Offline Caching</span>
+            <span class="font-bold text-emerald-600 font-mono text-[11px]"><i class="fa-solid fa-check mr-1"></i>smile-parent-v2</span>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500">System Notifications</span>
+            <span id="diagNotifPerm" class="font-bold text-slate-800 font-mono text-[11px]">Default</span>
+          </div>
+          <div class="flex items-center justify-between py-1">
+            <span class="text-slate-500">Device Platform</span>
+            <span id="diagPlatform" class="font-bold text-slate-800 font-mono text-[11px]">Mobile Web</span>
+          </div>
+        </div>
+
+        <button id="btnManualInstall" onclick="handlePwaInstallClick()" class="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-black rounded-xl text-xs shadow transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-download"></i> Add App to Phone Home Screen
+        </button>
+      </div>
+
+      <!-- Logout / Switch Account -->
+      <div class="pt-2">
+        <a href="/parent/logout" class="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-2xl text-xs transition flex items-center justify-center gap-1.5 border border-rose-200">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out from Parent App
+        </a>
+      </div>
+    </main>
+
+    <!-- Bottom Native Mobile App Navigation Bar -->
+    <nav class="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2 px-3 flex justify-around items-center z-40">
+      
+      <button onclick="switchTab('home')" id="navHome" class="nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1">
+        <i class="fa-solid fa-house text-lg"></i>
+        <span class="text-[10px] mt-0.5">Safety</span>
+      </button>
+
+      <button onclick="switchTab('history')" id="navHistory" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-calendar-check text-lg"></i>
+        <span class="text-[10px] mt-0.5">Records</span>
+      </button>
+
+      <button onclick="switchTab('advisories')" id="navAdvisories" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-bullhorn text-lg"></i>
+        <span class="text-[10px] mt-0.5">Advisories</span>
+      </button>
+
+      <button onclick="switchTab('excuse')" id="navExcuse" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-file-pen text-lg"></i>
+        <span class="text-[10px] mt-0.5">Excuse</span>
+      </button>
+
+      <button onclick="switchTab('profile')" id="navProfile" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-id-card-clip text-lg"></i>
+        <span class="text-[10px] mt-0.5">Pass</span>
+      </button>
+
+    </nav>
+
+  </div>
+
+  <!-- iOS Add to Home Screen Guided Modal -->
+  <div id="iosInstallModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <img src="/static/images/pwa_icon_192.png" alt="SMILE App" class="w-10 h-10 rounded-xl shadow-md border border-slate-200">
+          <div>
+            <h3 class="text-sm font-black text-slate-900 font-heading">Install on iPhone / iPad</h3>
+            <p class="text-[10px] text-slate-500">Project S.M.I.L.E. Parent App</p>
+          </div>
+        </div>
+        <button onclick="closeIosInstallModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600 leading-relaxed">
+        Follow these 3 quick steps in <strong>Safari</strong> to install the Parent App directly on your iPhone home screen:
+      </p>
+
+      <div class="space-y-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+        <div class="flex items-start gap-3">
+          <div class="w-6 h-6 rounded-full bg-deped-blue text-white flex items-center justify-center text-[11px] font-black shrink-0">1</div>
+          <p class="text-slate-700">Tap the <strong class="text-slate-900">Share</strong> button <i class="fa-solid fa-arrow-up-from-bracket text-deped-blue mx-1"></i> in Safari's bottom toolbar.</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-6 h-6 rounded-full bg-deped-blue text-white flex items-center justify-center text-[11px] font-black shrink-0">2</div>
+          <p class="text-slate-700">Scroll down the menu and tap <strong class="text-slate-900">Add to Home Screen</strong> <i class="fa-regular fa-square-plus text-slate-700 mx-1"></i>.</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-6 h-6 rounded-full bg-deped-blue text-white flex items-center justify-center text-[11px] font-black shrink-0">3</div>
+          <p class="text-slate-700">Tap <strong class="text-deped-blue font-black">Add</strong> in the top right corner to complete installation.</p>
+        </div>
+      </div>
+
+      <button onclick="closeIosInstallModal()" class="w-full py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs shadow-md transition">
+        Got It, Back to App
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Parent VIP Checkout (GCash / Maya) -->
+  <div id="parentCheckoutModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-xs font-black">
+            <i class="fa-solid fa-crown text-amber-950"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-black font-heading text-slate-900">VIP Subscription Checkout</h3>
+            <p class="text-[10px] text-slate-400">Secure Digital Payment (GCash / Maya)</p>
+          </div>
+        </div>
+        <button onclick="closeParentCheckoutModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="parentCheckoutForm" onsubmit="handleParentCheckoutSubmit(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">Select VIP Subscription Plan</label>
+          <select id="parentPlanSelect" onchange="syncParentPlanDisplay()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900">
+            <option value="PARENT_VIP_MONTHLY" data-price="49" data-name="Parent VIP SMS Pack (Monthly)">Parent VIP SMS Pack (Monthly) — ₱49.00</option>
+            <option value="PARENT_VIP_ANNUAL" data-price="399" data-name="Parent VIP SMS Pack (Annual)">Parent VIP SMS Pack (Annual) — ₱399.00</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">Payment Method</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-blue-400 bg-blue-50 cursor-pointer font-black text-xs text-blue-900">
+              <input type="radio" name="checkoutMethod" value="GCASH" checked class="text-blue-600">
+              <span>GCash</span>
+            </label>
+            <label class="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-emerald-400 bg-emerald-50 cursor-pointer font-black text-xs text-emerald-900">
+              <input type="radio" name="checkoutMethod" value="MAYA" class="text-emerald-600">
+              <span>Maya</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">Account Phone Number</label>
+          <input type="text" id="parentPayPhone" value="{{ active_student.parent_phone }}" required placeholder="09170000000" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900">
+        </div>
+
+        <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs space-y-1">
+          <div class="flex justify-between font-bold text-slate-700">
+            <span>Total Amount Due:</span>
+            <span id="checkoutAmountDisplay" class="text-amber-800 font-black text-sm">₱49.00</span>
+          </div>
+          <p class="text-[10px] text-amber-800/80 leading-tight">Instant gate alerts & SMS activation upon confirmation. Official digital receipt recorded in revenue ledger.</p>
+        </div>
+
+        <div id="parentCheckoutSuccessMsg" class="hidden p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-800 space-y-1">
+          <div class="font-black flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-check text-emerald-600"></i>
+            <span>Payment Approved & Verified!</span>
+          </div>
+          <p id="parentTxReceipt" class="text-[10px] font-mono text-emerald-700"></p>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button type="button" onclick="closeParentCheckoutModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">Cancel</button>
+          <button type="submit" id="btnSubmitParentPay" class="flex-1 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1">
+            <i class="fa-solid fa-lock text-[10px]"></i> Authorize Payment
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <script>
+    const studentLrn = "{{ active_student.lrn }}";
+    const studentName = "{{ active_student.full_name }}";
+    const parentPhone = "{{ active_student.parent_phone }}";
+    const parentName = "{{ active_student.parent_name }}";
+    let lastEventId = {% if latest_log %}{{ latest_log.id }}{% else %}0{% endif %};
+
+    // -------------------------------------------------------------
+    // PWA Native Installation Engine
+    // -------------------------------------------------------------
+    let deferredInstallPrompt = null;
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    // Detect environment & update UI
+    window.addEventListener('DOMContentLoaded', () => {
+      updateDiagnostics();
+
+      if (isStandalone) {
+        document.getElementById('pwaInstalledPill').classList.remove('hidden');
+        document.getElementById('pwaInstallBanner').classList.add('hidden');
+        const manualBtn = document.getElementById('btnManualInstall');
+        if (manualBtn) {
+          manualBtn.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> App is Installed & Ready';
+          manualBtn.className = "w-full py-2.5 bg-emerald-50 text-emerald-800 font-bold rounded-xl text-xs border border-emerald-200 cursor-default flex items-center justify-center gap-2";
+          manualBtn.onclick = null;
+        }
+      } else {
+        // Show install banner on phone or browser
+        document.getElementById('pwaInstallBanner').classList.remove('hidden');
+        if (isIos) {
+          const btn = document.getElementById('btnPwaInstall');
+          if (btn) btn.innerHTML = '<i class="fa-brands fa-apple"></i> Install iOS';
+        }
+      }
+    });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (!isStandalone) {
+        document.getElementById('pwaInstallBanner').classList.remove('hidden');
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      document.getElementById('pwaInstallBanner').classList.add('hidden');
+      document.getElementById('pwaInstalledPill').classList.remove('hidden');
+      updateDiagnostics();
+    });
+
+    async function handlePwaInstallClick() {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          document.getElementById('pwaInstallBanner').classList.add('hidden');
+          document.getElementById('pwaInstalledPill').classList.remove('hidden');
+        }
+        deferredInstallPrompt = null;
+      } else if (isIos) {
+        document.getElementById('iosInstallModal').classList.remove('hidden');
+      } else {
+        alert("To install this app on your device:\n\n1. Tap your browser's menu (three dots at top right).\n2. Tap 'Install app' or 'Add to Home screen'.");
+      }
+    }
+
+    function dismissInstallBanner() {
+      document.getElementById('pwaInstallBanner').classList.add('hidden');
+    }
+
+    function closeIosInstallModal() {
+      document.getElementById('iosInstallModal').classList.add('hidden');
+    }
+
+    function updateDiagnostics() {
+      const modeEl = document.getElementById('diagAppMode');
+      const tagEl = document.getElementById('pwaStatusTag');
+      const permEl = document.getElementById('diagNotifPerm');
+      const platEl = document.getElementById('diagPlatform');
+
+      if (isStandalone) {
+        if (modeEl) modeEl.innerText = "Standalone (Installed App)";
+        if (tagEl) {
+          tagEl.innerText = "Installed";
+          tagEl.className = "px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800";
+        }
+      } else {
+        if (modeEl) modeEl.innerText = "Web Browser";
+        if (tagEl) {
+          tagEl.innerText = "Web Mode";
+          tagEl.className = "px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800";
+        }
+      }
+
+      if (permEl) {
+        const p = ("Notification" in window) ? Notification.permission : "Unsupported";
+        permEl.innerText = p.toUpperCase();
+        permEl.className = p === "granted" ? "font-bold text-emerald-600 font-mono text-[11px]" : "font-bold text-slate-800 font-mono text-[11px]";
+      }
+
+      if (platEl) {
+        if (isIos) platEl.innerText = "Apple iOS (iPhone/iPad)";
+        else if (/Android/.test(navigator.userAgent)) platEl.innerText = "Android Device";
+        else platEl.innerText = "Desktop / Web Browser";
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Tab Navigation
+    // -------------------------------------------------------------
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = "nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition";
+      });
+
+      if (tabId === 'home') {
+        document.getElementById('tabContentHome').classList.remove('hidden');
+        document.getElementById('navHome').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'history') {
+        document.getElementById('tabContentHistory').classList.remove('hidden');
+        document.getElementById('navHistory').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'advisories') {
+        document.getElementById('tabContentAdvisories').classList.remove('hidden');
+        document.getElementById('navAdvisories').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'excuse') {
+        document.getElementById('tabContentExcuse').classList.remove('hidden');
+        document.getElementById('navExcuse').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'profile') {
+        document.getElementById('tabContentProfile').classList.remove('hidden');
+        document.getElementById('navProfile').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+        updateDiagnostics();
+      }
+      window.scrollTo(0, 0);
+    }
+
+    // -------------------------------------------------------------
+    // Audio Chime & Vibration
+    // -------------------------------------------------------------
+    function playChime(isEntry = true) {
+      const soundCheckbox = document.getElementById('prefSound');
+      if (soundCheckbox && !soundCheckbox.checked) return;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        if (isEntry) {
+          osc.frequency.setValueAtTime(587.33, now);       // D5 (Arrival)
+          osc.frequency.setValueAtTime(880.00, now + 0.14); // A5
+        } else {
+          osc.frequency.setValueAtTime(880.00, now);        // A5 (Departure)
+          osc.frequency.setValueAtTime(587.33, now + 0.14); // D5
+        }
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.65);
+      } catch(e) {}
+    }
+
+    function vibratePhone() {
+      const vibCheckbox = document.getElementById('prefVibrate');
+      if (vibCheckbox && !vibCheckbox.checked) return;
+      if ("vibrate" in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 300]);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Push Notifications
+    // -------------------------------------------------------------
+    async function requestPushPermission() {
+      if (!("Notification" in window)) {
+        alert("Web notifications are not supported on this browser.");
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      updateDiagnostics();
+
+      if (perm === "granted") {
+        const card = document.getElementById('pushPromptCard');
+        if (card) {
+          card.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold leading-tight">Push Alerts Active</h4>
+                <p class="text-[10px] text-blue-200">Instant gate arrival & exit notifications enabled</p>
+              </div>
+            </div>
+            <button onclick="testMobileNotification()" class="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs shadow transition">
+              Test
+            </button>
+          `;
+        }
+
+        // Show welcome notification
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification("Project S.M.I.L.E. Parent App", {
+              body: `Instant gate scan alerts activated for ${studentName}!`,
+              icon: "/static/images/pwa_icon_192.png",
+              badge: "/static/images/apple_touch_icon.png",
+              vibrate: [200, 100, 200]
+            });
+          });
+        } else {
+          new Notification("Project S.M.I.L.E. Parent App", {
+            body: `Instant gate scan alerts activated for ${studentName}!`,
+            icon: "/static/images/pwa_icon_192.png"
+          });
+        }
+
+        vibratePhone();
+        playChime(true);
+      }
+    }
+
+    if ("Notification" in window && Notification.permission === "granted") {
+      const card = document.getElementById('pushPromptCard');
+      if (card) {
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold leading-tight">Push Alerts Active</h4>
+              <p class="text-[10px] text-blue-200">Connected to Gate 1 Live Stream</p>
+            </div>
+          </div>
+          <button onclick="testMobileNotification()" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] shadow transition">
+            Test Chime
+          </button>
+        `;
+      }
+    }
+
+    // Service Worker Registration for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(err => console.log('SW reg error:', err));
+    }
+
+    // Child Switcher
+    function switchStudent(lrn) {
+      window.location.href = '/parent?lrn=' + lrn;
+    }
+
+    // -------------------------------------------------------------
+    // Real-Time Alert Event Handler
+    // -------------------------------------------------------------
+    function triggerParentAlert(eventData) {
+      const isEntry = eventData.scan_type === "TIME_IN";
+      const action = isEntry ? "ENTERED Don Montano CIS Gate 1 (TIME-IN)" : "SAFELY EXITED Don Montano CIS (TIME-OUT)";
+
+      playChime(isEntry);
+      vibratePhone();
+
+      // System Notification
+      if ("Notification" in window && Notification.permission === "granted") {
+        const notifTitle = `DepEd S.M.I.L.E. Gate Alert: ${studentName}`;
+        const notifBody = `${studentName} has ${action} at ${eventData.time_formatted}.`;
+
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(notifTitle, {
+              body: notifBody,
+              icon: "/static/images/pwa_icon_192.png",
+              badge: "/static/images/apple_touch_icon.png",
+              vibrate: [300, 100, 300, 100, 300],
+              tag: `scan-${eventData.id || Date.now()}`,
+              data: { url: `/parent?lrn=${studentLrn}` }
+            });
+          });
+        } else {
+          new Notification(notifTitle, {
+            body: notifBody,
+            icon: "/static/images/pwa_icon_192.png"
+          });
+        }
+      }
+
+      // Top Animated Banner
+      const banner = document.getElementById('liveAlertBanner');
+      const title = document.getElementById('alertTitle');
+      const body = document.getElementById('alertBody');
+
+      banner.className = isEntry
+        ? "mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce"
+        : "mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg animate-bounce";
+      
+      title.innerText = isEntry ? "STUDENT ENTERED CAMPUS" : "STUDENT SAFELY EXITED";
+      body.innerText = `${studentName} verified at ${eventData.time_formatted} (${eventData.verification_method || 'Smart Gate'}).`;
+      banner.classList.remove('hidden');
+
+      setTimeout(() => banner.classList.add('hidden'), 7000);
+
+      // Update Presence Status Pill
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      if (statusBadge && statusText) {
+        if (isEntry) {
+          statusBadge.className = "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300";
+          statusText.innerText = `INSIDE CAMPUS (Since ${eventData.time_formatted})`;
+        } else {
+          statusBadge.className = "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-blue-100 text-blue-900 border border-blue-300";
+          statusText.innerText = `SAFELY EXITED (At ${eventData.time_formatted})`;
+        }
+      }
+
+      // Prepend to Timeline
+      const emptyMsg = document.getElementById('emptyTimelineMsg');
+      if (emptyMsg) emptyMsg.remove();
+
+      const timeline = document.getElementById('timelineContainer');
+      if (timeline) {
+        const newCard = document.createElement('div');
+        newCard.className = "p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between transition-all animate-pulse";
+        newCard.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl ${isEntry ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'} flex items-center justify-center text-sm font-bold flex-shrink-0">
+              <i class="fa-solid ${isEntry ? 'fa-right-to-bracket' : 'fa-right-from-bracket'}"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h4 class="text-xs font-black uppercase text-slate-800">
+                  ${isEntry ? 'GATE ENTRY (TIME-IN)' : 'GATE EXIT (TIME-OUT)'}
+                </h4>
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase">${eventData.verification_method || 'AI'}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-mono mt-0.5">${eventData.timestamp}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-extrabold text-slate-700 block">${eventData.time_formatted}</span>
+            <span class="text-[10px] text-emerald-600 font-semibold"><i class="fa-solid fa-check-double text-[9px]"></i> Live Push</span>
+          </div>
+        `;
+        timeline.insertBefore(newCard, timeline.firstChild);
+        setTimeout(() => newCard.classList.remove('animate-pulse'), 3000);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Test Notification Trigger
+    // -------------------------------------------------------------
+    async function testMobileNotification() {
+      try {
+        const res = await fetch('/api/parent/test-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lrn: studentLrn })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          triggerParentAlert(data.data);
+        }
+      } catch(e) {
+        console.error("Test notification error:", e);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Announcements Category Filter
+    // -------------------------------------------------------------
+    function filterAnnouncements(category) {
+      document.querySelectorAll('.ann-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-category') === category) {
+          btn.className = "ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-deped-blue text-white shrink-0 shadow-sm transition";
+        } else {
+          btn.className = "ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition";
+        }
+      });
+
+      document.querySelectorAll('.announcement-card').forEach(card => {
+        if (category === 'ALL' || card.getAttribute('data-category') === category) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Polling for Live Gate Scans
+    // -------------------------------------------------------------
+    setInterval(async () => {
+      try {
+        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}`);
+        const data = await res.json();
+        if (data.has_new && data.event) {
+          lastEventId = data.event.id;
+          triggerParentAlert(data.event);
+        }
+      } catch(e) {}
+    }, 2500);
+
+    // -------------------------------------------------------------
+    // Excuse Note Submission
+    // -------------------------------------------------------------
+    document.getElementById('excuseForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const reason = document.getElementById('excuseReason').value;
+      const date = document.getElementById('excuseDate').value;
+      const details = document.getElementById('excuseDetails').value;
+      const btn = document.getElementById('btnSubmitExcuse');
+      const feedback = document.getElementById('excuseFeedback');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Sending to Adviser...';
+
+      try {
+        const res = await fetch('/api/parent/excuse-note', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lrn: studentLrn,
+            parent_name: parentName,
+            parent_phone: parentPhone,
+            date_effective: date,
+            reason: reason,
+            details: details
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          feedback.className = "text-xs p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200";
+          feedback.innerHTML = "<strong>Sent:</strong> Your excuse letter has been filed with the class adviser.";
+          feedback.classList.remove('hidden');
+          document.getElementById('excuseDetails').value = "";
+
+          const empty = document.getElementById('emptyExcuseMsg');
+          if (empty) empty.remove();
+
+          const list = document.getElementById('excuseList');
+          const item = document.createElement('div');
+          item.className = "p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1 animate-pulse";
+          item.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-slate-800">${reason}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">SUBMITTED</span>
+            </div>
+            <p class="text-[11px] text-slate-600">${details}</p>
+            <span class="text-[10px] font-mono text-slate-400 block pt-1">Date: ${date} • Just now</span>
+          `;
+          list.insertBefore(item, list.firstChild);
+        } else {
+          feedback.className = "text-xs p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200";
+          feedback.innerText = "Error: " + data.message;
+          feedback.classList.remove('hidden');
+        }
+      } catch(err) {
+        feedback.className = "text-xs p-3 rounded-xl bg-rose-50 text-rose-800 border border-rose-200";
+        feedback.innerText = "Connection error: " + err.message;
+        feedback.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Excuse Letter';
+      }
+    });
+
+    // -------------------------------------------------------------
+    // VIP Subscription & Payment Processing (GCash / Maya)
+    // -------------------------------------------------------------
+    let parentPlansCache = [];
+
+    async function loadParentPricingPlans() {
+      try {
+        const res = await fetch('/api/plans?category=PARENT');
+        const data = await res.json();
+        if (data.success && data.plans && data.plans.length > 0) {
+          parentPlansCache = data.plans;
+          const sel = document.getElementById('parentPlanSelect');
+          if (sel) {
+            sel.innerHTML = '';
+            data.plans.forEach(p => {
+              const opt = document.createElement('option');
+              opt.value = p.plan_code;
+              opt.setAttribute('data-price', p.price_php);
+              opt.setAttribute('data-name', p.name);
+              opt.setAttribute('data-cycle', p.billing_cycle);
+              opt.textContent = `${p.name} — ${p.price_display} / ${p.billing_cycle}`;
+              sel.appendChild(opt);
+            });
+            syncParentPlanDisplay();
+          }
+
+          // Also update the card display
+          const firstPlan = data.plans[0];
+          const nameEl = document.getElementById('currentParentPlanName');
+          const priceEl = document.getElementById('currentParentPlanPrice');
+          if (nameEl) nameEl.textContent = firstPlan.name;
+          if (priceEl) priceEl.textContent = `${firstPlan.price_display} / ${firstPlan.billing_cycle}`;
+        }
+      } catch (err) {
+        console.warn("Could not load dynamic parent plans:", err);
+      }
+    }
+
+    function openParentCheckoutModal() {
+      document.getElementById('parentCheckoutSuccessMsg').classList.add('hidden');
+      syncParentPlanDisplay();
+      document.getElementById('parentCheckoutModal').classList.remove('hidden');
+    }
+
+    function closeParentCheckoutModal() {
+      document.getElementById('parentCheckoutModal').classList.add('hidden');
+    }
+
+    function syncParentPlanDisplay() {
+      const sel = document.getElementById('parentPlanSelect');
+      if (!sel || !sel.options || sel.selectedIndex < 0) return;
+      const opt = sel.options[sel.selectedIndex];
+      const price = parseFloat(opt.getAttribute('data-price') || 0);
+      const disp = document.getElementById('checkoutAmountDisplay');
+      if (disp) disp.textContent = `₱${price.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    }
+
+    async function handleParentCheckoutSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmitParentPay');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Verifying Payment...';
+
+      const sel = document.getElementById('parentPlanSelect');
+      const opt = sel.options[sel.selectedIndex];
+      const planCode = sel.value;
+      const price = parseFloat(opt.getAttribute('data-price') || 0);
+      const methodRadio = document.querySelector('input[name="checkoutMethod"]:checked');
+      const method = methodRadio ? methodRadio.value : 'GCASH';
+      const phone = document.getElementById('parentPayPhone').value.trim();
+
+      const payload = {
+        plan_code: planCode,
+        payer_name: parentName,
+        payer_email_phone: phone,
+        payment_method: method,
+        amount_php: price,
+        payer_role: 'PARENT',
+        student_lrn: studentLrn
+      };
+
+      try {
+        const res = await fetch('/api/payment/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          const successBox = document.getElementById('parentCheckoutSuccessMsg');
+          const receipt = document.getElementById('parentTxReceipt');
+          receipt.textContent = `Ref: ${data.transaction.transaction_ref} • ${data.transaction.amount_formatted} via ${method}`;
+          successBox.classList.remove('hidden');
+
+          // Update profile card
+          const badge = document.getElementById('vipBadgeStatus');
+          if (badge) {
+            badge.className = "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300";
+            badge.innerHTML = '<i class="fa-solid fa-circle-check mr-0.5"></i> VIP ACTIVE';
+          }
+          const nameEl = document.getElementById('currentParentPlanName');
+          const priceEl = document.getElementById('currentParentPlanPrice');
+          if (nameEl) nameEl.textContent = opt.getAttribute('data-name') || opt.textContent;
+          if (priceEl) priceEl.textContent = `₱${price.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+          setTimeout(() => {
+            closeParentCheckoutModal();
+            alert(`🎉 Subscription Activated!\n\nThank you, ${parentName}! Real-time SMS and Gate Alerts are now active for student ${studentName}.\n\nReceipt Reference: ${data.transaction.transaction_ref}`);
+          }, 1200);
+        } else {
+          alert("Payment Error: " + data.message);
+        }
+      } catch(err) {
+        alert("Payment Error: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-lock text-[10px]"></i> Authorize Payment';
+      }
+    }
+
+    // Load dynamic pricing on page ready
+    document.addEventListener('DOMContentLoaded', () => {
+      loadParentPricingPlans();
+    });
+  </script>
+</body>
+</html>

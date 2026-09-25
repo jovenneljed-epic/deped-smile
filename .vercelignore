@@ -1,0 +1,14 @@
+# Exclude heavy ONNX biometric models from Vercel Serverless ZIP to keep size under 50MB
+models/face_recognition_sface_2021dec.onnx
+
+# Exclude local test suites
+test_*.py
+
+# Exclude local Windows batch scripts
+*.bat
+
+# Exclude container files from serverless bundle
+Dockerfile
+docker-compose.yml
+Procfile
+render.yaml

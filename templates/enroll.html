@@ -1,0 +1,957 @@
+{% extends 'base.html' %}
+
+{% block title %}Enroll Student | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold font-heading text-deped-darkblue flex items-center">
+        <i class="fa-solid fa-camera-retro text-deped-gold mr-2.5"></i>
+        Student Registration & AI Face Enrollment
+      </h1>
+      <p class="text-sm text-slate-500">Learner Demographic Profile &bull; AI Biometric Face Alignment &bull; Smart QR ID</p>
+    </div>
+    <a href="/students" class="text-xs font-semibold text-deped-blue hover:underline flex items-center">
+      <i class="fa-solid fa-list mr-1"></i> View All Enrolled Students
+    </a>
+  </div>
+
+  <!-- Main Enrollment Form Card -->
+  <div class="glass-card rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    
+    <div class="p-6 sm:p-8">
+      
+      <!-- Notification Alerts Area -->
+      <div id="alertBox" class="hidden mb-6 p-4 rounded-xl text-sm flex items-start space-x-3"></div>
+
+      <!-- Real Student Enrollment Guide Banner -->
+      <div class="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-lg bg-blue-100 text-deped-blue flex items-center justify-center text-lg flex-shrink-0">
+            <i class="fa-solid fa-id-card-clip"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-deped-darkblue text-sm">Official DepEd Learner Enrollment</h4>
+            <p class="text-xs text-slate-600">Enter accurate learner credentials and parent mobile number for real SMS & Parent App alerts.</p>
+          </div>
+        </div>
+        <div class="text-xs font-semibold text-deped-blue bg-white border border-blue-200 px-3 py-1.5 rounded-lg flex items-center shadow-sm">
+          <i class="fa-solid fa-shield-halved mr-1.5 text-emerald-600"></i> DepEd Data Privacy Compliant
+        </div>
+      </div>
+
+      <form id="enrollForm" class="space-y-6">
+
+        <!-- Step 1: Student Demographics -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-deped-blue mb-3 flex items-center justify-between">
+            <span class="flex items-center">
+              <span class="w-5 h-5 rounded-full bg-deped-blue text-white inline-flex items-center justify-center text-[10px] mr-2">1</span>
+              DepEd Learner Information (Kindergarten to Senior High School)
+            </span>
+            <span class="text-[11px] font-semibold text-deped-blue bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              K to 12 Basic Education
+            </span>
+          </h3>
+
+          <div class="space-y-4">
+            
+            <!-- Row 1: LRN & Gender & Birthdate -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <!-- LRN -->
+              <div class="sm:col-span-1">
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Learner Reference Number (LRN) *</label>
+                <input type="text" name="lrn" id="inputLrn" required maxlength="12" pattern="\d{12}" placeholder="e.g. 109876543216"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                <span class="text-[11px] text-slate-400">Must be exactly 12 numeric digits</span>
+              </div>
+
+              <!-- Gender -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Gender *</label>
+                <select name="gender" id="inputGender" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+
+              <!-- Birthdate -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Birthdate (Optional)</label>
+                <input type="date" name="birthdate" id="inputBirthdate"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+            </div>
+
+            <!-- Row 2: Full Name (First, Middle, Last) -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <!-- First Name -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Student First Name *</label>
+                <input type="text" name="first_name" id="inputFirstName" required placeholder="e.g. Juan"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+
+              <!-- Middle Name -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Middle Name</label>
+                <input type="text" name="middle_name" id="inputMiddleName" placeholder="e.g. Protacio (or leave blank)"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+
+              <!-- Last Name -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Student Last Name *</label>
+                <input type="text" name="last_name" id="inputLastName" required placeholder="e.g. Dela Cruz"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+            </div>
+
+            <!-- Row 3: Grade Level, Section Name, Class Adviser -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <!-- Grade Level -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Grade Level *</label>
+                <select name="grade_level" id="inputGradeLevel" required onchange="onGradeLevelChange(this.value)"
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-semibold">
+                  <option value="" disabled selected>-- Select Grade Level --</option>
+                  <optgroup label="Early Childhood Education">
+                    <option value="Kindergarten">Kindergarten</option>
+                  </optgroup>
+                  <optgroup label="Elementary (Grades 1 to 6)">
+                    <option value="Grade 1">Grade 1</option>
+                    <option value="Grade 2">Grade 2</option>
+                    <option value="Grade 3">Grade 3</option>
+                    <option value="Grade 4">Grade 4</option>
+                    <option value="Grade 5">Grade 5</option>
+                    <option value="Grade 6">Grade 6</option>
+                  </optgroup>
+                  <optgroup label="Junior High School (Grades 7 to 10)">
+                    <option value="Grade 7">Grade 7</option>
+                    <option value="Grade 8">Grade 8</option>
+                    <option value="Grade 9">Grade 9</option>
+                    <option value="Grade 10">Grade 10</option>
+                  </optgroup>
+                  <optgroup label="Senior High School (Grades 11 & 12)">
+                    <option value="Grade 11">Grade 11</option>
+                    <option value="Grade 12">Grade 12</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <!-- Section Name (Real Database Dropdown) -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-bold text-slate-700 uppercase">Section Name *</label>
+                  <button type="button" onclick="toggleCustomSection()" id="btnToggleCustomSection" class="text-[11px] font-semibold text-deped-blue hover:underline">
+                    + Type Custom
+                  </button>
+                </div>
+                <select id="selectSectionName" name="section_name" required onchange="onSectionSelect(this.value)"
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+                  <option value="" disabled selected>-- First select Grade Level --</option>
+                </select>
+                <input type="text" id="inputCustomSection" placeholder="e.g. Rizal / Sampaguita / Diamond"
+                       class="hidden w-full mt-2 px-3.5 py-2.5 bg-amber-50/50 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                       oninput="onCustomSectionInput(this.value)">
+              </div>
+
+              <!-- Class Adviser (Auto-Filled from Database Section) -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Class Adviser Teacher * <span class="text-[10px] text-emerald-600 font-semibold" id="adviserDbTag">(Real DB Synced)</span>
+                </label>
+                <input type="text" name="class_adviser" id="inputClassAdviser" required placeholder="e.g. Mrs. Elena Santos"
+                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+              </div>
+            </div>
+
+            <!-- Row 4: Track / Strand & Combined Summary Preview -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Curriculum / Strand -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Curriculum / Strand</label>
+                <select name="track_strand" id="inputTrack" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                  <option value="Early Childhood">Kindergarten Early Childhood</option>
+                  <option value="Elementary">Elementary K-12</option>
+                  <option value="Junior High" selected>Junior High School</option>
+                  <option value="Senior High - STEM">Senior High - STEM</option>
+                  <option value="Senior High - ABM">Senior High - ABM</option>
+                  <option value="Senior High - HUMSS">Senior High - HUMSS</option>
+                  <option value="Senior High - GAS">Senior High - GAS</option>
+                  <option value="Senior High - TVL (ICT)">Senior High - TVL (ICT)</option>
+                  <option value="Senior High - TVL (Home Economics)">Senior High - TVL (Home Economics)</option>
+                  <option value="Senior High - TVL (Industrial Arts)">Senior High - TVL (Industrial Arts)</option>
+                  <option value="Senior High - TVL (Agri-Fishery)">Senior High - TVL (Agri-Fishery)</option>
+                </select>
+              </div>
+
+              <!-- Combined Grade & Section (Auto-synced) -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Official DepEd Grade & Section</label>
+                <input type="text" name="grade_section" id="inputGrade" readonly
+                       placeholder="Select Grade & enter Section above"
+                       class="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-300 rounded-lg text-sm font-semibold text-deped-darkblue cursor-not-allowed">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Step 2: Parent / Guardian Details -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-deped-blue mb-3 flex items-center">
+            <span class="w-5 h-5 rounded-full bg-deped-blue text-white inline-flex items-center justify-center text-[10px] mr-2">2</span>
+            Parent / Guardian & Mobile Alert
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Parent Name -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Parent / Guardian Name</label>
+              <input type="text" name="parent_name" id="inputParentName" placeholder="e.g. Maria Dela Cruz"
+                     class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            </div>
+
+            <!-- Parent Mobile -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Parent Mobile Phone (For Automated SMS) *</label>
+              <input type="tel" name="parent_phone" id="inputParentPhone" required placeholder="e.g. 09171234567"
+                     class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              <span class="text-[11px] text-slate-400">Where automated scan alerts will be dispatched</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: AI Face Biometric Registration -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-deped-blue flex items-center">
+              <span class="w-5 h-5 rounded-full bg-deped-blue text-white inline-flex items-center justify-center text-[10px] mr-2">3</span>
+              AI Facial Biometrics Enrollment (YuNet + SFace)
+            </h3>
+            <span class="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center shadow-xs">
+              <i class="fa-solid fa-camera mr-1"></i> Live Camera Ready
+            </span>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 space-y-4">
+            
+            <!-- Source Selector Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div class="inline-flex p-1 bg-slate-950/80 rounded-xl border border-slate-800 space-x-1">
+                <button type="button" id="tabWebcamBtn" onclick="switchCameraTab('webcam')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm">
+                  <i class="fa-solid fa-video mr-1.5"></i> Device Webcam
+                </button>
+                <button type="button" id="tabKioskBtn" onclick="switchCameraTab('kiosk')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center">
+                  <i class="fa-solid fa-tower-broadcast mr-1.5"></i> Gate Kiosk Camera
+                </button>
+                <button type="button" id="tabUploadBtn" onclick="switchCameraTab('upload')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center">
+                  <i class="fa-solid fa-image mr-1.5"></i> Photo / Mobile
+                </button>
+              </div>
+
+              <!-- Device Selection Dropdown & Controls (For Webcam mode) -->
+              <div id="deviceSelectContainer" class="flex items-center space-x-2">
+                <select id="cameraDeviceSelect" onchange="changeCameraDevice(this.value)"
+                        class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-cyan-500 focus:outline-none">
+                  <option value="">Detecting Cameras...</option>
+                </select>
+                <button type="button" onclick="toggleFacingMode()" title="Flip Front/Back Camera"
+                        class="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs border border-slate-700 transition">
+                  <i class="fa-solid fa-repeat"></i>
+                </button>
+                <button type="button" onclick="toggleMirror()" title="Toggle Mirror View"
+                        class="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs border border-slate-700 transition">
+                  <i class="fa-solid fa-arrows-left-right"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row items-center gap-6">
+              
+              <!-- Video / Canvas Capture Viewfinder -->
+              <div class="w-72 h-72 sm:w-80 sm:h-80 rounded-2xl bg-black border-2 border-cyan-500/60 overflow-hidden relative flex items-center justify-center shadow-2xl flex-shrink-0">
+                
+                <!-- 1. Live Browser Video -->
+                <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+                
+                <!-- 2. Gate Kiosk MJPEG Stream -->
+                <img id="kioskStreamImg" src="/video_feed" class="w-full h-full object-cover hidden" alt="Gate Stream">
+
+                <!-- 3. Captured Still Preview -->
+                <img id="capturedFaceImg" class="w-full h-full object-cover hidden" alt="Captured Face">
+
+                <!-- 4. Camera Standby / Prompt Overlay -->
+                <div id="cameraStandbyOverlay" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-950/90 z-10">
+                  <div class="w-16 h-16 rounded-full bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-2xl mb-3 shadow-lg animate-pulse">
+                    <i class="fa-solid fa-camera"></i>
+                  </div>
+                  <h4 class="font-bold text-slate-200 text-sm mb-1">Camera Standby</h4>
+                  <p class="text-xs text-slate-400 mb-4 max-w-xs">Click below to activate live biometric camera.</p>
+                  <button type="button" onclick="startWebcam()" class="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-cyan-500/30 transition flex items-center">
+                    <i class="fa-solid fa-power-off mr-2"></i> Start Live Camera
+                  </button>
+                </div>
+
+                <!-- 5. Biometric Face Alignment Reticle Overlay (Oval Studio Guide) -->
+                <div id="biometricReticle" class="absolute inset-0 pointer-events-none hidden z-20 flex items-center justify-center">
+                  <!-- Oval Silhouette -->
+                  <div class="w-48 h-60 border-2 border-dashed border-cyan-400/80 rounded-[50%] relative flex flex-col items-center justify-between p-3 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                    <span class="text-[9px] uppercase tracking-wider font-mono text-cyan-300 bg-slate-950/80 px-1.5 py-0.5 rounded">Forehead</span>
+                    <div class="w-full border-t border-dotted border-cyan-400/50 relative">
+                      <span class="absolute -top-2 left-1 text-[8px] text-cyan-300 font-mono">Eyes Level</span>
+                    </div>
+                    <span class="text-[9px] uppercase tracking-wider font-mono text-cyan-300 bg-slate-950/80 px-1.5 py-0.5 rounded">Chin</span>
+                  </div>
+                  <!-- Corner HUD markers -->
+                  <div class="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
+                  <div class="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
+                  <div class="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
+                  <div class="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-cyan-400"></div>
+                </div>
+
+              </div>
+
+              <!-- Controls & Live Status Column -->
+              <div class="space-y-4 flex-grow text-sm w-full">
+                
+                <div>
+                  <h4 class="font-bold text-cyan-300 flex items-center">
+                    <i class="fa-solid fa-shield-halved mr-1.5 text-cyan-400"></i>
+                    Biometric Face Alignment Guide
+                  </h4>
+                  <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Look directly into the camera lens with a neutral expression. Project S.M.I.L.E. uses YuNet + SFace to extract the 128-d facial embedding in compliance with DepEd Data Privacy protocols.
+                  </p>
+                </div>
+
+                <!-- Action Buttons Group -->
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                  <!-- Snap Photo Button -->
+                  <button type="button" id="btnSnapFace" onclick="captureSnapshot()" disabled
+                          class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition flex items-center shadow-lg shadow-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-camera mr-2"></i> Snap Face Biometrics
+                  </button>
+
+                  <!-- Retake Button -->
+                  <button type="button" id="btnRetakePhoto" onclick="retakePhoto()" class="hidden px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold rounded-xl text-xs border border-slate-700 transition flex items-center">
+                    <i class="fa-solid fa-arrow-rotate-left mr-2"></i> Retake Photo
+                  </button>
+
+                  <!-- Direct Phone Native Camera Trigger -->
+                  <label class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-200 font-semibold rounded-xl text-xs cursor-pointer border border-slate-700 transition flex items-center">
+                    <i class="fa-solid fa-mobile-screen-button mr-1.5 text-cyan-400"></i> Snap with Phone App
+                    <input type="file" id="filePhoneCam" accept="image/*" capture="user" class="hidden" onchange="handleFileUpload(event)">
+                  </label>
+
+                  <!-- File Upload Button -->
+                  <label class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-xs cursor-pointer border border-slate-700 transition flex items-center">
+                    <i class="fa-solid fa-image mr-1.5 text-slate-400"></i> Choose File
+                    <input type="file" id="filePhoto" name="photo" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+                  </label>
+                </div>
+
+                <!-- Live Biometric Quality & Pre-Validation Status Box -->
+                <div id="faceStatusBadge" class="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs flex items-start space-x-2.5">
+                  <div id="statusIconWrap" class="mt-0.5 text-cyan-400 text-base">
+                    <i class="fa-solid fa-circle-info"></i>
+                  </div>
+                  <div class="flex-grow">
+                    <div id="faceStatusTitle" class="font-bold text-slate-200">Camera Initializing</div>
+                    <div id="faceStatusText" class="text-slate-400 text-[11px] mt-0.5">Starting live camera stream. Position face inside the oval guide.</div>
+                  </div>
+                </div>
+
+                <!-- Camera Troubleshooting Hint -->
+                <div class="text-[11px] text-slate-500 flex items-center space-x-1.5">
+                  <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                  <span>Tip: If camera does not appear, click the lock icon in the address bar and set Camera to "Allow".</span>
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- Hidden input holding base64 webcam snapshot -->
+            <input type="hidden" name="webcam_image" id="webcamImageInput">
+            <canvas id="hiddenCanvas" class="hidden"></canvas>
+          </div>
+        </div>
+
+        <!-- Step 4: Smart Card / RFID Assignment -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-deped-blue mb-3 flex items-center">
+            <span class="w-5 h-5 rounded-full bg-deped-blue text-white inline-flex items-center justify-center text-[10px] mr-2">4</span>
+            Smart Card & RFID Token Assignment (Optional)
+          </h3>
+
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Physical RFID Card UID (Optional)</label>
+              <input type="text" name="rfid_card_uid" id="inputRfid" placeholder="e.g. RFID-8807 (or leave blank)"
+                     class="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              <span class="text-[11px] text-slate-400">If using tap cards, tap the card to read UID</span>
+            </div>
+
+            <div class="text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+              <p class="font-bold text-deped-blue mb-1"><i class="fa-solid fa-qrcode mr-1"></i> Automatic Smart QR ID</p>
+              <p>A printable DepEd wallet-sized ID card with scannable QR badge is generated automatically upon enrollment.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-4 border-t border-slate-200 flex justify-end">
+          <button type="submit" id="btnSubmit"
+                  class="w-full sm:w-auto px-8 py-3 bg-deped-blue hover:bg-deped-darkblue text-white text-base font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-user-check"></i>
+            <span>Register Student & Enroll Biometrics</span>
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const alertBox = document.getElementById('alertBox');
+  const btnSubmit = document.getElementById('btnSubmit');
+  const webcamVideo = document.getElementById('webcamVideo');
+  const kioskStreamImg = document.getElementById('kioskStreamImg');
+  const capturedFaceImg = document.getElementById('capturedFaceImg');
+  const cameraStandbyOverlay = document.getElementById('cameraStandbyOverlay');
+  const biometricReticle = document.getElementById('biometricReticle');
+  const btnSnapFace = document.getElementById('btnSnapFace');
+  const btnRetakePhoto = document.getElementById('btnRetakePhoto');
+  const hiddenCanvas = document.getElementById('hiddenCanvas');
+  const webcamImageInput = document.getElementById('webcamImageInput');
+  const faceStatusBadge = document.getElementById('faceStatusBadge');
+  const faceStatusTitle = document.getElementById('faceStatusTitle');
+  const faceStatusText = document.getElementById('faceStatusText');
+  const statusIconWrap = document.getElementById('statusIconWrap');
+  const cameraDeviceSelect = document.getElementById('cameraDeviceSelect');
+  const deviceSelectContainer = document.getElementById('deviceSelectContainer');
+
+  let localStream = null;
+  let currentFacingMode = "user";
+  let isMirrored = true;
+  let activeTab = "webcam"; // "webcam" | "kiosk" | "upload"
+  let selectedDeviceId = "";
+
+  // -----------------------------------------------------------------
+  // Grade Level & Real Database Section Dynamic Synchronizer
+  // -----------------------------------------------------------------
+  const allDbSections = {{ sections | tojson }};
+  let isCustomSectionActive = false;
+
+  function onGradeLevelChange(val) {
+    const trackSelect = document.getElementById('inputTrack');
+    if (val === 'Kindergarten') {
+      trackSelect.value = 'Early Childhood';
+    } else if (['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].includes(val)) {
+      trackSelect.value = 'Elementary';
+    } else if (['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].includes(val)) {
+      trackSelect.value = 'Junior High';
+    } else if (['Grade 11', 'Grade 12'].includes(val)) {
+      if (!trackSelect.value.startsWith('Senior High')) {
+        trackSelect.value = 'Senior High - STEM';
+      }
+    }
+
+    populateSectionsForGrade(val);
+  }
+
+  function populateSectionsForGrade(grade) {
+    const secSelect = document.getElementById('selectSectionName');
+    const adviserInput = document.getElementById('inputClassAdviser');
+
+    if (!grade) {
+      secSelect.innerHTML = '<option value="" disabled selected>-- First select Grade Level --</option>';
+      return;
+    }
+
+    // Filter matching sections from real database
+    const matching = allDbSections.filter(s => s.grade_level.toLowerCase() === grade.toLowerCase());
+
+    secSelect.innerHTML = '';
+    
+    if (matching.length === 0) {
+      secSelect.innerHTML = '<option value="" disabled selected>No predefined sections for ' + grade + '</option>';
+      secSelect.innerHTML += '<option value="__CUSTOM__">+ Type Custom Section</option>';
+      enableCustomSection(true);
+    } else {
+      secSelect.innerHTML = '<option value="" disabled selected>-- Select Real Section (' + matching.length + ' Available) --</option>';
+      matching.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.section_name;
+        opt.textContent = `${s.section_name} (Adviser: ${s.adviser_teacher || 'TBA'})`;
+        opt.dataset.adviser = s.adviser_teacher || '';
+        opt.dataset.room = s.room_number || '';
+        secSelect.appendChild(opt);
+      });
+      secSelect.innerHTML += '<option value="__CUSTOM__">+ Add / Type Custom Section...</option>';
+
+      enableCustomSection(false);
+
+      // Auto-select first real section for teacher convenience
+      if (matching.length > 0) {
+        secSelect.selectedIndex = 1;
+        onSectionSelect(secSelect.value);
+      }
+    }
+  }
+
+  function onSectionSelect(val) {
+    if (val === '__CUSTOM__') {
+      enableCustomSection(true);
+      return;
+    }
+
+    const secSelect = document.getElementById('selectSectionName');
+    const selectedOption = secSelect.options[secSelect.selectedIndex];
+    const adviser = selectedOption?.dataset?.adviser || '';
+    
+    const adviserInput = document.getElementById('inputClassAdviser');
+    if (adviser) {
+      adviserInput.value = adviser;
+    }
+
+    updateGradeSectionCombined();
+  }
+
+  function toggleCustomSection() {
+    enableCustomSection(!isCustomSectionActive);
+  }
+
+  function enableCustomSection(enable) {
+    isCustomSectionActive = enable;
+    const secSelect = document.getElementById('selectSectionName');
+    const customInput = document.getElementById('inputCustomSection');
+    const toggleBtn = document.getElementById('btnToggleCustomSection');
+
+    if (enable) {
+      secSelect.removeAttribute('name');
+      secSelect.removeAttribute('required');
+      customInput.setAttribute('name', 'section_name');
+      customInput.setAttribute('required', 'required');
+      customInput.classList.remove('hidden');
+      customInput.focus();
+      toggleBtn.textContent = '← Choose from DB List';
+      updateGradeSectionCombined();
+    } else {
+      customInput.removeAttribute('name');
+      customInput.removeAttribute('required');
+      customInput.classList.add('hidden');
+      secSelect.setAttribute('name', 'section_name');
+      secSelect.setAttribute('required', 'required');
+      toggleBtn.textContent = '+ Type Custom';
+      updateGradeSectionCombined();
+    }
+  }
+
+  function onCustomSectionInput(val) {
+    updateGradeSectionCombined();
+  }
+
+  function updateGradeSectionCombined() {
+    const gl = document.getElementById('inputGradeLevel').value;
+    let sec = '';
+    if (isCustomSectionActive) {
+      sec = document.getElementById('inputCustomSection').value.trim();
+    } else {
+      const sel = document.getElementById('selectSectionName');
+      sec = sel && sel.value && sel.value !== '__CUSTOM__' ? sel.value.trim() : '';
+    }
+    const combined = document.getElementById('inputGrade');
+    if (gl && sec) {
+      combined.value = `${gl} - ${sec}`;
+    } else if (gl) {
+      combined.value = gl;
+    } else {
+      combined.value = '';
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // 1. Camera Initialization & Stream Handling
+  // -----------------------------------------------------------------
+
+  async function populateCameraDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      cameraDeviceSelect.innerHTML = '';
+
+      if (videoDevices.length === 0) {
+        cameraDeviceSelect.innerHTML = '<option value="">Default Camera</option>';
+        return;
+      }
+
+      videoDevices.forEach((dev, idx) => {
+        const opt = document.createElement('option');
+        opt.value = dev.deviceId;
+        opt.textContent = dev.label || `Camera ${idx + 1}`;
+        if (dev.deviceId === selectedDeviceId) opt.selected = true;
+        cameraDeviceSelect.appendChild(opt);
+      });
+    } catch (e) {
+      console.warn("Could not enumerate camera devices:", e);
+    }
+  }
+
+  async function startWebcam() {
+    stopCurrentStream();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      updateStatus("Camera Unavailable", "Live browser webcam requires a secure context (localhost or HTTPS). Use the 'Snap with Phone App' button below.", "warning");
+      cameraStandbyOverlay.classList.remove('hidden');
+      return;
+    }
+
+    updateStatus("Opening Camera...", "Requesting camera permissions from browser...", "info");
+
+    const constraints = {
+      video: selectedDeviceId 
+        ? { deviceId: { exact: selectedDeviceId } }
+        : {
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+      audio: false
+    };
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (firstErr) {
+      // Fallback with basic constraint
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err) {
+        console.error("Camera access failed:", err);
+        let msg = err.message;
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          msg = "Permission denied. Please click the camera/lock icon in your browser address bar and select 'Allow'.";
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          msg = "No camera hardware detected on this device. You can use 'Gate Kiosk Camera' or 'Choose File'.";
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          msg = "Camera is currently in use by another application. Please close other camera apps and retry.";
+        }
+        updateStatus("Camera Access Blocked", msg, "error");
+        cameraStandbyOverlay.classList.remove('hidden');
+        return;
+      }
+    }
+
+    // Attach stream to video element
+    webcamVideo.srcObject = localStream;
+    applyMirrorTransform();
+
+    webcamVideo.onloadedmetadata = () => {
+      webcamVideo.play();
+      webcamVideo.classList.remove('hidden');
+      kioskStreamImg.classList.add('hidden');
+      capturedFaceImg.classList.add('hidden');
+      cameraStandbyOverlay.classList.add('hidden');
+      biometricReticle.classList.remove('hidden');
+      btnSnapFace.disabled = false;
+      btnSnapFace.innerHTML = '<i class="fa-solid fa-camera mr-2"></i> Snap Face Biometrics';
+      btnRetakePhoto.classList.add('hidden');
+
+      updateStatus("Live Camera Online", "Position face inside the oval reticle with eyes at eye-level.", "success");
+      populateCameraDevices();
+    };
+  }
+
+  function stopCurrentStream() {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      localStream = null;
+    }
+  }
+
+  function changeCameraDevice(deviceId) {
+    selectedDeviceId = deviceId;
+    startWebcam();
+  }
+
+  function toggleFacingMode() {
+    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+    selectedDeviceId = "";
+    startWebcam();
+  }
+
+  function toggleMirror() {
+    isMirrored = !isMirrored;
+    applyMirrorTransform();
+  }
+
+  function applyMirrorTransform() {
+    webcamVideo.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
+  }
+
+  // -----------------------------------------------------------------
+  // 2. Camera Mode Tabs
+  // -----------------------------------------------------------------
+
+  function switchCameraTab(tab) {
+    activeTab = tab;
+
+    // Update buttons
+    const btnWebcam = document.getElementById('tabWebcamBtn');
+    const btnKiosk = document.getElementById('tabKioskBtn');
+    const btnUpload = document.getElementById('tabUploadBtn');
+
+    [btnWebcam, btnKiosk, btnUpload].forEach(b => {
+      b.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
+    });
+
+    if (tab === 'webcam') {
+      btnWebcam.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
+      deviceSelectContainer.classList.remove('hidden');
+      kioskStreamImg.classList.add('hidden');
+      startWebcam();
+    } else if (tab === 'kiosk') {
+      btnKiosk.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
+      deviceSelectContainer.classList.add('hidden');
+      stopCurrentStream();
+      webcamVideo.classList.add('hidden');
+      cameraStandbyOverlay.classList.add('hidden');
+      kioskStreamImg.classList.remove('hidden');
+      kioskStreamImg.src = "/video_feed?t=" + new Date().getTime();
+      capturedFaceImg.classList.add('hidden');
+      biometricReticle.classList.remove('hidden');
+      btnSnapFace.disabled = false;
+      btnSnapFace.innerHTML = '<i class="fa-solid fa-camera mr-2"></i> Capture from Gate Kiosk Camera';
+      btnRetakePhoto.classList.add('hidden');
+      updateStatus("Gate Kiosk Camera Connected", "Streaming live gate video feed. Click 'Capture from Gate Kiosk Camera' to freeze frame.", "success");
+    } else if (tab === 'upload') {
+      btnUpload.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
+      deviceSelectContainer.classList.add('hidden');
+      stopCurrentStream();
+      webcamVideo.classList.add('hidden');
+      kioskStreamImg.classList.add('hidden');
+      biometricReticle.classList.add('hidden');
+      if (!capturedFaceImg.src || capturedFaceImg.classList.contains('hidden')) {
+        cameraStandbyOverlay.classList.remove('hidden');
+      }
+      btnSnapFace.disabled = true;
+      updateStatus("Photo Upload Mode", "Use 'Snap with Phone App' or 'Choose File' to upload student portrait.", "info");
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // 3. Capturing Snapshot & Biometric Pre-Validation
+  // -----------------------------------------------------------------
+
+  async function captureSnapshot() {
+    if (activeTab === 'webcam') {
+      if (!webcamVideo.videoWidth) return;
+      hiddenCanvas.width = webcamVideo.videoWidth;
+      hiddenCanvas.height = webcamVideo.videoHeight;
+      const ctx = hiddenCanvas.getContext('2d');
+      if (isMirrored) {
+        ctx.translate(hiddenCanvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(webcamVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+      const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.92);
+      applyCapturedSnapshot(dataUrl);
+    } else if (activeTab === 'kiosk') {
+      updateStatus("Capturing Frame...", "Fetching high-resolution frame from gate engine...", "info");
+      try {
+        const resp = await fetch('/api/camera-snapshot');
+        if (!resp.ok) throw new Error("Could not read frame from server camera");
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          applyCapturedSnapshot(e.target.result);
+        };
+        reader.readAsDataURL(blob);
+      } catch (err) {
+        alert("Failed to capture from Gate Kiosk: " + err.message);
+      }
+    }
+  }
+
+  function applyCapturedSnapshot(dataUrl) {
+    webcamImageInput.value = dataUrl;
+    capturedFaceImg.src = dataUrl;
+    capturedFaceImg.classList.remove('hidden');
+    webcamVideo.classList.add('hidden');
+    kioskStreamImg.classList.add('hidden');
+    biometricReticle.classList.add('hidden');
+    cameraStandbyOverlay.classList.add('hidden');
+
+    btnSnapFace.classList.add('hidden');
+    btnRetakePhoto.classList.remove('hidden');
+
+    // Run instant facial biometric pre-verification
+    runFacePreCheck(dataUrl);
+  }
+
+  async function runFacePreCheck(base64Image) {
+    updateStatus("Validating Facial Biometrics...", "YuNet AI is scanning face alignment and extracting landmarks...", "info");
+    try {
+      const res = await fetch('/api/detect-face-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64Image })
+      });
+      const data = await res.json();
+      if (data.success && data.faces > 0) {
+        updateStatus("✓ Biometric Face Detected & Verified!", `${data.message} SFace 128-d vector ready to register.`, "success");
+      } else {
+        updateStatus("⚠️ Face Not Fully Detected", data.message || "Please ensure the face is centered, unobstructed, and well-lit.", "warning");
+      }
+    } catch (err) {
+      updateStatus("Photo Saved", "Photo captured. SFace biometrics will be processed upon form submission.", "info");
+    }
+  }
+
+  function retakePhoto() {
+    webcamImageInput.value = '';
+    capturedFaceImg.classList.add('hidden');
+    btnRetakePhoto.classList.add('hidden');
+    btnSnapFace.classList.remove('hidden');
+
+    if (activeTab === 'webcam') {
+      startWebcam();
+    } else if (activeTab === 'kiosk') {
+      switchCameraTab('kiosk');
+    } else {
+      switchCameraTab('webcam');
+    }
+  }
+
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      applyCapturedSnapshot(e.target.result);
+      // Switch UI indicator to photo mode
+      activeTab = 'upload';
+      document.getElementById('tabUploadBtn').className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
+      document.getElementById('tabWebcamBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
+      document.getElementById('tabKioskBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
+      deviceSelectContainer.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // -----------------------------------------------------------------
+  // 4. UI Status Feedback Helper
+  // -----------------------------------------------------------------
+
+  function updateStatus(title, text, type) {
+    faceStatusTitle.innerText = title;
+    faceStatusText.innerText = text;
+
+    if (type === 'success') {
+      faceStatusBadge.className = 'p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs flex items-start space-x-2.5 transition';
+      statusIconWrap.className = 'mt-0.5 text-emerald-400 text-base';
+      statusIconWrap.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+      faceStatusTitle.className = 'font-bold text-emerald-300';
+    } else if (type === 'warning') {
+      faceStatusBadge.className = 'p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-xs flex items-start space-x-2.5 transition';
+      statusIconWrap.className = 'mt-0.5 text-amber-400 text-base';
+      statusIconWrap.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+      faceStatusTitle.className = 'font-bold text-amber-300';
+    } else if (type === 'error') {
+      faceStatusBadge.className = 'p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-xs flex items-start space-x-2.5 transition';
+      statusIconWrap.className = 'mt-0.5 text-rose-400 text-base';
+      statusIconWrap.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
+      faceStatusTitle.className = 'font-bold text-rose-300';
+    } else {
+      faceStatusBadge.className = 'p-3.5 rounded-xl bg-slate-800/80 border border-slate-700 text-xs flex items-start space-x-2.5 transition';
+      statusIconWrap.className = 'mt-0.5 text-cyan-400 text-base';
+      statusIconWrap.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+      faceStatusTitle.className = 'font-bold text-slate-200';
+    }
+  }
+
+  function showAlert(message, type) {
+    alertBox.className = type === 'success' 
+      ? 'mb-6 p-4 rounded-xl text-sm flex items-start space-x-3 bg-emerald-50 text-emerald-800 border border-emerald-200'
+      : 'mb-6 p-4 rounded-xl text-sm flex items-start space-x-3 bg-rose-50 text-rose-800 border border-rose-200';
+    
+    alertBox.innerHTML = `
+      <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-emerald-600' : 'fa-triangle-exclamation text-rose-600'} text-lg mt-0.5"></i>
+      <div>${message}</div>
+    `;
+    alertBox.classList.remove('hidden');
+    alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // -----------------------------------------------------------------
+  // 5. Form Submission
+  // -----------------------------------------------------------------
+
+  document.getElementById('enrollForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Registering & Extracting Face Features...';
+
+    const formData = new FormData(this);
+
+    try {
+      const res = await fetch('/api/enroll', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const lrn = document.getElementById('inputLrn').value;
+        showAlert(`
+          <strong>SUCCESS:</strong> ${data.message}<br>
+          <div class="mt-2 flex items-center space-x-3">
+            <a href="/id-card/${lrn}" target="_blank" class="px-3 py-1.5 bg-emerald-700 text-white rounded text-xs font-bold hover:bg-emerald-800 transition inline-flex items-center">
+              <i class="fa-solid fa-print mr-1.5"></i> View & Print Smart ID Card
+            </a>
+            <a href="/kiosk" class="px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold hover:bg-slate-700 transition inline-flex items-center">
+              <i class="fa-solid fa-video mr-1.5"></i> Go to Gate Kiosk
+            </a>
+          </div>
+        `, "success");
+        document.getElementById('enrollForm').reset();
+        retakePhoto();
+      } else {
+        showAlert(`<strong>ENROLLMENT ERROR:</strong> ${data.message}`, "error");
+      }
+    } catch(err) {
+      showAlert(`Network error: ${err.message}`, "error");
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<i class="fa-solid fa-user-check mr-2"></i> Register Student & Enroll Biometrics';
+    }
+  });
+
+  // -----------------------------------------------------------------
+  // 6. Auto-Start Camera on Page Load
+  // -----------------------------------------------------------------
+  document.addEventListener('DOMContentLoaded', () => {
+    // Attempt auto-activation after layout renders
+    setTimeout(() => {
+      startWebcam();
+    }, 400);
+  });
+</script>
+{% endblock %}

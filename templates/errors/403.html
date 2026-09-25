@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Restricted | Project S.M.I.L.E.</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full bg-slate-800/90 border border-slate-700 rounded-3xl p-8 shadow-2xl text-center space-y-6 backdrop-blur">
+    
+    <!-- Shield Alert Icon -->
+    <div class="w-20 h-20 mx-auto rounded-3xl bg-rose-500/10 border-2 border-rose-500/30 flex items-center justify-center text-rose-500 text-3xl shadow-inner">
+      <i class="fa-solid fa-shield-halved"></i>
+    </div>
+
+    <div class="space-y-2">
+      <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-rose-500/20 text-rose-300 border border-rose-500/30">
+        403 • ACCESS RESTRICTED
+      </span>
+      <h1 class="text-2xl font-black font-heading text-white">System Settings Locked</h1>
+      <p class="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+        {{ message or "This section contains sensitive system parameters, SMS API keys, billing subscriptions, and database controls reserved strictly for the Super Administrator account." }}
+      </p>
+    </div>
+
+    <!-- Role Information Card -->
+    {% if current_user %}
+    <div class="p-3.5 bg-slate-900/60 rounded-2xl border border-slate-700/80 text-left text-xs space-y-1">
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400 font-medium">Logged in as:</span>
+        <span class="font-bold text-white">{{ current_user.full_name }}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400 font-medium">Current Role:</span>
+        <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-700 text-amber-300">{{ current_user.role }}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="flex items-center gap-3 pt-2">
+      <a href="/" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow">
+        <i class="fa-solid fa-arrow-left"></i> Return Home
+      </a>
+      <a href="/login" class="flex-1 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow">
+        <i class="fa-solid fa-key"></i> Switch Account
+      </a>
+    </div>
+
+  </div>
+
+</body>
+</html>

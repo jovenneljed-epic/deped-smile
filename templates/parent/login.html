@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Parent Portal Login | Project S.M.I.L.E.</title>
+
+  <!-- PWA Metadata -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0B192C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0038A8',
+              red: '#CE1126',
+              gold: '#FCD116',
+              darkblue: '#0B192C',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at top, #1e293b, #0b1329);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+  </style>
+</head>
+<body class="p-4 sm:p-6 text-slate-800">
+
+  <!-- Mobile Phone Card Container -->
+  <div class="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-700/30 flex flex-col">
+    
+    <!-- Top DepEd Banner -->
+    <div class="bg-gradient-to-br from-deped-darkblue via-blue-900 to-indigo-950 p-6 text-white text-center relative overflow-hidden">
+      <img src="/static/images/deped_seal.svg" alt="DepEd Official Seal" class="w-16 h-16 object-contain mx-auto mb-3 drop-shadow-lg">
+      <span class="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 block">Department of Education</span>
+      <h1 class="text-base font-black font-heading tracking-tight mt-0.5">{{ school_name }}</h1>
+      <p class="text-xs text-blue-200 mt-1 font-medium">Project S.M.I.L.E. Parent Guardian Portal</p>
+    </div>
+
+    <!-- Login Body -->
+    <div class="p-6 space-y-5">
+
+      <div class="text-center space-y-1">
+        <h2 class="text-lg font-black font-heading text-slate-900">Parent Sign-In</h2>
+        <p class="text-xs text-slate-500">Access real-time safety monitoring for your child</p>
+      </div>
+
+      <!-- Tab Switcher (Mobile Number vs LRN) -->
+      <div class="flex rounded-xl bg-slate-100 p-1 text-xs font-bold text-slate-600">
+        <button type="button" id="tabPhone" onclick="switchTab('phone')" class="flex-1 py-2 rounded-lg bg-white shadow-sm text-deped-blue transition">
+          <i class="fa-solid fa-phone mr-1"></i> Mobile No.
+        </button>
+        <button type="button" id="tabLrn" onclick="switchTab('lrn')" class="flex-1 py-2 rounded-lg text-slate-500 hover:text-slate-800 transition">
+          <i class="fa-solid fa-id-badge mr-1"></i> Student LRN
+        </button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="space-y-3.5">
+        
+        <!-- Field for Mobile Number -->
+        <div id="groupPhone">
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Registered Mobile Number</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 font-mono text-xs">+63</span>
+            <input type="tel" id="inputPhone" placeholder="9171234567" 
+                   class="w-full pl-11 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1 block">Phone number registered during enrollment</span>
+        </div>
+
+        <!-- Field for LRN (Hidden by default) -->
+        <div id="groupLrn" class="hidden">
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">12-Digit Student LRN</label>
+          <input type="text" id="inputLrn" maxlength="12" placeholder="e.g. 109876543210" 
+                 class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold tracking-wider focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <span class="text-[10px] text-slate-400 mt-1 block">Learner Reference Number on Student ID</span>
+        </div>
+
+        <button type="submit" id="btnLogin" 
+                class="w-full py-3 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-sm shadow-md transition flex items-center justify-center gap-2">
+          <span>Sign In to Mobile Portal</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+
+        <div id="loginError" class="hidden text-xs text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-200 text-center font-medium"></div>
+      </form>
+
+      <!-- 1-Click Fast Demo Login for Testers / Judges -->
+      <div class="pt-2 border-t border-slate-100 space-y-2">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block text-center">Quick Demo Login</span>
+        
+        <div class="space-y-1.5">
+          <button type="button" onclick="quickLogin('09171234567')" class="w-full p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-deped-blue text-left transition flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-blue-100 text-deped-blue flex items-center justify-center font-bold text-xs">
+                M
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-800">Maria Dela Cruz</h4>
+                <p class="text-[10px] text-slate-500">Child: Juan Dela Cruz (Grade 10)</p>
+              </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
+          </button>
+
+          <button type="button" onclick="quickLogin('09205551234')" class="w-full p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-deped-blue text-left transition flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                R
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-800">Roberto Reyes</h4>
+                <p class="text-[10px] text-slate-500">Child: Angelo Reyes (Grade 8)</p>
+              </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Link back to School Kiosk / Admin -->
+      <div class="text-center pt-1">
+        <a href="/" class="text-[11px] font-semibold text-slate-400 hover:text-deped-blue transition">
+          <i class="fa-solid fa-school mr-1"></i> Switch to School Admin Kiosk
+        </a>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let activeTab = 'phone';
+
+    function switchTab(tab) {
+      activeTab = tab;
+      const btnPhone = document.getElementById('tabPhone');
+      const btnLrn = document.getElementById('tabLrn');
+      const groupPhone = document.getElementById('groupPhone');
+      const groupLrn = document.getElementById('groupLrn');
+
+      if (tab === 'phone') {
+        btnPhone.className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-deped-blue transition font-bold";
+        btnLrn.className = "flex-1 py-2 rounded-lg text-slate-500 hover:text-slate-800 transition font-bold";
+        groupPhone.classList.remove('hidden');
+        groupLrn.classList.add('hidden');
+      } else {
+        btnLrn.className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-deped-blue transition font-bold";
+        btnPhone.className = "flex-1 py-2 rounded-lg text-slate-500 hover:text-slate-800 transition font-bold";
+        groupLrn.classList.remove('hidden');
+        groupPhone.classList.add('hidden');
+      }
+    }
+
+    async function handleAuth(identifier, type = 'phone') {
+      const errBox = document.getElementById('loginError');
+      const btn = document.getElementById('btnLogin');
+      errBox.classList.add('hidden');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Signing In...';
+
+      try {
+        const res = await fetch('/parent/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier, type })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          localStorage.setItem('parent_identifier', identifier);
+          localStorage.setItem('parent_type', type);
+          window.location.href = data.redirect || '/parent';
+        } else {
+          errBox.innerText = data.message || "Invalid credentials. Please verify your phone number or LRN.";
+          errBox.classList.remove('hidden');
+        }
+      } catch(err) {
+        errBox.innerText = "Connection error: " + err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Sign In to Mobile Portal</span> <i class="fa-solid fa-arrow-right"></i>';
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (activeTab === 'phone') {
+        let phone = document.getElementById('inputPhone').value.trim();
+        if (!phone) return;
+        if (phone.startsWith('09')) phone = phone;
+        else if (phone.startsWith('9')) phone = '0' + phone;
+        handleAuth(phone, 'phone');
+      } else {
+        const lrn = document.getElementById('inputLrn').value.trim();
+        if (!lrn) return;
+        handleAuth(lrn, 'lrn');
+      }
+    });
+
+    function quickLogin(phone) {
+      handleAuth(phone, 'phone');
+    }
+  </script>
+</body>
+</html>

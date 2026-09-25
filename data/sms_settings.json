@@ -1,0 +1,14 @@
+{
+  "mode": "MOCK",
+  "semaphore_api_key": "",
+  "semaphore_sender_name": "SMILE_ALERT",
+  "twilio_account_sid": "",
+  "twilio_auth_token": "",
+  "twilio_from_number": "",
+  "android_gateway_url": "http://192.168.1.100:8080/send",
+  "android_gateway_key": "",
+  "philsms_api_key": "",
+  "philsms_sender_id": "PhilSMS",
+  "gsm_port": "COM3",
+  "gsm_baudrate": 9600
+}

@@ -1,0 +1,138 @@
+import cv2
+import numpy as np
+import requests
+import sys
+from pathlib import Path
+from smile_config import (
+    YUNET_PATH, SFACE_PATH, YUNET_MODEL_URL, SFACE_MODEL_URL,
+    COSINE_SIMILARITY_THRESHOLD, DETECTION_CONFIDENCE
+)
+
+def ensure_model_downloaded(file_path: Path, url: str, model_name: str):
+    """Downloads the required ONNX model file from OpenCV Zoo if not already present."""
+    if file_path.exists() and file_path.stat().st_size > 10000:
+        return
+    
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[*] Downloading {model_name} model weights from OpenCV Zoo...")
+    print(f"    URL: {url}")
+    print(f"    Target: {file_path}")
+    
+    try:
+        response = requests.get(url, stream=True, timeout=60)
+        response.raise_for_status()
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
+        with open(file_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=1024 * 64):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        sys.stdout.write(f"\r    Progress: {percent:.1f}% ({downloaded / (1024*1024):.1f} MB)")
+                        sys.stdout.flush()
+        print(f"\n[+] Successfully installed {model_name}!")
+    except Exception as e:
+        if file_path.exists():
+            file_path.unlink()  # Remove partial download
+        raise RuntimeError(f"Failed to download {model_name}: {e}\nPlease check your internet connection.")
+
+class SmileFaceEngine:
+    """
+    Core Face Detection and Recognition Engine for Project S.M.I.L.E.
+    Uses OpenCV YuNet (Real-time detection) and SFace (Biometric 128-d embeddings).
+    Runs with high efficiency on standard CPUs without any C++ compilation needed.
+    """
+    def __init__(self):
+        self.available = False
+        self.detector = None
+        self.recognizer = None
+        self.current_input_size = (320, 320)
+
+        try:
+            # 1. Ensure models exist
+            ensure_model_downloaded(YUNET_PATH, YUNET_MODEL_URL, "YuNet Face Detector")
+            ensure_model_downloaded(SFACE_PATH, SFACE_MODEL_URL, "SFace Face Recognizer")
+
+            # 2. Initialize YuNet Detector
+            self.detector = cv2.FaceDetectorYN.create(
+                model=str(YUNET_PATH),
+                config="",
+                input_size=(320, 320),
+                score_threshold=DETECTION_CONFIDENCE,
+                nms_threshold=0.3,
+                top_k=5000
+            )
+
+            # 3. Initialize SFace Recognizer
+            self.recognizer = cv2.FaceRecognizerSF.create(
+                model=str(SFACE_PATH),
+                config=""
+            )
+            self.available = True
+        except Exception as e:
+            print(f"[!] Note: SmileFaceEngine running in lightweight mode ({e}). Barcode/QR & Portal operational.")
+
+    def detect_faces(self, frame):
+        """
+        Detects faces in an RGB/BGR image frame.
+        Returns a list of face detections or empty list if no face found.
+        Each face is an array: [x, y, w, h, x_re, y_re, x_le, y_le, x_nt, y_nt, x_rc, y_rc, x_lc, y_lc, score]
+        """
+        if not self.detector or frame is None:
+            return []
+
+        h, w, _ = frame.shape
+        if (w, h) != self.current_input_size:
+            self.detector.setInputSize((w, h))
+            self.current_input_size = (w, h)
+
+        _, faces = self.detector.detect(frame)
+        if faces is None:
+            return []
+        return faces
+
+    def extract_face_embedding(self, frame, face_box):
+        """
+        Aligns, crops, and extracts a 128-dimensional biometric embedding vector for a face.
+        """
+        if not self.recognizer or frame is None:
+            return None
+        # Align and crop face using facial landmarks
+        aligned_face = self.recognizer.alignCrop(frame, face_box)
+        # Extract 128-d feature vector
+        feature = self.recognizer.feature(aligned_face)
+        return feature.flatten()
+
+    def match_against_enrolled(self, query_embedding, enrolled_students, threshold=COSINE_SIMILARITY_THRESHOLD):
+        """
+        Compares query face embedding against a list of enrolled student dictionaries.
+        Uses Cosine Similarity.
+        Returns: (best_match_student_dict, highest_score) or (None, 0.0) if below threshold.
+        """
+        if not enrolled_students or query_embedding is None:
+            return None, 0.0
+
+        best_student = None
+        best_score = -1.0
+
+        # SFace embeddings are normalized; cosine similarity is dot product or cv2.match
+        query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
+
+        for student in enrolled_students:
+            cand_emb = student["embedding"]
+            cand_norm = cand_emb / (np.linalg.norm(cand_emb) + 1e-10)
+            
+            # Cosine similarity between -1.0 and 1.0
+            similarity = float(np.dot(query_norm, cand_norm))
+
+            if similarity > best_score:
+                best_score = similarity
+                best_student = student
+
+        if best_score >= threshold:
+            return best_student, best_score
+        
+        return None, best_score

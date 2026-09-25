@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PROJECT S.M.I.L.E. | Smart ID Gate Kiosk</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Orbitron & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #050b14; }
+    .font-hud { font-family: 'Orbitron', monospace; }
+    .neon-border {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.3), inset 0 0 15px rgba(16, 185, 129, 0.1);
+    }
+    .neon-pulse {
+      animation: pulseGlow 2s infinite alternate;
+    }
+    @keyframes pulseGlow {
+      from { box-shadow: 0 0 10px rgba(14, 165, 233, 0.4); }
+      to { box-shadow: 0 0 25px rgba(14, 165, 233, 0.8); }
+    }
+    .slide-in {
+      animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden select-none">
+
+  <!-- Top HUD Header -->
+  <header class="bg-slate-900/90 border-b border-cyan-900/50 backdrop-blur-md px-6 py-3.5 flex items-center justify-between z-40">
+    <div class="flex items-center space-x-3.5">
+      <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-12 h-12 object-contain drop-shadow-md shrink-0">
+      <div class="flex flex-col justify-center">
+        <div class="flex items-center space-x-2">
+          <h1 class="font-hud font-extrabold text-lg sm:text-xl tracking-wider text-cyan-400">PROJECT S.M.I.L.E.</h1>
+          <span class="bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping mr-1.5"></span> LIVE GATE
+          </span>
+        </div>
+        <p class="text-xs sm:text-sm font-black text-amber-300 tracking-wide flex items-center gap-1.5 mt-0.5 drop-shadow-sm">
+          <i class="fa-solid fa-school text-amber-400 text-xs"></i> {{ school_name }} <span class="text-slate-300 font-normal">&bull; AI Face & Smart ID Gate</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Center Status Indicator -->
+    <div class="hidden lg:flex items-center space-x-6 text-xs text-slate-300 font-mono">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-camera text-cyan-400"></i>
+        <span>AI YuNet + SFace Engine: <strong class="text-emerald-400">ONLINE</strong></span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-comment-dots text-amber-400"></i>
+        <span>Parent SMS Dispatcher: <strong class="text-emerald-400">ACTIVE</strong></span>
+      </div>
+    </div>
+
+    <!-- Clock & Controls -->
+    <div class="flex items-center space-x-4">
+      <div class="text-right">
+        <div id="liveClock" class="font-hud text-lg sm:text-xl font-bold text-white tracking-widest">00:00:00 AM</div>
+        <div id="liveDate" class="text-xs text-cyan-300 font-medium">Jan 01, 2026</div>
+      </div>
+      <!-- Gate Mode Selector -->
+      <select id="gateModeSelect" onchange="changeGateMode(this.value)" title="Switch Gate Attendance Mode" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2.5 py-2 text-xs font-hud font-bold text-cyan-300 focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer shadow-md">
+        <option value="AUTO">🔄 AUTO GATE</option>
+        <option value="ENTRY">🟢 ENTRY (TIME-IN)</option>
+        <option value="EXIT">🟠 EXIT (TIME-OUT)</option>
+      </select>
+      <button id="voiceToggleBtn" onclick="toggleVoiceOver()" title="Voice Over Audio Announcement (Mentions Full Name)" class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-hud transition flex items-center shadow-lg">
+        <i class="fa-solid fa-volume-high mr-1.5 text-cyan-300"></i> Voice Active
+      </button>
+      <button onclick="triggerSimulatedScan()" title="Simulate a Student Gate Scan" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold font-hud transition flex items-center shadow-lg">
+        <i class="fa-solid fa-bolt mr-1.5 text-amber-300"></i> Test Scan
+      </button>
+      <button onclick="toggleFullscreen()" title="Toggle Fullscreen" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        <i class="fa-solid fa-expand text-base"></i>
+      </button>
+      <a href="/" title="Back to Dashboard" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+        <i class="fa-solid fa-house text-base"></i>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Kiosk Body -->
+  <main class="flex-grow p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center max-w-[1700px] mx-auto w-full">
+
+    <!-- Left / Center: Camera Stream Viewport (8 Cols) -->
+    <div class="lg:col-span-8 flex flex-col items-center">
+      <div class="relative w-full aspect-video max-w-4xl bg-black rounded-3xl overflow-hidden border-2 border-cyan-800/60 shadow-2xl neon-pulse">
+        
+        <!-- Live Video Stream -->
+        <img id="kioskStream" src="/video_feed" alt="Gate Camera Stream" class="w-full h-full object-contain">
+
+        <!-- Camera HUD Overlays -->
+        <div class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-cyan-500/30 text-xs font-mono text-cyan-300 flex items-center space-x-2">
+          <i class="fa-solid fa-circle text-red-500 text-[10px] animate-pulse"></i>
+          <span>SMART GATE SCANNER &bull; REAL-TIME</span>
+        </div>
+
+        <!-- Four Corner Target Crosshairs -->
+        <div class="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-cyan-400"></div>
+        <div class="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-cyan-400"></div>
+        <div class="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-cyan-400"></div>
+        <div class="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-cyan-400"></div>
+
+        <!-- Instructional Overlay Banner -->
+        <div class="absolute bottom-4 inset-x-4 bg-slate-950/85 backdrop-blur-md py-2.5 px-4 rounded-xl border border-slate-700/60 flex items-center justify-between text-xs sm:text-sm">
+          <div class="flex items-center space-x-2 text-cyan-200">
+            <i class="fa-solid fa-camera text-cyan-400 text-base"></i>
+            <span><strong>STUDENTS:</strong> Look at camera for Face Validation, or scan QR / tap RFID card.</span>
+          </div>
+          <span class="text-emerald-400 hidden sm:inline font-mono"><i class="fa-solid fa-shield-halved mr-1"></i> AI ONLINE</span>
+        </div>
+
+      </div>
+
+      <!-- Quick Face Scan / RFID Tap / Barcode Scanner Input Bar -->
+      <div class="w-full max-w-4xl mt-4 flex items-center space-x-3">
+        <button onclick="openFaceModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-hud text-xs rounded-xl shadow-lg transition flex items-center whitespace-nowrap">
+          <i class="fa-solid fa-camera mr-1.5 text-amber-300"></i> SCAN FACE
+        </button>
+        <div class="relative flex-grow">
+          <i class="fa-solid fa-barcode absolute left-3.5 top-3 text-cyan-400 text-sm"></i>
+          <input type="text" id="rfidTapInput" placeholder="Tap RFID Card or enter 12-digit LRN (Press Enter)..." autofocus
+                 class="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-cyan-800 rounded-xl text-sm font-mono text-cyan-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400">
+        </div>
+        <button onclick="submitRfidTap()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold font-hud text-xs rounded-xl shadow-lg transition flex items-center whitespace-nowrap">
+          <i class="fa-solid fa-id-card mr-1.5"></i> TAP ID CARD
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Right Side: Real-Time Verified Identity Card & Counters (4 Cols) -->
+    <div class="lg:col-span-4 flex flex-col space-y-5 w-full">
+
+      <!-- Real-Time Verified Student ID Card (Populated dynamically upon detection) -->
+      <div id="verifiedBadgeCard" class="bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl p-6 border-2 border-cyan-700/50 shadow-2xl relative overflow-hidden transition-all duration-300">
+        
+        <!-- Idle State (When waiting for scan) -->
+        <div id="badgeIdle" class="text-center py-8 space-y-3">
+          <div class="w-16 h-16 mx-auto rounded-full bg-cyan-950/80 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl animate-pulse">
+            <i class="fa-solid fa-qrcode"></i>
+          </div>
+          <h3 class="font-hud font-bold text-lg text-slate-200">STANDBY FOR SCAN</h3>
+          <p class="text-xs text-slate-400 max-w-xs mx-auto">Smart Gate Scanner is active. Show your QR Code ID or tap your RFID card to record attendance.</p>
+        </div>
+
+        <!-- Active Detected State (Shown when ID matches) -->
+        <div id="badgeActive" class="hidden slide-in space-y-4">
+          
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <span id="scanTypeBadge" class="px-3 py-1 rounded-full text-xs font-hud font-extrabold bg-emerald-500 text-slate-950 shadow-sm flex items-center">
+              <i class="fa-solid fa-check mr-1.5"></i> TIME-IN CONFIRMED
+            </span>
+            <span id="scanTime" class="font-mono text-xs text-cyan-300">07:15 AM</span>
+          </div>
+
+          <div class="flex items-center space-x-4">
+            <!-- Student Photo or QR Code Badge -->
+            <div class="w-20 h-20 rounded-xl bg-slate-950 border-2 border-cyan-400 overflow-hidden shadow-md flex-shrink-0 flex items-center justify-center p-0.5">
+              <img id="studentPhotoImg" src="" alt="Student Photo" class="w-full h-full object-cover hidden">
+              <img id="studentQrImg" src="" alt="Student QR Code" class="w-full h-full object-contain">
+            </div>
+            <!-- Student Info -->
+            <div class="overflow-hidden flex-grow">
+              <h2 id="studentName" class="font-hud font-black text-xl text-white tracking-wide truncate">JUAN DELA CRUZ</h2>
+              <p id="studentGrade" class="text-xs font-semibold text-amber-400 mt-0.5">Grade 10 - Rizal</p>
+              <div class="flex items-center space-x-2 mt-1">
+                <span class="text-xs font-mono text-slate-400">LRN: <span id="studentLrn" class="text-slate-200">109876543210</span></span>
+                <span id="matchScoreBadge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">94.2% MATCH</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SMS Notification Confirmation Ribbon -->
+          <div id="smsSection" class="bg-indigo-950/70 border border-indigo-500/40 rounded-xl p-3 flex items-start space-x-3 text-xs">
+            <i id="smsIcon" class="fa-solid fa-paper-plane text-indigo-400 text-base mt-0.5 animate-bounce"></i>
+            <div>
+              <p id="smsTitle" class="font-bold text-indigo-200">Parent Alert Dispatched</p>
+              <p id="smsPhone" class="text-slate-300 text-[11px] mt-0.5">SMS text notification sent to 0917-XXX-XXXX</p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Live Counters Card -->
+      <div class="bg-slate-900/70 rounded-2xl p-5 border border-slate-800 space-y-4">
+        <h4 class="text-xs font-bold font-hud uppercase tracking-wider text-slate-400">Gate Daily Statistics</h4>
+        
+        <div class="grid grid-cols-2 gap-3 text-center">
+          <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <p class="text-[11px] text-slate-400 uppercase font-semibold">Today's Scans</p>
+            <p id="kioskScans" class="font-hud text-2xl font-black text-cyan-400 mt-1">{{ total_scans }}</p>
+          </div>
+          <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80">
+            <p class="text-[11px] text-slate-400 uppercase font-semibold">Total Enrolled</p>
+            <p id="kioskEnrolled" class="font-hud text-2xl font-black text-amber-400 mt-1">{{ total_enrolled }}</p>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-500 flex items-center justify-between pt-2 border-t border-slate-800">
+          <span>DepEd RA 10173 Privacy Compliance</span>
+          <span class="text-emerald-400 font-mono"><i class="fa-solid fa-lock text-[10px] mr-1"></i> Non-Biometric Safe</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Kiosk Footer -->
+  <footer class="bg-slate-950/90 border-t border-slate-900 px-6 py-2.5 text-xs text-slate-500 flex justify-between items-center">
+    <div>Project S.M.I.L.E. &bull; Automated Smart ID Gate Attendance System</div>
+    <div>Press <kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">F11</kbd> for Fullscreen</div>
+  </footer>
+
+  <!-- Scripts: Live Clock, Audio Chime, Event Polling -->
+  <script>
+    // 1. Live Digital Clock
+    function updateClock() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+      document.getElementById('liveClock').innerText = timeStr;
+      document.getElementById('liveDate').innerText = dateStr;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 2. High-Fidelity Web Audio Chime (C5 -> E5 Chime Tone)
+    let audioCtx = null;
+    let voiceOverEnabled = true;
+
+    function playKioskChime() {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+        
+        // Tone 1: 523.25 Hz (C5)
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(523.25, now);
+        gain1.gain.setValueAtTime(0.3, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.35);
+
+        // Tone 2: 659.25 Hz (E5)
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(659.25, now + 0.12);
+        gain2.gain.setValueAtTime(0.35, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.55);
+      } catch (e) {
+        console.warn("Audio chime error:", e);
+      }
+    }
+
+    // Speech Synthesis Engine with Filipino / English natural cadence (mentions full student name)
+    let lastSpokenText = "";
+    let lastSpokenTime = 0;
+
+    function speakVoiceOver(text) {
+      if (!voiceOverEnabled || !text || !('speechSynthesis' in window)) return;
+      const now = Date.now();
+      // Strictly prevent repeating the same voice notification within 8 seconds
+      if (text === lastSpokenText && (now - lastSpokenTime) < 8000) {
+        return;
+      }
+      lastSpokenText = text;
+      lastSpokenTime = now;
+
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.96;
+        utterance.pitch = 1.05;
+        utterance.volume = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const phVoice = voices.find(v => v.lang === 'en-PH' || v.lang.startsWith('en-PH'));
+        const enVoice = voices.find(v => v.lang === 'en-US' || v.lang.startsWith('en-US')) || voices.find(v => v.lang.startsWith('en'));
+        if (phVoice) {
+          utterance.voice = phVoice;
+        } else if (enVoice) {
+          utterance.voice = enVoice;
+        }
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("Voice-over speech error:", err);
+      }
+    }
+
+    async function changeGateMode(newMode) {
+      try {
+        const res = await fetch('/api/gate-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: newMode })
+        });
+        const data = await res.json();
+        if (data.success) {
+          speakVoiceOver(`Gate mode set to ${newMode}`);
+        }
+      } catch(e) {
+        console.error("Failed to update gate mode:", e);
+      }
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+    function toggleVoiceOver() {
+      voiceOverEnabled = !voiceOverEnabled;
+      const btn = document.getElementById('voiceToggleBtn');
+      if (voiceOverEnabled) {
+        btn.className = 'px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold font-hud transition flex items-center shadow-lg';
+        btn.innerHTML = '<i class="fa-solid fa-volume-high mr-1.5 text-cyan-300"></i> Voice Active';
+        speakVoiceOver("Voice announcements active for Don Montano Central Integrated School.");
+      } else {
+        btn.className = 'px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-bold font-hud transition flex items-center';
+        btn.innerHTML = '<i class="fa-solid fa-volume-xmark mr-1.5"></i> Voice Muted';
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
+    }
+
+    // Enable Audio on first user interaction if browser blocked autoplay
+    document.addEventListener('click', () => {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }, { once: true });
+
+    // 3. Event Polling for Real-Time Scans
+    let lastSeenEventId = 0;
+    let badgeResetTimeout = null;
+
+    async function checkLatestEvent() {
+      try {
+        const res = await fetch('/api/latest-event');
+        if (!res.ok) return;
+        const event = await res.json();
+
+        if (event && event.event_id && event.event_id > lastSeenEventId) {
+          lastSeenEventId = event.event_id;
+          displayDetectedStudent(event);
+        }
+      } catch(e) {
+        console.error("Polling error:", e);
+      }
+    }
+
+    function displayDetectedStudent(event) {
+      // Play Audio Chime
+      playKioskChime();
+
+      // Trigger Voice-over announcement with full student name
+      if (event.voice_text) {
+        speakVoiceOver(event.voice_text);
+      }
+
+      // Populate Badge Card
+      document.getElementById('badgeIdle').classList.add('hidden');
+      const badgeActive = document.getElementById('badgeActive');
+      badgeActive.classList.remove('hidden');
+
+      // Re-trigger animation
+      badgeActive.classList.remove('slide-in');
+      void badgeActive.offsetWidth; // trigger reflow
+      badgeActive.classList.add('slide-in');
+
+      // Populate Data
+      document.getElementById('studentName').innerText = (event.name || 'STUDENT').toUpperCase();
+      document.getElementById('studentGrade').innerText = event.grade || '';
+      document.getElementById('studentLrn').innerText = event.lrn || '';
+      document.getElementById('scanTime').innerText = event.timestamp || '';
+
+      const typeBadge = document.getElementById('scanTypeBadge');
+      const smsSection = document.getElementById('smsSection');
+      const smsIcon = document.getElementById('smsIcon');
+      const smsTitle = document.getElementById('smsTitle');
+      const smsPhone = document.getElementById('smsPhone');
+
+      const isBlocked = event.type === 'BLOCKED' || event.scan_type === 'BLOCKED' || event.scan_type === 'DUPLICATE_ENTRY';
+
+      if (isBlocked) {
+        // Duplicate / Redundant Entry
+        typeBadge.className = 'px-3 py-1 rounded-full text-xs font-hud font-extrabold bg-rose-600 text-white shadow-sm flex items-center animate-pulse';
+        typeBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ${event.period ? event.period.toUpperCase() : 'DUPLICATE ENTRY PREVENTED'}`;
+        
+        if (smsSection) {
+          smsSection.className = 'bg-rose-950/70 border border-rose-500/40 rounded-xl p-3 flex items-start space-x-3 text-xs';
+          if (smsIcon) smsIcon.className = 'fa-solid fa-triangle-exclamation text-rose-400 text-base mt-0.5';
+          if (smsTitle) {
+            smsTitle.className = 'font-bold text-rose-200';
+            smsTitle.innerText = 'Duplicate / Repeated Entry Prevented';
+          }
+          if (smsPhone) smsPhone.innerText = event.message || 'Student is already entered or attendance quota completed. Repeated scan rejected.';
+        }
+      } else {
+        // Valid Attendance Scan
+        if (event.scan_type === 'TIME_IN') {
+          typeBadge.className = 'px-3 py-1 rounded-full text-xs font-hud font-extrabold bg-emerald-500 text-slate-950 shadow-sm flex items-center';
+          typeBadge.innerHTML = `<i class="fa-solid fa-check mr-1.5"></i> ${event.period ? event.period.toUpperCase() : 'TIME-IN CONFIRMED'}`;
+        } else {
+          typeBadge.className = 'px-3 py-1 rounded-full text-xs font-hud font-extrabold bg-amber-500 text-slate-950 shadow-sm flex items-center';
+          typeBadge.innerHTML = `<i class="fa-solid fa-right-from-bracket mr-1.5"></i> ${event.period ? event.period.toUpperCase() : 'TIME-OUT CONFIRMED'}`;
+        }
+
+        if (smsSection) {
+          smsSection.className = 'bg-indigo-950/70 border border-indigo-500/40 rounded-xl p-3 flex items-start space-x-3 text-xs';
+          if (smsIcon) smsIcon.className = 'fa-solid fa-paper-plane text-indigo-400 text-base mt-0.5 animate-bounce';
+          if (smsTitle) {
+            smsTitle.className = 'font-bold text-indigo-200';
+            smsTitle.innerText = 'Parent Alert Dispatched';
+          }
+          if (smsPhone) smsPhone.innerText = event.parent_phone ? `SMS alert sent to parent at ${event.parent_phone}` : 'SMS alert dispatched to parent.';
+        }
+
+        // Update counters only for valid scans
+        const kioskScans = document.getElementById('kioskScans');
+        if (kioskScans) {
+          kioskScans.innerText = parseInt(kioskScans.innerText || 0) + 1;
+        }
+      }
+
+      // Student Photo or QR Code Badge
+      const photoImg = document.getElementById('studentPhotoImg');
+      const qrImg = document.getElementById('studentQrImg');
+      if (event.photo_name || event.photo_path) {
+        const pName = event.photo_name || event.photo_path.split('/').pop();
+        photoImg.src = `/photos/${pName}?t=${Date.now()}`;
+        photoImg.classList.remove('hidden');
+        qrImg.classList.add('hidden');
+      } else {
+        photoImg.classList.add('hidden');
+        qrImg.classList.remove('hidden');
+        if (event.qr_path) {
+          qrImg.src = `${event.qr_path}?t=${Date.now()}`;
+        } else if (event.lrn) {
+          qrImg.src = `/static/qrcodes/${event.lrn}.png?t=${Date.now()}`;
+        }
+      }
+
+      // Match Score Badge
+      const scoreBadge = document.getElementById('matchScoreBadge');
+      if (event.score) {
+        scoreBadge.innerText = `${event.score} MATCH`;
+        scoreBadge.classList.remove('hidden');
+      } else {
+        scoreBadge.classList.add('hidden');
+      }
+
+      // Auto-revert to standby after 5.5 seconds
+      if (badgeResetTimeout) clearTimeout(badgeResetTimeout);
+      badgeResetTimeout = setTimeout(() => {
+        badgeActive.classList.add('hidden');
+        document.getElementById('badgeIdle').classList.remove('hidden');
+      }, 5500);
+    }
+
+    // Poll every 500ms
+    setInterval(checkLatestEvent, 500);
+
+    // Fullscreen Toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => alert(err.message));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Trigger Simulated Gate Scan for testing
+    async function triggerSimulatedScan() {
+      try {
+        const res = await fetch('/api/simulate-scan', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          alert(data.message || 'Error triggering simulated scan.');
+        }
+      } catch(err) {
+        console.error("Simulation error:", err);
+      }
+    }
+
+    // Submit RFID Tap or Manual LRN Entry
+    async function submitRfidTap() {
+      const input = document.getElementById('rfidTapInput');
+      const val = input.value.trim();
+      if (!val) return;
+      try {
+        const res = await fetch('/api/scan-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: val })
+        });
+        if (data.voice_text) {
+          speakVoiceOver(data.voice_text);
+        }
+        input.value = '';
+        input.focus();
+        if (!data.success && !data.voice_text) {
+          alert(data.message || 'ID / LRN not recognized.');
+        }
+      } catch(e) {
+        console.error("Scan error:", e);
+      }
+    }
+
+    // Listen for Enter key on rfidTapInput
+    const rfidInputEl = document.getElementById('rfidTapInput');
+    if (rfidInputEl) {
+      rfidInputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submitRfidTap();
+        }
+      });
+    }
+
+    // Face Validation Modal Handlers
+    let modalStream = null;
+
+    function openFaceModal() {
+      document.getElementById('faceModal').classList.remove('hidden');
+      document.getElementById('faceVerifyStatus').innerText = "Position face in front of camera or click Upload Photo.";
+    }
+
+    function closeFaceModal() {
+      document.getElementById('faceModal').classList.add('hidden');
+      if (modalStream) {
+        modalStream.getTracks().forEach(t => t.stop());
+        modalStream = null;
+      }
+      document.getElementById('modalWebcamVideo').classList.add('hidden');
+      document.getElementById('modalCapturedImg').classList.add('hidden');
+      document.getElementById('modalStandbyPrompt').classList.remove('hidden');
+      document.getElementById('btnSnapAndVerify').disabled = true;
+    }
+
+    async function startModalWebcam() {
+      try {
+        if (modalStream) modalStream.getTracks().forEach(t => t.stop());
+        modalStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        const video = document.getElementById('modalWebcamVideo');
+        video.srcObject = modalStream;
+        video.classList.remove('hidden');
+        document.getElementById('modalCapturedImg').classList.add('hidden');
+        document.getElementById('modalStandbyPrompt').classList.add('hidden');
+        document.getElementById('btnSnapAndVerify').disabled = false;
+        document.getElementById('faceVerifyStatus').innerText = "Webcam active. Click 'Verify Face' to authenticate.";
+      } catch(e) {
+        alert("Webcam access error: " + e.message + "\nYou can use 'Upload Photo' to test face verification.");
+      }
+    }
+
+    async function snapAndVerify() {
+      const video = document.getElementById('modalWebcamVideo');
+      if (!video.videoWidth) return;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      const statusEl = document.getElementById('faceVerifyStatus');
+      statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Running YuNet Face Detection & SFace Recognition...';
+
+      try {
+        const res = await fetch('/api/verify-face', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl })
+        });
+        const data = await res.json();
+        if (data.voice_text) {
+          speakVoiceOver(data.voice_text);
+        }
+        if (data.success && data.matched) {
+          statusEl.innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> ${data.message}</span>`;
+          setTimeout(closeFaceModal, 1500);
+        } else {
+          statusEl.innerHTML = `<span class="text-rose-400 font-bold"><i class="fa-solid fa-circle-xmark mr-1"></i> ${data.message}</span>`;
+        }
+      } catch(e) {
+        statusEl.innerText = "Verification error: " + e.message;
+      }
+    }
+
+    async function uploadAndVerifyFace(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const dataUrl = e.target.result;
+        const img = document.getElementById('modalCapturedImg');
+        img.src = dataUrl;
+        img.classList.remove('hidden');
+        document.getElementById('modalWebcamVideo').classList.add('hidden');
+        document.getElementById('modalStandbyPrompt').classList.add('hidden');
+
+        const statusEl = document.getElementById('faceVerifyStatus');
+        statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Analyzing face biometrics...';
+
+        try {
+          const res = await fetch('/api/verify-face', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: dataUrl })
+          });
+          const data = await res.json();
+          if (data.voice_text) {
+            speakVoiceOver(data.voice_text);
+          }
+          if (data.success && data.matched) {
+            statusEl.innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> ${data.message}</span>`;
+            setTimeout(closeFaceModal, 1500);
+          } else {
+            statusEl.innerHTML = `<span class="text-rose-400 font-bold"><i class="fa-solid fa-circle-xmark mr-1"></i> ${data.message}</span>`;
+          }
+        } catch(err) {
+          statusEl.innerText = "Error: " + err.message;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
+
+  <!-- Face Verification Interactive Modal -->
+  <div id="faceModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="font-hud font-bold text-white text-base flex items-center">
+          <i class="fa-solid fa-camera text-cyan-400 mr-2"></i> Real-Time AI Face Validation
+        </h3>
+        <button onclick="closeFaceModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-4 text-center">
+        <!-- Live Video Preview or Photo -->
+        <div class="w-full aspect-video rounded-2xl bg-black border border-slate-800 overflow-hidden relative flex items-center justify-center">
+          <video id="modalWebcamVideo" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+          <img id="modalCapturedImg" class="w-full h-full object-cover hidden" alt="Captured Face">
+          <div id="modalStandbyPrompt" class="text-xs text-slate-400 p-4 space-y-2">
+            <i class="fa-solid fa-user-astronaut text-4xl text-cyan-500/60"></i>
+            <p>Position your face in front of your camera or select a photo.</p>
+          </div>
+        </div>
+
+        <div id="faceVerifyStatus" class="text-xs font-mono text-cyan-300 min-h-[20px]">
+          Ready to validate face against enrolled student vectors.
+        </div>
+
+        <div class="flex items-center justify-center gap-3 pt-2">
+          <button type="button" onclick="startModalWebcam()" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs rounded-xl transition flex items-center">
+            <i class="fa-solid fa-video mr-1.5"></i> Start Webcam
+          </button>
+          <button type="button" id="btnSnapAndVerify" onclick="snapAndVerify()" disabled class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+            <i class="fa-solid fa-bolt mr-1.5 text-amber-300"></i> Verify Face
+          </button>
+          <label class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-200 font-semibold text-xs rounded-xl cursor-pointer transition flex items-center">
+            <i class="fa-solid fa-upload mr-1.5"></i> Upload Photo
+            <input type="file" accept="image/*" class="hidden" onchange="uploadAndVerifyFace(event)">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

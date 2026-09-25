@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}Enrolled Students | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-200 gap-4">
+    <div>
+      <h1 class="text-2xl font-bold font-heading text-deped-darkblue">Enrolled Students Directory</h1>
+      <p class="text-sm text-slate-500">Smart ID QR & RFID profiles registered in Project S.M.I.L.E. ({{ students|length }} total learners)</p>
+    </div>
+    <div class="flex items-center space-x-3">
+      <!-- Search Input -->
+      <div class="relative w-64">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
+        <input type="text" id="studentSearch" placeholder="Search student or LRN..." 
+               class="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+      </div>
+      <a href="/enroll" class="px-4 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-sm font-semibold rounded-lg shadow-sm transition flex items-center whitespace-nowrap">
+        <i class="fa-solid fa-user-plus mr-2"></i> Enroll New
+      </a>
+    </div>
+  </div>
+
+  <!-- Students Grid -->
+  <div id="studentsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    {% for s in students %}
+    <div class="student-card glass-card rounded-2xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
+         data-name="{{ s.full_name|lower }}" data-lrn="{{ s.lrn }}">
+      
+      <div>
+        <!-- Card Header: Photo / QR Badge & Name -->
+        <div class="flex items-start space-x-4">
+          <div class="w-16 h-16 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5 shadow-sm relative">
+            {% if s.photo_path %}
+            <img src="{{ s.photo_path }}" alt="{{ s.full_name }}" class="w-full h-full object-cover rounded-lg">
+            {% else %}
+            <img src="/static/qrcodes/{{ s.lrn }}.png" alt="QR Code" class="w-full h-full object-contain" onerror="this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>'">
+            {% endif %}
+          </div>
+          <div class="overflow-hidden">
+            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-deped-blue uppercase tracking-wider mb-1">
+              {{ s.grade_section or 'Unassigned' }}
+            </span>
+            <h3 class="font-bold text-slate-900 text-base leading-snug truncate">{{ s.full_name }}</h3>
+            <p class="font-mono text-xs text-slate-500 mt-0.5">LRN: <span class="font-semibold text-slate-700">{{ s.lrn }}</span></p>
+          </div>
+        </div>
+
+        <!-- Section & Parent Details -->
+        <div class="mt-4 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
+          <div class="flex justify-between text-slate-600">
+            <span class="text-slate-400">Class Adviser:</span>
+            <span class="font-medium text-slate-800">{{ s.class_adviser or 'Not assigned' }}</span>
+          </div>
+          <div class="flex justify-between text-slate-600">
+            <span class="text-slate-400">Parent/Guardian:</span>
+            <span class="font-medium text-slate-800">{{ s.parent_name or 'Not specified' }}</span>
+          </div>
+          <div class="flex justify-between text-slate-600">
+            <span class="text-slate-400">Parent Mobile:</span>
+            <span class="font-mono font-medium text-deped-blue">{{ s.parent_phone }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+        <a href="/id-card/{{ s.lrn }}" target="_blank" class="inline-flex items-center px-2.5 py-1 bg-deped-blue/10 hover:bg-deped-blue text-deped-blue hover:text-white rounded-lg font-semibold transition text-xs">
+          <i class="fa-solid fa-qrcode mr-1.5"></i> Print Smart ID
+        </a>
+        <button onclick="deleteStudent('{{ s.lrn }}', '{{ s.full_name }}')" class="text-rose-500 hover:text-rose-700 font-medium transition flex items-center">
+          <i class="fa-regular fa-trash-can mr-1"></i> Remove
+        </button>
+      </div>
+
+    </div>
+    {% else %}
+    <div class="col-span-full py-16 text-center text-slate-400">
+      <i class="fa-solid fa-users text-5xl mb-3 text-slate-300"></i>
+      <h3 class="text-lg font-bold text-slate-600">No Enrolled Students Found</h3>
+      <p class="text-sm mt-1">Enroll your first student to generate an instant printable QR Smart ID badge.</p>
+      <a href="/enroll" class="mt-4 inline-flex items-center px-4 py-2 bg-deped-blue text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-deped-darkblue transition">
+        <i class="fa-solid fa-user-plus mr-2"></i> Enroll Student Now
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Search Filter
+  const studentSearch = document.getElementById('studentSearch');
+  studentSearch.addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase();
+    const cards = document.querySelectorAll('.student-card');
+    cards.forEach(card => {
+      const name = card.getAttribute('data-name');
+      const lrn = card.getAttribute('data-lrn');
+      if (name.includes(term) || lrn.includes(term)) {
+        card.style.display = '';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+
+  // Delete Student
+  async function deleteStudent(lrn, name) {
+    if (!confirm(`Are you sure you want to remove ${name} (LRN: ${lrn}) from Project S.M.I.L.E.?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/delete-student/${lrn}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch(err) {
+      alert("Failed to delete: " + err.message);
+    }
+  }
+</script>
+{% endblock %}

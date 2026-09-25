@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings (Super Admin Exclusive) | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-slate-900 text-white relative overflow-hidden">
+    <div class="space-y-1 z-10">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <i class="fa-solid fa-lock mr-1"></i> SUPER ADMIN EXCLUSIVE
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+          Master System Control
+        </span>
+      </div>
+      <h1 class="text-2xl font-black font-heading tracking-tight text-white">Central System Settings</h1>
+      <p class="text-xs text-slate-300">
+        You are logged in as Super Administrator. You have exclusive authority to modify SMS credentials, system branding, database archives, and pricing tiers.
+      </p>
+    </div>
+
+    <!-- Quick Action Links -->
+    <div class="flex items-center gap-2 z-10 shrink-0">
+      <a href="/admin/billing" class="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+        <i class="fa-solid fa-wallet"></i> Billing & Pricing
+      </a>
+      <a href="/admin/users" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+        <i class="fa-solid fa-users-gear"></i> Staff Accounts
+      </a>
+    </div>
+  </div>
+
+  {% if feedback_msg %}
+  <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center gap-2">
+    <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+    <span>{{ feedback_msg }}</span>
+  </div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left Column (2 Cols): SMS Gateway & School Configuration -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- SMS Gateway Configuration -->
+      <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5 bg-white">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center text-base">
+              <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-black font-heading text-slate-900">SMS Gateway Configuration</h2>
+              <p class="text-[11px] text-slate-500">Configure PhilSMS, Semaphore, Twilio API, or Local GSM SIM</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase {% if sms_mode == 'MOCK' %}bg-slate-100 text-slate-600{% else %}bg-emerald-100 text-emerald-800 border border-emerald-200{% endif %}">
+            Active: {{ sms_mode }}
+          </span>
+        </div>
+
+        <form method="POST" action="/admin/settings/sms" class="space-y-4">
+          
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+              Active Gateway Provider
+            </label>
+            <select name="mode" id="smsModeSelect" onchange="toggleSmsFields()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              <option value="MOCK" {% if sms_config.mode == 'MOCK' %}selected{% endif %}>Simulation / Mock (Zero-Cost Local Testing)</option>
+              <option value="PHIL_SMS" {% if sms_config.mode == 'PHIL_SMS' %}selected{% endif %}>PhilSMS (Philippine Direct Telecom Route)</option>
+              <option value="SEMAPHORE" {% if sms_config.mode == 'SEMAPHORE' %}selected{% endif %}>Semaphore (DepEd Standard Bulk SMS)</option>
+              <option value="TWILIO" {% if sms_config.mode == 'TWILIO' %}selected{% endif %}>Twilio (International SMS Carrier)</option>
+              <option value="GSM_MODEM" {% if sms_config.mode == 'GSM_MODEM' %}selected{% endif %}>Hardware GSM USB SIM Modem (COM Port)</option>
+            </select>
+          </div>
+
+          <!-- PhilSMS Fields -->
+          <div id="fieldPhilSMS" class="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <h4 class="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-blue-600"></i> PhilSMS Credentials
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">API Token</label>
+                <input type="password" name="philsms_api_key" value="{{ sms_config.philsms_api_key or '' }}" placeholder="Enter PhilSMS API Token"
+                       class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Sender ID</label>
+                <input type="text" name="philsms_sender_id" value="{{ sms_config.philsms_sender_id or 'DepEdAlert' }}" placeholder="e.g. DepEdAlert"
+                       class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold">
+              </div>
+            </div>
+          </div>
+
+          <!-- Semaphore Fields -->
+          <div id="fieldSemaphore" class="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <h4 class="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-amber-600"></i> Semaphore Credentials
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Semaphore API Key</label>
+                <input type="password" name="semaphore_api_key" value="{{ sms_config.semaphore_api_key or '' }}" placeholder="Enter Semaphore API Key"
+                       class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Registered Sender Name</label>
+                <input type="text" name="semaphore_sender_name" value="{{ sms_config.semaphore_sender_name or 'SEMAPHORE' }}" placeholder="SEMAPHORE"
+                       class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold">
+              </div>
+            </div>
+          </div>
+
+          <!-- Twilio Fields -->
+          <div id="fieldTwilio" class="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <h4 class="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-rose-600"></i> Twilio Credentials
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Account SID</label>
+                <input type="text" name="twilio_account_sid" value="{{ sms_config.twilio_account_sid or '' }}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Auth Token</label>
+                <input type="password" name="twilio_auth_token" value="{{ sms_config.twilio_auth_token or '' }}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Twilio From Number</label>
+                <input type="text" name="twilio_from_number" value="{{ sms_config.twilio_from_number or '' }}" placeholder="+1234567890" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+            </div>
+          </div>
+
+          <!-- GSM Modem Fields -->
+          <div id="fieldGsm" class="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <h4 class="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <i class="fa-solid fa-microchip text-emerald-600"></i> Hardware USB SIM Modem
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">COM Port</label>
+                <input type="text" name="gsm_port" value="{{ sms_config.gsm_port or 'COM3' }}" placeholder="COM3 or /dev/ttyUSB0" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Baud Rate</label>
+                <input type="number" name="gsm_baudrate" value="{{ sms_config.gsm_baudrate or 115200 }}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono">
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex items-center justify-end">
+            <button type="submit" class="px-5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> Save SMS Gateway Settings
+            </button>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- School Master Identity & Public Domain Configuration -->
+      <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 bg-white">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base">
+              <i class="fa-solid fa-school-flag"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-black font-heading text-slate-900">School Identity & Public Domain</h2>
+              <p class="text-[11px] text-slate-500">Official DepEd institution name & public internet domain / URL</p>
+            </div>
+          </div>
+          {% if system_domain %}
+          <a href="{{ system_domain }}" target="_blank" class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Online Link <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+          </a>
+          {% endif %}
+        </div>
+
+        <form method="POST" action="/admin/settings/school" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Official School Name</label>
+              <input type="text" name="school_name" value="{{ school_name }}" required
+                     class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">DepEd Region / Division</label>
+              <input type="text" name="deped_region" value="{{ school_settings.deped_region if school_settings else 'Region IV-A CALABARZON' }}" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">DepEd School ID</label>
+              <input type="text" name="school_id" value="{{ school_settings.school_id if school_settings else '152008' }}" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-700">
+            </div>
+
+            <!-- Public Domain / Internet Address -->
+            <div class="sm:col-span-2 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-extrabold uppercase tracking-wider text-deped-darkblue flex items-center gap-1.5">
+                  <i class="fa-solid fa-globe text-deped-blue"></i> Public Domain Name / Internet Host URL
+                </label>
+                <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">QR Codes & Parent App Target</span>
+              </div>
+              <p class="text-[11px] text-slate-600">
+                Enter your custom domain (e.g. <span class="font-mono font-bold text-blue-800">https://smile.donmontano.edu.ph</span> or your Cloudflare tunnel domain). All generated Parent QR codes and SMS portal links will instantly update to point to this address.
+              </p>
+              <div class="flex gap-2">
+                <input type="url" name="system_domain" value="{{ system_domain or '' }}" placeholder="https://smile.donmontano.edu.ph or https://classic-optics-cooperative-therapy.trycloudflare.com"
+                       class="flex-1 px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500">
+                {% if system_domain %}
+                <a href="{{ system_domain }}/parent" target="_blank" class="px-3.5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0" title="Test Parent Portal on Domain">
+                  <i class="fa-solid fa-mobile-screen"></i> Test
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-1">
+            <button type="submit" class="px-5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> Update School Profile & Domain
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Domain Name Guide & Quick Setup Card -->
+      <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-slate-900 text-slate-100 space-y-3">
+        <div class="flex items-center gap-2 text-amber-400">
+          <i class="fa-solid fa-lightbulb text-base"></i>
+          <h3 class="text-xs font-black uppercase tracking-wider text-white">How to connect a Custom Domain to Project S.M.I.L.E.</h3>
+        </div>
+        <p class="text-xs text-slate-300">
+          You can use any domain or subdomain owned by your school or division. Choose one of the 3 methods below:
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-xs">
+          <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <div class="font-extrabold text-blue-400 flex items-center gap-1">
+              <i class="fa-brands fa-cloudflare"></i> Cloudflare Named Tunnel
+            </div>
+            <p class="text-[11px] text-slate-400">
+              Run <code class="text-amber-300 bg-slate-950 px-1 py-0.5 rounded">cloudflared tunnel create deped-smile</code>. Free HTTPS SSL, zero router port forwarding needed!
+            </p>
+          </div>
+          <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <div class="font-extrabold text-emerald-400 flex items-center gap-1">
+              <i class="fa-solid fa-feather"></i> Free DuckDNS Subdomain
+            </div>
+            <p class="text-[11px] text-slate-400">
+              Get a free permanent subdomain like <code class="text-emerald-300 bg-slate-950 px-1 py-0.5 rounded">deped-smile.duckdns.org</code> in 30 seconds from duckdns.org.
+            </p>
+          </div>
+          <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <div class="font-extrabold text-purple-400 flex items-center gap-1">
+              <i class="fa-solid fa-cloud"></i> Cloud VPS / Render
+            </div>
+            <p class="text-[11px] text-slate-400">
+              Deploy our Docker container to Render.com or DigitalOcean and add a CNAME record for your official domain.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column (1 Col): System Maintenance & SaaS Controls -->
+    <div class="space-y-6">
+
+      <!-- SaaS License & Commercial Summary -->
+      <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-sm font-black">
+            <i class="fa-solid fa-certificate"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-black uppercase text-amber-950 tracking-wider">Commercial SaaS License</h3>
+            <span class="text-[10px] text-amber-800">DepEd Standard Campus Plan</span>
+          </div>
+        </div>
+
+        <div class="p-3 bg-white/80 rounded-2xl border border-amber-200/60 space-y-2 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500">License Status:</span>
+            <span class="font-extrabold text-emerald-600"><i class="fa-solid fa-circle-check"></i> Active & Verified</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500">Monthly License:</span>
+            <span class="font-black text-slate-900 font-mono">₱4,999.00 / mo</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500">Pricing Mode:</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">Customizable</span>
+          </div>
+        </div>
+
+        <a href="/admin/billing" class="block w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl text-xs text-center shadow transition">
+          <i class="fa-solid fa-pen-to-square mr-1"></i> Edit Plan Prices & View Revenue
+        </a>
+      </div>
+
+      <!-- Database Maintenance & Emergency Controls -->
+      <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4 bg-white">
+        <div class="flex items-center gap-2 pb-2 border-b border-slate-100">
+          <div class="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-database"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-black uppercase text-slate-800">Database Tools</h3>
+            <span class="text-[10px] text-slate-400">Backups & Archive Maintenance</span>
+          </div>
+        </div>
+
+        <div class="space-y-2.5">
+          <a href="/api/db-backup" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 border border-slate-300">
+            <i class="fa-solid fa-download text-deped-blue"></i> Download SQLite Database Backup
+          </a>
+
+          <button onclick="clearSmsLogsAction()" class="w-full py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 border border-slate-300">
+            <i class="fa-solid fa-broom"></i> Clear Outbound SMS History
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  function toggleSmsFields() {
+    const mode = document.getElementById('smsModeSelect').value;
+    document.getElementById('fieldPhilSMS').classList.toggle('hidden', mode !== 'PHIL_SMS');
+    document.getElementById('fieldSemaphore').classList.toggle('hidden', mode !== 'SEMAPHORE');
+    document.getElementById('fieldTwilio').classList.toggle('hidden', mode !== 'TWILIO');
+    document.getElementById('fieldGsm').classList.toggle('hidden', mode !== 'GSM_MODEM');
+  }
+  toggleSmsFields();
+
+  async function clearSmsLogsAction() {
+    if (!confirm("Are you sure you want to clear all outbound SMS delivery logs?")) return;
+    try {
+      const res = await fetch('/api/clear-sms-logs', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message || "Logs cleared!");
+      location.reload();
+    } catch(e) {
+      alert("Error: " + e.message);
+    }
+  }
+</script>
+{% endblock %}

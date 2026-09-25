@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Parent Portal | {{ student.full_name }}</title>
+  
+  <!-- PWA Metadata -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0B192C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0038A8',
+              red: '#CE1126',
+              gold: '#FCD116',
+              darkblue: '#0B192C',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0f172a;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center text-slate-800">
+
+  <!-- Mobile App Frame Container (Smartphone view or full screen on mobile) -->
+  <div class="w-full max-w-md min-h-screen bg-slate-50 flex flex-col shadow-2xl relative pb-20">
+
+    <!-- Top Native Mobile Header -->
+    <header class="bg-deped-darkblue text-white px-5 pt-6 pb-5 sticky top-0 z-40 border-b border-slate-800 shadow-md">
+      <div class="flex items-center justify-between">
+        <a href="/parent" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-white transition">
+          <i class="fa-solid fa-arrow-left"></i>
+        </a>
+        <div class="text-center">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">DepEd Parent Portal</span>
+          <h1 class="text-xs font-semibold text-slate-200">{{ school_name }}</h1>
+        </div>
+        <button onclick="requestPushPermission()" id="btnHeaderBell" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-amber-300 transition" title="Notification Settings">
+          <i class="fa-solid fa-bell"></i>
+        </button>
+      </div>
+
+      <!-- Real-Time Push In-App Banner (Hidden by default, slides down on new scan) -->
+      <div id="liveAlertBanner" class="hidden mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce transition-all">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-white text-emerald-700 flex items-center justify-center text-lg flex-shrink-0">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div class="flex-grow">
+            <h4 id="alertTitle" class="text-xs font-black uppercase tracking-wide">GATE SCAN VERIFIED</h4>
+            <p id="alertBody" class="text-[11px] text-emerald-100 leading-tight">Your child has checked in.</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Scrollable App Content -->
+    <main class="flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+
+      <!-- Push Notification Enablement Prompt (if not granted) -->
+      <div id="pushPromptCard" class="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-900 to-blue-900 text-white shadow-sm flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 text-base">
+            <i class="fa-solid fa-bell-ring"></i>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold leading-tight">Instant Mobile Alerts</h4>
+            <p class="text-[10px] text-blue-200">Get notified when {{ student.first_name }} scans</p>
+          </div>
+        </div>
+        <button onclick="requestPushPermission()" class="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs shadow transition">
+          Enable
+        </button>
+      </div>
+
+      <!-- Child Profile & Live Campus Status Card -->
+      <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm bg-white text-center relative overflow-hidden">
+        
+        <!-- Status Pill Top Badge -->
+        <div class="flex justify-center mb-3">
+          <div id="statusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold {% if latest_log and latest_log.scan_type == 'TIME_IN' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}bg-blue-100 text-blue-800 border border-blue-200{% else %}bg-slate-100 text-slate-600{% endif %}">
+            <span class="w-2 h-2 rounded-full {% if latest_log and latest_log.scan_type == 'TIME_IN' %}bg-emerald-500 animate-pulse{% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}bg-blue-500{% else %}bg-slate-400{% endif %}"></span>
+            <span id="statusText">
+              {% if latest_log and latest_log.scan_type == 'TIME_IN' %}
+                INSIDE CAMPUS (Since {{ latest_log.time_formatted }})
+              {% elif latest_log and latest_log.scan_type == 'TIME_OUT' %}
+                EXITED CAMPUS (At {{ latest_log.time_formatted }})
+              {% else %}
+                AWAITING ARRIVAL TODAY
+              {% endif %}
+            </span>
+          </div>
+        </div>
+
+        <!-- Student Photo & Verified Ring -->
+        <div class="relative w-24 h-24 mx-auto mb-3">
+          {% if student.photo_path %}
+          <img src="{{ student.photo_path }}" alt="{{ student.full_name }}" class="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-md mx-auto">
+          {% else %}
+          <div class="w-24 h-24 rounded-2xl bg-blue-50 border-4 border-white shadow-md text-deped-blue flex items-center justify-center text-3xl mx-auto">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          {% endif %}
+          <div class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shadow-md border-2 border-white" title="Verified Learner">
+            <i class="fa-solid fa-shield-check"></i>
+          </div>
+        </div>
+
+        <h2 class="font-heading font-black text-lg text-slate-900 leading-tight uppercase">{{ student.full_name }}</h2>
+        <p class="text-xs font-semibold text-slate-500 mt-0.5">{{ student.grade_section }}</p>
+        <p class="text-[11px] font-mono text-slate-400 mt-1">LRN: <span class="font-bold text-slate-700">{{ student.lrn }}</span></p>
+
+        <!-- Dual Notification Protection Ribbon -->
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-500">
+          <i class="fa-solid fa-shield-halved text-deped-blue"></i>
+          <span>Dual Protection: <strong>App Push</strong> + <strong>SMS to {{ student.parent_phone }}</strong></span>
+        </div>
+      </div>
+
+      <!-- Quick Action Bar -->
+      <div class="grid grid-cols-2 gap-3">
+        <a href="/id-card/{{ student.lrn }}" target="_blank" class="p-3 rounded-xl bg-white border border-slate-200 hover:border-deped-blue shadow-sm flex items-center gap-2.5 transition">
+          <div class="w-8 h-8 rounded-lg bg-blue-50 text-deped-blue flex items-center justify-center text-sm">
+            <i class="fa-solid fa-id-card"></i>
+          </div>
+          <div class="text-left">
+            <h4 class="text-xs font-bold text-slate-800">Smart ID</h4>
+            <p class="text-[10px] text-slate-400">View & print ID</p>
+          </div>
+        </a>
+
+        <button onclick="testAppNotification()" class="p-3 rounded-xl bg-white border border-slate-200 hover:border-deped-blue shadow-sm flex items-center gap-2.5 transition">
+          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-vial"></i>
+          </div>
+          <div class="text-left">
+            <h4 class="text-xs font-bold text-slate-800">Test Alert</h4>
+            <p class="text-[10px] text-slate-400">Simulate push alert</p>
+          </div>
+        </button>
+      </div>
+
+      <!-- Today's Gate Activity Timeline -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-deped-blue"></i>
+            Today's Gate Timeline
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono">{{ today_date }}</span>
+        </div>
+
+        <div id="timelineContainer" class="space-y-2.5">
+          {% for log in logs %}
+          <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl {% if log.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-600 border border-emerald-200{% else %}bg-blue-50 text-blue-600 border border-blue-200{% endif %} flex items-center justify-center text-sm font-bold flex-shrink-0">
+                <i class="fa-solid {% if log.scan_type == 'TIME_IN' %}fa-right-to-bracket{% else %}fa-right-from-bracket{% endif %}"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <h4 class="text-xs font-black uppercase text-slate-800">
+                    {% if log.scan_type == 'TIME_IN' %}GATE ENTRY (TIME-IN){% else %}GATE EXIT (TIME-OUT){% endif %}
+                  </h4>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase">{{ log.verification_method or 'AI' }}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono mt-0.5">{{ log.timestamp }}</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-extrabold text-slate-700 block">{{ log.time_formatted }}</span>
+              <span class="text-[10px] text-emerald-600 font-semibold"><i class="fa-solid fa-check-double text-[9px]"></i> SMS Sent</span>
+            </div>
+          </div>
+          {% else %}
+          <div id="emptyTimelineMsg" class="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-400 space-y-2">
+            <i class="fa-solid fa-school text-3xl text-slate-300"></i>
+            <p class="text-xs font-medium">No gate scans recorded yet today.</p>
+            <p class="text-[10px] text-slate-400">When {{ student.first_name }} checks in at the gate, this feed updates in real time.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- School & Adviser Emergency Contact Card -->
+      <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2 text-xs">
+        <h3 class="font-bold text-slate-700 flex items-center gap-1.5">
+          <i class="fa-solid fa-phone text-deped-blue"></i> School Emergency Contacts
+        </h3>
+        <div class="pt-1 text-slate-600 space-y-1 text-[11px]">
+          <p><strong>Adviser:</strong> {{ student.section_rel.adviser_teacher if student.section_rel else 'Grade Adviser' }}</p>
+          <p><strong>School Gate Hotline:</strong> (02) 8123-4567</p>
+          <p><strong>Security Post:</strong> Gate 1 AI Monitoring Station</p>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom Native Mobile App Navigation Bar -->
+    <nav class="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2.5 px-6 flex justify-around items-center z-40">
+      <a href="/parent/{{ student.lrn }}" class="flex flex-col items-center text-deped-blue">
+        <i class="fa-solid fa-house text-base"></i>
+        <span class="text-[10px] font-bold mt-1">Home</span>
+      </a>
+      <a href="/id-card/{{ student.lrn }}" target="_blank" class="flex flex-col items-center text-slate-400 hover:text-deped-blue transition">
+        <i class="fa-solid fa-id-card text-base"></i>
+        <span class="text-[10px] font-bold mt-1">Smart ID</span>
+      </a>
+      <a href="/kiosk" target="_blank" class="flex flex-col items-center text-slate-400 hover:text-deped-blue transition">
+        <i class="fa-solid fa-camera text-base"></i>
+        <span class="text-[10px] font-bold mt-1">Gate Kiosk</span>
+      </a>
+      <a href="/sms" target="_blank" class="flex flex-col items-center text-slate-400 hover:text-deped-blue transition">
+        <i class="fa-solid fa-tower-broadcast text-base"></i>
+        <span class="text-[10px] font-bold mt-1">SMS Logs</span>
+      </a>
+    </nav>
+
+  </div>
+
+  <!-- Audio Chime Generator -->
+  <script>
+    const studentLrn = "{{ student.lrn }}";
+    const studentName = "{{ student.full_name }}";
+    let lastEventId = {% if latest_log %}{{ latest_log.id }}{% else %}0{% endif %};
+
+    // Web Audio Chime generator
+    function playChime(isEntry = true) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        if (isEntry) {
+          osc.frequency.setValueAtTime(587.33, now);       // D5
+          osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+        } else {
+          osc.frequency.setValueAtTime(880.00, now);        // A5
+          osc.frequency.setValueAtTime(587.33, now + 0.12); // D5
+        }
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } catch(e) {
+        console.log("Audio not supported: ", e);
+      }
+    }
+
+    // Phone vibration helper
+    function vibratePhone() {
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    }
+
+    // Request browser notification permission
+    async function requestPushPermission() {
+      if (!("Notification" in window)) {
+        alert("This browser does not support desktop/push notifications.");
+        return;
+      }
+
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        document.getElementById('pushPromptCard').classList.add('hidden');
+        new Notification("Project S.M.I.L.E. Parent Portal", {
+          body: `Push notifications enabled for ${studentName}! You will receive live alerts when your child enters or leaves school.`,
+          icon: "{{ student.photo_path or '/static/models/icon-192.png' }}"
+        });
+        vibratePhone();
+        playChime(true);
+      } else {
+        alert("Notification permission denied. You can re-enable it in browser settings.");
+      }
+    }
+
+    // Check permission status on load
+    if ("Notification" in window && Notification.permission === "granted") {
+      document.getElementById('pushPromptCard').classList.add('hidden');
+    }
+
+    // Trigger test notification
+    function testAppNotification() {
+      const isTimeIn = Math.random() > 0.5;
+      const typeStr = isTimeIn ? "TIME-IN (ENTRY)" : "TIME-OUT (EXIT)";
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      triggerParentAlert({
+        scan_type: isTimeIn ? "TIME_IN" : "TIME_OUT",
+        time_formatted: timeStr,
+        timestamp: new Date().toLocaleString(),
+        verification_method: "AI_FACE",
+        is_test: true
+      });
+    }
+
+    // Displays banner, sound, vibration & browser notification
+    function triggerParentAlert(eventData) {
+      const isEntry = eventData.scan_type === "TIME_IN";
+      const action = isEntry ? "ENTERED the school gate (TIME-IN)" : "EXITED the school gate (TIME-OUT)";
+
+      // 1. Play Sound & Vibrate
+      playChime(isEntry);
+      vibratePhone();
+
+      // 2. Browser Native Notification
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("DepEd S.M.I.L.E. Gate Alert", {
+          body: `${studentName} has ${action} at ${eventData.time_formatted}.`,
+          icon: "{{ student.photo_path or '/static/models/icon-192.png' }}",
+          vibrate: [200, 100, 200]
+        });
+      }
+
+      // 3. In-App Banner
+      const banner = document.getElementById('liveAlertBanner');
+      const title = document.getElementById('alertTitle');
+      const body = document.getElementById('alertBody');
+
+      banner.className = isEntry
+        ? "mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce"
+        : "mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg animate-bounce";
+      
+      title.innerText = isEntry ? "STUDENT ENTERED CAMPUS" : "STUDENT EXITED CAMPUS";
+      body.innerText = `${studentName} verified at ${eventData.time_formatted} (${eventData.verification_method || 'AI Gate'}).`;
+      banner.classList.remove('hidden');
+
+      setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 7000);
+
+      // 4. Update Status Pill
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      if (isEntry) {
+        statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200";
+        statusText.innerText = `INSIDE CAMPUS (Since ${eventData.time_formatted})`;
+      } else {
+        statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200";
+        statusText.innerText = `EXITED CAMPUS (At ${eventData.time_formatted})`;
+      }
+
+      // 5. Prepend to Timeline
+      const emptyMsg = document.getElementById('emptyTimelineMsg');
+      if (emptyMsg) emptyMsg.remove();
+
+      const timeline = document.getElementById('timelineContainer');
+      const newCard = document.createElement('div');
+      newCard.className = "p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-between transition-all animate-pulse";
+      newCard.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl ${isEntry ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'} flex items-center justify-center text-sm font-bold flex-shrink-0">
+            <i class="fa-solid ${isEntry ? 'fa-right-to-bracket' : 'fa-right-from-bracket'}"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h4 class="text-xs font-black uppercase text-slate-800">
+                ${isEntry ? 'GATE ENTRY (TIME-IN)' : 'GATE EXIT (TIME-OUT)'}
+              </h4>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 uppercase">${eventData.verification_method || 'AI'}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono mt-0.5">${eventData.timestamp}</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="text-xs font-extrabold text-slate-700 block">${eventData.time_formatted}</span>
+          <span class="text-[10px] text-emerald-600 font-semibold"><i class="fa-solid fa-check-double text-[9px]"></i> Live Alert</span>
+        </div>
+      `;
+      timeline.insertBefore(newCard, timeline.firstChild);
+      setTimeout(() => newCard.classList.remove('animate-pulse'), 3000);
+    }
+
+    // Real-Time Background Poller (Checking for actual gate scans)
+    setInterval(async () => {
+      try {
+        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}`);
+        const data = await res.json();
+        if (data.has_new && data.event) {
+          lastEventId = data.event.id;
+          triggerParentAlert(data.event);
+        }
+      } catch(e) {
+        // network silent
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

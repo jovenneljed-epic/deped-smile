@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Accounts & Permissions | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-blue-900 text-white relative overflow-hidden">
+    <div class="space-y-1.5 z-10">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <i class="fa-solid fa-lock mr-1"></i> SUPER ADMIN ONLY
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+          Staff Account Settings Module
+        </span>
+      </div>
+      <h1 class="text-2xl font-black font-heading tracking-tight text-white">Staff Account Settings & Role Permissions</h1>
+      <p class="text-xs text-blue-200">
+        Add, edit, deactivate, activate, and manage staff accounts, section advisers, and security access levels across the campus.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 z-10 shrink-0">
+      <button onclick="openAddUserModal()" class="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+        <i class="fa-solid fa-user-plus"></i> Add Staff Account
+      </button>
+      <a href="/admin/settings" class="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
+        <i class="fa-solid fa-gear"></i> System Settings
+      </a>
+    </div>
+  </div>
+
+  <!-- Operational Notification Banner -->
+  <div id="statusToast" class="hidden p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-between shadow-sm transition">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+      <span id="statusToastMsg">Account updated successfully.</span>
+    </div>
+    <button onclick="document.getElementById('statusToast').classList.add('hidden')" class="text-emerald-700 hover:text-emerald-900 text-xs">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <!-- Main Management Panel -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+    
+    <!-- Controls Bar: Search & Quick Role Filters -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      
+      <!-- Search Input -->
+      <div class="relative w-full lg:w-72">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+        <input type="text" id="userSearchInput" oninput="filterStaffTable()" placeholder="Search staff by name, username, email..."
+               class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+      </div>
+
+      <!-- Quick Filter Pills -->
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="text-[10px] font-black uppercase text-slate-400 mr-1">Filter Role:</span>
+        <button onclick="setRoleFilter('ALL')" id="filterBtn_ALL" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-black transition bg-slate-900 text-white shadow-sm">
+          All ({{ users|length }})
+        </button>
+        <button onclick="setRoleFilter('SUPER_ADMIN')" id="filterBtn_SUPER_ADMIN" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          Super Admin
+        </button>
+        <button onclick="setRoleFilter('PRINCIPAL')" id="filterBtn_PRINCIPAL" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          Principal
+        </button>
+        <button onclick="setRoleFilter('TEACHER')" id="filterBtn_TEACHER" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          Teachers
+        </button>
+        <button onclick="setRoleFilter('GUARD')" id="filterBtn_GUARD" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          Guards
+        </button>
+        <button onclick="setRoleFilter('INACTIVE')" id="filterBtn_INACTIVE" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-rose-700 hover:bg-rose-50">
+          Deactivated
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Staff Accounts Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs" id="staffAccountsTable">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black border-y border-slate-200">
+          <tr>
+            <th class="py-3.5 px-4">Staff User / Full Name</th>
+            <th class="py-3.5 px-4">Role Access Level</th>
+            <th class="py-3.5 px-4">Contact Phone</th>
+            <th class="py-3.5 px-4">Assigned Section</th>
+            <th class="py-3.5 px-4">Account Status</th>
+            <th class="py-3.5 px-4">Last Activity</th>
+            <th class="py-3.5 px-4 text-right">Account Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+          {% for u in users %}
+          <tr class="user-row hover:bg-slate-50/80 transition" 
+              data-user-id="{{ u.id }}"
+              data-username="{{ u.username|lower }}"
+              data-fullname="{{ u.full_name|lower }}"
+              data-email="{{ u.email|lower }}"
+              data-role="{{ u.role }}"
+              data-active="{{ 'true' if u.is_active else 'false' }}">
+            
+            <!-- User / Name Column -->
+            <td class="py-3 px-4">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %} flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                  <i class="fa-solid {% if u.role == 'SUPER_ADMIN' %}fa-crown{% elif u.role == 'PRINCIPAL' %}fa-school{% elif u.role == 'TEACHER' %}fa-chalkboard-user{% else %}fa-shield-halved{% endif %}"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-bold text-slate-900">{{ u.full_name }}</span>
+                    {% if u.id == current_user.id %}
+                    <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300">You</span>
+                    {% endif %}
+                  </div>
+                  <span class="text-[10px] text-slate-400 font-mono block">{{ u.username }} &bull; {{ u.email }}</span>
+                </div>
+              </div>
+            </td>
+
+            <!-- Role Badge -->
+            <td class="py-3 px-4">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %}">
+                {{ u.role }}
+              </span>
+            </td>
+
+            <!-- Phone Number -->
+            <td class="py-3 px-4 font-mono text-[11px] text-slate-600">
+              {{ u.phone_number or 'Not provided' }}
+            </td>
+
+            <!-- Assigned Section -->
+            <td class="py-3 px-4">
+              {% if u.assigned_section_name and u.assigned_section_name != 'N/A' %}
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-deped-blue border border-blue-200 flex items-center gap-1.5 w-max">
+                <i class="fa-solid fa-chalkboard text-[10px]"></i>
+                {{ u.assigned_section_name }}
+              </span>
+              {% else %}
+              <span class="text-slate-400 text-[11px] italic">All Sections / Campus-wide</span>
+              {% endif %}
+            </td>
+
+            <!-- Status Badge -->
+            <td class="py-3 px-4">
+              {% if u.is_active %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                ACTIVE
+              </span>
+              {% else %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                DEACTIVATED
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Last Login -->
+            <td class="py-3 px-4 text-slate-400 font-mono text-[10px]">
+              {{ u.last_login }}
+            </td>
+
+            <!-- Real Account Actions Column -->
+            <td class="py-3 px-4 text-right">
+              <div class="inline-flex items-center gap-1.5">
+                
+                <!-- 1. EDIT BUTTON: Available for ALL accounts including own profile -->
+                <button onclick="openEditUserModal({{ u.id }}, '{{ u.username|escape }}', '{{ u.full_name|escape }}', '{{ u.email|escape }}', '{{ u.role }}', '{{ u.phone_number or '' }}', {{ u.assigned_section_id or 'null' }}, {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.id == current_user.id else 'false' }})"
+                        title="Edit Account Details & Password"
+                        class="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-deped-blue font-bold text-xs transition border border-blue-200 flex items-center gap-1">
+                  <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+                  <span>Edit</span>
+                </button>
+
+                <!-- 2. ACTIVATE / DEACTIVATE BUTTON -->
+                {% if u.id != current_user.id %}
+                  {% if u.is_active %}
+                  <button onclick="toggleUserStatus({{ u.id }}, '{{ u.username|escape }}', true)"
+                          title="Deactivate Account (Block Access)"
+                          class="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition border border-amber-200 flex items-center gap-1">
+                    <i class="fa-solid fa-power-off text-[11px] text-amber-600"></i>
+                    <span>Deactivate</span>
+                  </button>
+                  {% else %}
+                  <button onclick="toggleUserStatus({{ u.id }}, '{{ u.username|escape }}', false)"
+                          title="Activate Account (Restore Access)"
+                          class="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs transition border border-emerald-200 flex items-center gap-1">
+                    <i class="fa-solid fa-circle-check text-[11px] text-emerald-600"></i>
+                    <span>Activate</span>
+                  </button>
+                  {% endif %}
+
+                  <!-- 3. PERMANENT DELETE BUTTON -->
+                  <button onclick="deleteUserAction({{ u.id }}, '{{ u.username|escape }}')"
+                          title="Permanently Delete Account"
+                          class="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 transition border border-rose-200">
+                    <i class="fa-solid fa-trash text-xs"></i>
+                  </button>
+                {% else %}
+                  <span class="text-[10px] text-amber-700 font-bold px-2 py-1 bg-amber-50 rounded-lg border border-amber-200" title="You cannot deactivate or delete your own active administrator account">
+                    <i class="fa-solid fa-user-shield text-[9px] mr-0.5"></i> Active Session
+                  </span>
+                {% endif %}
+
+              </div>
+            </td>
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Empty Filter Notice -->
+    <div id="noStaffFoundMsg" class="hidden text-center py-8 text-slate-400 space-y-1">
+      <i class="fa-solid fa-user-slash text-2xl text-slate-300"></i>
+      <p class="text-xs font-bold text-slate-600">No staff accounts match your search or filter.</p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL: ADD NEW STAFF ACCOUNT                                    -->
+<!-- ============================================================== -->
+<div id="modalAddUser" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+    
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-blue-100 text-deped-blue flex items-center justify-center text-sm font-black shadow-sm">
+          <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-black font-heading text-slate-900">Add New Staff Account</h3>
+          <p class="text-[10px] text-slate-400">Create login credentials and role assignment</p>
+        </div>
+      </div>
+      <button onclick="closeAddUserModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="formAddUser" onsubmit="handleAddUser(event)" class="space-y-3.5">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Full Name & Title</label>
+        <input type="text" id="addFullName" required placeholder="e.g. Mr. Roberto Mendoza" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Username</label>
+          <input type="text" id="addUsername" required placeholder="e.g. rmendoza" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
+          <select id="addRole" onchange="toggleAddSectionVisibility()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="TEACHER">Class Adviser / Teacher</option>
+            <option value="PRINCIPAL">Principal / School Head</option>
+            <option value="GUARD">Campus Security Guard</option>
+            <option value="SUPER_ADMIN">Super Administrator</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
+          <input type="email" id="addEmail" required placeholder="mendoza@donmontano.edu.ph" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contact Phone</label>
+          <input type="text" id="addPhone" placeholder="09170000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+      </div>
+
+      <!-- Real Database Section Assignment -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Assigned Class Section (Database)
+        </label>
+        <select id="addAssignedSection" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <option value="">None / Campus-wide (No specific section)</option>
+          {% for sec in sections %}
+          <option value="{{ sec.id }}">{{ sec.grade_level }} - {{ sec.section_name }}{% if sec.room_number %} (Room {{ sec.room_number }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <p class="text-[10px] text-slate-400 mt-1">If role is Teacher, assigning a section gives them direct SF2 attendance oversight for that class.</p>
+      </div>
+
+      <!-- Password Field with Show/Hide toggle -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Initial Password</label>
+        <div class="relative">
+          <input type="password" id="addPassword" required placeholder="••••••••" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 pr-10 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-mono">
+          <button type="button" onclick="togglePasswordVisibility('addPassword', this)" class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 text-xs">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" onclick="closeAddUserModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">Cancel</button>
+        <button type="submit" id="btnSubmitAddUser" class="px-5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+          <i class="fa-solid fa-plus"></i> Create Staff Account
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL: EDIT STAFF ACCOUNT & SETTINGS                            -->
+<!-- ============================================================== -->
+<div id="modalEditUser" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+    
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-sm font-black shadow-sm">
+          <i class="fa-solid fa-user-pen"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-black font-heading text-slate-900" id="editModalHeading">Edit Staff Account</h3>
+          <p class="text-[10px] text-slate-400">Modify credentials, role level, section, and status</p>
+        </div>
+      </div>
+      <button onclick="closeEditUserModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="formEditUser" onsubmit="handleEditUser(event)" class="space-y-3.5">
+      <input type="hidden" id="editUserId">
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Full Name & Title</label>
+        <input type="text" id="editFullName" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Username</label>
+          <input type="text" id="editUsername" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
+          <select id="editRole" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="TEACHER">Class Adviser / Teacher</option>
+            <option value="PRINCIPAL">Principal / School Head</option>
+            <option value="GUARD">Campus Security Guard</option>
+            <option value="SUPER_ADMIN">Super Administrator</option>
+          </select>
+          <p id="editSelfRoleWarning" class="hidden text-[10px] text-amber-700 font-bold mt-1">
+            <i class="fa-solid fa-triangle-exclamation mr-0.5"></i> You cannot change role on your own active admin account.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
+          <input type="email" id="editEmail" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contact Phone</label>
+          <input type="text" id="editPhone" placeholder="09170000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+      </div>
+
+      <!-- Real Database Section Assignment -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Assigned Class Section (Database)
+        </label>
+        <select id="editAssignedSection" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <option value="">None / Campus-wide (No specific section)</option>
+          {% for sec in sections %}
+          <option value="{{ sec.id }}">{{ sec.grade_level }} - {{ sec.section_name }}{% if sec.room_number %} (Room {{ sec.room_number }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Reset Password (Optional during edits) -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Reset Password <span class="text-[10px] text-slate-400 font-normal lowercase">(leave blank to keep current password)</span>
+        </label>
+        <div class="relative">
+          <input type="password" id="editPassword" placeholder="Enter new password if resetting..." class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 pr-10 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-mono">
+          <button type="button" onclick="togglePasswordVisibility('editPassword', this)" class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 text-xs">
+            <i class="fa-solid fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Status Toggle -->
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Account Status</label>
+        <div class="flex items-center gap-4 text-xs font-bold">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="editIsActive" id="editStatusActive" value="true" class="text-emerald-600 focus:ring-emerald-500">
+            <span class="text-emerald-800"><i class="fa-solid fa-circle-check mr-1 text-emerald-600"></i> Active (Can log in)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="editIsActive" id="editStatusInactive" value="false" class="text-rose-600 focus:ring-rose-500">
+            <span class="text-rose-800"><i class="fa-solid fa-circle-xmark mr-1 text-rose-600"></i> Deactivated (Access blocked)</span>
+          </label>
+        </div>
+        <p id="editSelfStatusWarning" class="hidden text-[10px] text-amber-700 font-bold mt-2">
+          <i class="fa-solid fa-triangle-exclamation mr-0.5"></i> Self-deactivation disabled to protect active admin session.
+        </p>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <button type="button" onclick="closeEditUserModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">Cancel</button>
+        <button type="submit" id="btnSubmitEditUser" class="px-5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+          <i class="fa-solid fa-floppy-disk"></i> Save Account Changes
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<script>
+  let currentActiveRoleFilter = 'ALL';
+
+  function showStatusToast(msg) {
+    const toast = document.getElementById('statusToast');
+    const msgEl = document.getElementById('statusToastMsg');
+    if (toast && msgEl) {
+      msgEl.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => { toast.classList.add('hidden'); }, 5000);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Filter & Search Functions
+  // -------------------------------------------------------------
+  function setRoleFilter(role) {
+    currentActiveRoleFilter = role;
+    
+    // Update button states
+    document.querySelectorAll('.role-filter-btn').forEach(btn => {
+      btn.className = "role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200";
+    });
+    const activeBtn = document.getElementById('filterBtn_' + role);
+    if (activeBtn) {
+      activeBtn.className = "role-filter-btn px-3 py-1 rounded-lg text-xs font-black transition bg-slate-900 text-white shadow-sm";
+    }
+
+    filterStaffTable();
+  }
+
+  function filterStaffTable() {
+    const q = document.getElementById('userSearchInput').value.trim().toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+      const uName = row.getAttribute('data-username') || '';
+      const fName = row.getAttribute('data-fullname') || '';
+      const email = row.getAttribute('data-email') || '';
+      const role = row.getAttribute('data-role') || '';
+      const isActive = row.getAttribute('data-active') === 'true';
+
+      const matchesSearch = !q || uName.includes(q) || fName.includes(q) || email.includes(q);
+      
+      let matchesRole = true;
+      if (currentActiveRoleFilter === 'INACTIVE') {
+        matchesRole = !isActive;
+      } else if (currentActiveRoleFilter !== 'ALL') {
+        matchesRole = (role === currentActiveRoleFilter);
+      }
+
+      if (matchesSearch && matchesRole) {
+        row.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+
+    const noMsg = document.getElementById('noStaffFoundMsg');
+    if (noMsg) {
+      noMsg.classList.toggle('hidden', visibleCount > 0);
+    }
+  }
+
+  function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPw = input.type === 'password';
+    input.type = isPw ? 'text' : 'password';
+    btn.innerHTML = isPw ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+  }
+
+  // -------------------------------------------------------------
+  // Add Staff Account Modal Handlers
+  // -------------------------------------------------------------
+  function openAddUserModal() {
+    document.getElementById('formAddUser').reset();
+    document.getElementById('modalAddUser').classList.remove('hidden');
+  }
+
+  function closeAddUserModal() {
+    document.getElementById('modalAddUser').classList.add('hidden');
+  }
+
+  async function handleAddUser(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitAddUser');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Creating Account...';
+
+    const payload = {
+      full_name: document.getElementById('addFullName').value.trim(),
+      username: document.getElementById('addUsername').value.trim(),
+      email: document.getElementById('addEmail').value.trim(),
+      password: document.getElementById('addPassword').value.trim(),
+      role: document.getElementById('addRole').value,
+      phone_number: document.getElementById('addPhone').value.trim(),
+      assigned_section_id: document.getElementById('addAssignedSection').value || null
+    };
+
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeAddUserModal();
+        alert("Account created successfully for " + data.user.full_name + " (" + data.user.role + ")!");
+        location.reload();
+      } else {
+        alert("Cannot create account: " + data.message);
+      }
+    } catch(err) {
+      alert("Error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-plus"></i> Create Staff Account';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Edit Staff Account Modal Handlers
+  // -------------------------------------------------------------
+  function openEditUserModal(userId, username, fullName, email, role, phone, assignedSecId, isActive, isSelf) {
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editFullName').value = fullName;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editPhone').value = phone || '';
+    document.getElementById('editPassword').value = '';
+
+    const roleSelect = document.getElementById('editRole');
+    roleSelect.value = role;
+    const selfRoleWarn = document.getElementById('editSelfRoleWarning');
+    if (isSelf) {
+      roleSelect.disabled = true;
+      if (selfRoleWarn) selfRoleWarn.classList.remove('hidden');
+    } else {
+      roleSelect.disabled = false;
+      if (selfRoleWarn) selfRoleWarn.classList.add('hidden');
+    }
+
+    const secSelect = document.getElementById('editAssignedSection');
+    secSelect.value = assignedSecId ? String(assignedSecId) : '';
+
+    const actRadio = document.getElementById('editStatusActive');
+    const inactRadio = document.getElementById('editStatusInactive');
+    const selfStatusWarn = document.getElementById('editSelfStatusWarning');
+    
+    if (isActive) {
+      actRadio.checked = true;
+    } else {
+      inactRadio.checked = true;
+    }
+
+    if (isSelf) {
+      inactRadio.disabled = true;
+      if (selfStatusWarn) selfStatusWarn.classList.remove('hidden');
+    } else {
+      inactRadio.disabled = false;
+      if (selfStatusWarn) selfStatusWarn.classList.add('hidden');
+    }
+
+    const heading = document.getElementById('editModalHeading');
+    if (heading) {
+      heading.textContent = isSelf ? "Edit Your Account Settings" : `Edit Account: ${fullName}`;
+    }
+
+    document.getElementById('modalEditUser').classList.remove('hidden');
+  }
+
+  function closeEditUserModal() {
+    document.getElementById('modalEditUser').classList.add('hidden');
+  }
+
+  async function handleEditUser(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitEditUser');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving Changes...';
+
+    const userId = document.getElementById('editUserId').value;
+    const roleSelect = document.getElementById('editRole');
+    const isActiveVal = document.querySelector('input[name="editIsActive"]:checked').value === 'true';
+
+    const payload = {
+      full_name: document.getElementById('editFullName').value.trim(),
+      username: document.getElementById('editUsername').value.trim(),
+      email: document.getElementById('editEmail').value.trim(),
+      role: roleSelect.disabled ? undefined : roleSelect.value,
+      phone_number: document.getElementById('editPhone').value.trim(),
+      assigned_section_id: document.getElementById('editAssignedSection').value || null,
+      is_active: isActiveVal
+    };
+
+    const newPw = document.getElementById('editPassword').value.trim();
+    if (newPw) {
+      payload.password = newPw;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeEditUserModal();
+        alert("Account settings saved successfully for " + data.user.full_name + "!");
+        location.reload();
+      } else {
+        alert("Failed to update: " + data.message);
+      }
+    } catch(err) {
+      alert("Error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Account Changes';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Activation / Deactivation & Deletion
+  // -------------------------------------------------------------
+  async function toggleUserStatus(userId, username, currentlyActive) {
+    const actionText = currentlyActive ? "deactivate" : "activate";
+    const confirmMsg = currentlyActive 
+      ? `Are you sure you want to DEACTIVATE the account '${username}'?\n\nThey will be immediately blocked from logging into the system.`
+      : `Are you sure you want to ACTIVATE the account '${username}'?\n\nThey will be able to log into their assigned dashboard.`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/toggle`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || `Account ${actionText}d successfully.`);
+        location.reload();
+      } else {
+        alert("Action failed: " + data.message);
+      }
+    } catch(e) {
+      alert("Error: " + e.message);
+    }
+  }
+
+  async function deleteUserAction(userId, username) {
+    if (!confirm(`Are you sure you want to permanently DELETE staff account '${username}'?\n\nThis action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert("Cannot delete: " + data.message);
+      }
+    } catch(e) {
+      alert("Error: " + e.message);
+    }
+  }
+</script>
+{% endblock %}

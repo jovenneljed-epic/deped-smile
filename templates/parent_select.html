@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Parent Mobile App Portal | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm relative overflow-hidden bg-gradient-to-br from-deped-darkblue via-blue-900 to-indigo-950 text-white">
+    <div class="relative z-10 space-y-3">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+        <i class="fa-solid fa-mobile-screen"></i> FREE UNLIMITED MOBILE NOTIFICATIONS
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black font-heading tracking-tight">DepEd Parent Mobile Portal</h1>
+      <p class="text-sm text-blue-100 max-w-xl">
+        Receive instant, real-time push notifications on your phone with your child's verified photo and exact time whenever they enter or leave the school campus.
+      </p>
+    </div>
+    <div class="absolute -right-10 -bottom-10 text-white/5 text-9xl pointer-events-none">
+      <i class="fa-solid fa-bell"></i>
+    </div>
+  </div>
+
+  <!-- LRN Lookup Card -->
+  <div class="glass-card rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+      <i class="fa-solid fa-magnifying-glass text-deped-blue"></i>
+      Look Up Student by LRN
+    </h2>
+    
+    <form id="lookupForm" class="flex flex-col sm:flex-row gap-3">
+      <input type="text" id="lrnInput" maxlength="12" placeholder="Enter 12-digit Learner Reference Number (LRN)" 
+             required
+             class="flex-grow px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold tracking-wider focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+      <button type="submit" 
+              class="px-6 py-3 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-2">
+        <i class="fa-solid fa-arrow-right-to-bracket"></i> Open Parent App
+      </button>
+    </form>
+    <div id="lookupError" class="hidden text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200"></div>
+  </div>
+
+  <!-- Enrolled Students Quick Select -->
+  <div class="space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500">
+        Quick Access (Enrolled Students)
+      </h2>
+      <span class="text-xs text-slate-400 font-mono">{{ students|length }} learners</span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      {% for s in students %}
+      <a href="/parent/{{ s.lrn }}" class="group block glass-card rounded-2xl p-4 border border-slate-200 hover:border-deped-blue hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+          {% if s.photo_path %}
+          <img src="{{ s.photo_path }}" alt="{{ s.full_name }}" class="w-12 h-12 rounded-xl object-cover border-2 border-slate-200 group-hover:border-deped-blue transition">
+          {% else %}
+          <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center text-lg group-hover:bg-blue-50 group-hover:text-deped-blue transition">
+            <i class="fa-solid fa-user"></i>
+          </div>
+          {% endif %}
+          <div class="overflow-hidden">
+            <h3 class="font-bold text-slate-800 text-sm truncate group-hover:text-deped-blue transition">{{ s.full_name }}</h3>
+            <p class="text-xs text-slate-500">{{ s.grade_section }}</p>
+            <p class="text-[11px] font-mono text-slate-400">LRN: {{ s.lrn }}</p>
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-deped-blue font-bold">
+          <span>Open Mobile App</span>
+          <i class="fa-solid fa-chevron-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('lookupForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const lrn = document.getElementById('lrnInput').value.trim();
+    if (lrn.length < 5) {
+      const err = document.getElementById('lookupError');
+      err.innerText = "Please enter a valid Learner Reference Number (LRN).";
+      err.classList.remove('hidden');
+      return;
+    }
+    window.location.href = '/parent/' + lrn;
+  });
+</script>
+{% endblock %}

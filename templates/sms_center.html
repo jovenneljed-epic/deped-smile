@@ -1,0 +1,475 @@
+{% extends 'base.html' %}
+
+{% block title %}SMS Control Center | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold font-heading text-deped-darkblue flex items-center gap-2">
+        <i class="fa-solid fa-tower-broadcast text-deped-blue"></i>
+        SMS Notifier Control Center
+      </h1>
+      <p class="text-sm text-slate-500">Configure outbound cellular SMS gateways and monitor automated parent notifications</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="checkConnection()" id="btnCheckConn" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-xs font-bold text-slate-700 transition flex items-center gap-1.5">
+        <i class="fa-solid fa-arrows-rotate"></i> Check Connection & Balance
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left Column: Gateway Status, Configurator & Test Sender (1 Col) -->
+    <div class="space-y-5">
+      
+      <!-- Gateway Status Card -->
+      <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Gateway Status</h3>
+          <span id="gatewayBadge" class="px-2.5 py-1 rounded-full text-xs font-bold {% if sms_mode == 'MOCK' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">
+            {% if sms_mode == 'MOCK' %}SIMULATION{% else %}ONLINE{% endif %}
+          </span>
+        </div>
+        
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-deped-blue/10 text-deped-blue flex items-center justify-center text-lg">
+              <i class="fa-solid fa-signal"></i>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400">Active Provider</p>
+              <h4 id="activeModeText" class="font-bold text-slate-800 text-sm font-mono">{{ sms_mode }}</h4>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-200 text-xs text-slate-600 space-y-1">
+            <p><strong>Balance / Credits:</strong> <span id="gatewayCredits" class="font-bold text-deped-blue font-mono">{{ gateway_status.get('credits', 'Checking...') }}</span></p>
+            <p id="gatewayDetails" class="text-slate-500 text-[11px]">{{ gateway_status.get('message', 'Ready to transmit.') }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gateway Settings & Provider Setup Card -->
+      <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Gateway Configuration</h3>
+          <i class="fa-solid fa-sliders text-slate-400"></i>
+        </div>
+
+        <form id="settingsForm" class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Select SMS Provider</label>
+            <select id="smsProviderSelect" onchange="toggleProviderFields()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              <option value="SEMAPHORE" {% if sms_mode == 'SEMAPHORE' %}selected{% endif %}>🇵🇭 Semaphore Philippines (Globe, Smart, DITO)</option>
+              <option value="TWILIO" {% if sms_mode == 'TWILIO' %}selected{% endif %}>🌐 Twilio SMS (Global / Philippines)</option>
+              <option value="ANDROID_GATEWAY" {% if sms_mode == 'ANDROID_GATEWAY' %}selected{% endif %}>📱 Android Phone Gateway (Free Local Wi-Fi SIM)</option>
+              <option value="PHILSMS" {% if sms_mode == 'PHILSMS' %}selected{% endif %}>🇵🇭 PhilSMS Gateway</option>
+              <option value="GSM" {% if sms_mode == 'GSM' %}selected{% endif %}>🔌 USB GSM Modem (Hardware Serial)</option>
+              <option value="MOCK" {% if sms_mode == 'MOCK' %}selected{% endif %}>🧪 Mock Sandbox (Local Simulation)</option>
+            </select>
+          </div>
+
+          <!-- Semaphore Fields -->
+          <div id="fieldsSemaphore" class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Semaphore API Key</label>
+              <input type="password" id="semaphoreKey" placeholder="Enter 32-character API key" 
+                     value="{{ sms_config.get('semaphore_api_key', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+              <span class="text-[10px] text-slate-400">Get your key from <a href="https://semaphore.co" target="_blank" class="text-deped-blue underline">semaphore.co</a></span>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sender Name (Optional)</label>
+              <input type="text" id="semaphoreSender" placeholder="SEMAPHORE" 
+                     value="{{ sms_config.get('semaphore_sender_name', 'SEMAPHORE') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+          </div>
+
+          <!-- Twilio Fields -->
+          <div id="fieldsTwilio" class="space-y-3 hidden">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Twilio Account SID</label>
+              <input type="text" id="twilioSid" placeholder="ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" 
+                     value="{{ sms_config.get('twilio_account_sid', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Twilio Auth Token</label>
+              <input type="password" id="twilioToken" placeholder="Auth Token" 
+                     value="{{ sms_config.get('twilio_auth_token', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Twilio Phone Number (From)</label>
+              <input type="text" id="twilioFrom" placeholder="+1234567890" 
+                     value="{{ sms_config.get('twilio_from_number', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+          </div>
+
+          <!-- Android Gateway Fields -->
+          <div id="fieldsAndroid" class="space-y-3 hidden">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Phone Gateway URL</label>
+              <input type="url" id="androidUrl" placeholder="http://192.168.1.100:8080/send" 
+                     value="{{ sms_config.get('android_gateway_url', 'http://192.168.1.100:8080/send') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+              <span class="text-[10px] text-slate-400">URL shown on Android SMS Gateway app</span>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Gateway Auth Token / Key (Optional)</label>
+              <input type="password" id="androidKey" placeholder="Optional token" 
+                     value="{{ sms_config.get('android_gateway_key', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+          </div>
+
+          <!-- PhilSMS Fields -->
+          <div id="fieldsPhilSMS" class="space-y-3 hidden">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">PhilSMS API Token</label>
+              <input type="password" id="philsmsKey" placeholder="Bearer Token" 
+                     value="{{ sms_config.get('philsms_api_key', '') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sender ID</label>
+              <input type="text" id="philsmsSender" placeholder="PhilSMS" 
+                     value="{{ sms_config.get('philsms_sender_id', 'PhilSMS') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+          </div>
+
+          <!-- GSM Modem Fields -->
+          <div id="fieldsGSM" class="space-y-3 hidden">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Serial COM Port</label>
+              <input type="text" id="gsmPort" placeholder="COM3" 
+                     value="{{ sms_config.get('gsm_port', 'COM3') }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Baud Rate</label>
+              <input type="number" id="gsmBaud" placeholder="9600" 
+                     value="{{ sms_config.get('gsm_baudrate', 9600) }}"
+                     class="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+          </div>
+
+          <button type="submit" id="btnSaveSettings" 
+                  class="w-full py-2 bg-deped-darkblue hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center justify-center shadow-sm">
+            <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Gateway Configuration
+          </button>
+        </form>
+
+        <div id="settingsResult" class="hidden text-xs p-3 rounded-lg"></div>
+      </div>
+
+      <!-- Quick Setup Guide Accordion -->
+      <div class="glass-card rounded-2xl p-4 border border-slate-200 shadow-sm text-xs space-y-2">
+        <details class="cursor-pointer group">
+          <summary class="font-bold text-slate-700 flex items-center justify-between">
+            <span><i class="fa-solid fa-circle-question text-indigo-500 mr-1.5"></i> How to Get Real SMS Working</span>
+            <i class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="pt-3 text-slate-600 space-y-2.5 border-t border-slate-100 mt-2">
+            <div class="p-2 bg-blue-50/60 rounded-lg border border-blue-100">
+              <strong class="text-blue-900 block mb-0.5">Option 1: Semaphore Philippines (DepEd Standard)</strong>
+              <p class="text-[11px]">1. Sign up at <a href="https://semaphore.co" target="_blank" class="text-deped-blue underline font-bold">semaphore.co</a>.<br>
+              2. Copy your API Key from the Account Settings.<br>
+              3. Paste the key above, click Save, and send real SMS to any PH number.</p>
+            </div>
+            <div class="p-2 bg-emerald-50/60 rounded-lg border border-emerald-100">
+              <strong class="text-emerald-900 block mb-0.5">Option 2: Android Phone Gateway (100% Free Unli SMS)</strong>
+              <p class="text-[11px]">1. Download <strong>"SMS Gateway"</strong> app on an Android phone with unli load.<br>
+              2. Connect the phone to the same Wi-Fi as this PC.<br>
+              3. Start the gateway in the app and paste the IP URL above (e.g. <code>http://192.168.1.50:8080/send</code>).</p>
+            </div>
+            <div class="p-2 bg-purple-50/60 rounded-lg border border-purple-100">
+              <strong class="text-purple-900 block mb-0.5">Option 3: Twilio SMS (Global Network)</strong>
+              <p class="text-[11px]">1. Create a free trial account at <a href="https://twilio.com" target="_blank" class="text-purple-700 underline font-bold">twilio.com</a>.<br>
+              2. Copy your Account SID, Auth Token, and Twilio Phone Number into the fields above.</p>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Test SMS Card -->
+      <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Dispatch Test SMS</h3>
+          <i class="fa-solid fa-paper-plane text-indigo-500"></i>
+        </div>
+        <p class="text-xs text-slate-500">Send an immediate test alert through the active gateway.</p>
+
+        <form id="testSmsForm" class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Mobile Phone Number</label>
+            <input type="tel" id="testPhone" required placeholder="09171234567 or +639171234567" 
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Custom Message (Optional)</label>
+            <input type="text" id="testMessage" placeholder="Leave empty for official DepEd test template" 
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+          <button type="submit" id="btnTestSms" 
+                  class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition flex items-center justify-center">
+            <i class="fa-solid fa-paper-plane mr-2"></i> Send Test Notification
+          </button>
+        </form>
+
+        <div id="testResult" class="hidden text-xs p-3 rounded-lg"></div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Outbound SMS History Log (2 Cols) -->
+    <div class="lg:col-span-2 glass-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold font-heading text-slate-800">Outbound SMS Delivery Logs</h2>
+          <p class="text-xs text-slate-500">History of automated text messages sent to student guardians</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="clearSmsLogs()" class="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1 shadow-sm" title="Delete all SMS logs">
+            <i class="fa-solid fa-trash-can"></i> Clear Logs
+          </button>
+          <button onclick="window.location.reload()" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition" title="Refresh logs">
+            <i class="fa-solid fa-rotate-right"></i>
+          </button>
+          <span class="text-xs font-mono text-slate-400">{{ logs|length }} transactions</span>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto flex-grow">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
+              <th class="py-2.5 px-4">Sent At</th>
+              <th class="py-2.5 px-4">Recipient</th>
+              <th class="py-2.5 px-4">LRN</th>
+              <th class="py-2.5 px-4">Status</th>
+              <th class="py-2.5 px-4">Message Preview</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for log in logs %}
+            <tr class="hover:bg-blue-50/30 transition">
+              <td class="py-2.5 px-4 font-mono text-slate-500 whitespace-nowrap">{{ log.sent_at }}</td>
+              <td class="py-2.5 px-4 font-mono font-medium text-slate-800">{{ log.recipient_phone }}</td>
+              <td class="py-2.5 px-4 font-mono text-slate-600">{{ log.student_lrn or 'N/A' }}</td>
+              <td class="py-2.5 px-4">
+                {% if 'SENT' in log.status %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800" title="{{ log.gateway_response }}">
+                  <i class="fa-solid fa-check mr-1"></i> {{ log.status }}
+                </span>
+                {% elif log.status == 'MOCKED' %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800" title="Local Simulation">
+                  <i class="fa-solid fa-flask mr-1"></i> SIMULATION
+                </span>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800" title="{{ log.gateway_response }}">
+                  <i class="fa-solid fa-circle-exclamation mr-1"></i> {{ log.status }}
+                </span>
+                {% endif %}
+              </td>
+              <td class="py-2.5 px-4 text-slate-600 max-w-xs truncate" title="{{ log.message_body }}">
+                {{ log.message_body }}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="py-12 text-center text-slate-400">
+                <i class="fa-solid fa-message text-3xl mb-2 text-slate-300"></i>
+                <p>No SMS logs recorded yet.</p>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleProviderFields() {
+    const prov = document.getElementById('smsProviderSelect').value;
+    document.getElementById('fieldsSemaphore').classList.toggle('hidden', prov !== 'SEMAPHORE');
+    document.getElementById('fieldsTwilio').classList.toggle('hidden', prov !== 'TWILIO');
+    document.getElementById('fieldsAndroid').classList.toggle('hidden', prov !== 'ANDROID_GATEWAY');
+    document.getElementById('fieldsPhilSMS').classList.toggle('hidden', prov !== 'PHILSMS');
+    document.getElementById('fieldsGSM').classList.toggle('hidden', prov !== 'GSM');
+  }
+
+  // Initialize visibility
+  toggleProviderFields();
+
+  // Save Settings
+  document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveSettings');
+    const resultBox = document.getElementById('settingsResult');
+    const prov = document.getElementById('smsProviderSelect').value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving...';
+
+    const payload = {
+      mode: prov,
+      semaphore_api_key: document.getElementById('semaphoreKey').value,
+      semaphore_sender_name: document.getElementById('semaphoreSender').value,
+      twilio_account_sid: document.getElementById('twilioSid').value,
+      twilio_auth_token: document.getElementById('twilioToken').value,
+      twilio_from_number: document.getElementById('twilioFrom').value,
+      android_gateway_url: document.getElementById('androidUrl').value,
+      android_gateway_key: document.getElementById('androidKey').value,
+      philsms_api_key: document.getElementById('philsmsKey').value,
+      philsms_sender_id: document.getElementById('philsmsSender').value,
+      gsm_port: document.getElementById('gsmPort').value,
+      gsm_baudrate: document.getElementById('gsmBaud').value
+    };
+
+    try {
+      const res = await fetch('/api/sms-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      resultBox.className = data.success 
+        ? 'text-xs p-3 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200'
+        : 'text-xs p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200';
+      resultBox.innerHTML = `<strong>Success:</strong> ${data.message}`;
+      resultBox.classList.remove('hidden');
+
+      // Update UI Header
+      document.getElementById('activeModeText').innerText = prov;
+      const badge = document.getElementById('gatewayBadge');
+      if (prov === 'MOCK') {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+        badge.innerText = 'SIMULATION';
+      } else {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+        badge.innerText = 'ONLINE';
+      }
+
+      if (data.gateway_status) {
+        document.getElementById('gatewayCredits').innerText = data.gateway_status.credits || 'Active';
+        document.getElementById('gatewayDetails').innerText = data.gateway_status.message || '';
+      }
+    } catch(err) {
+      resultBox.className = 'text-xs p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200';
+      resultBox.innerText = "Error saving settings: " + err.message;
+      resultBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Gateway Configuration';
+    }
+  });
+
+  // Check Connection & Balance
+  async function checkConnection() {
+    const btn = document.getElementById('btnCheckConn');
+    const creditsEl = document.getElementById('gatewayCredits');
+    const detailsEl = document.getElementById('gatewayDetails');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Testing...';
+    creditsEl.innerText = 'Checking...';
+
+    try {
+      const res = await fetch('/api/test-sms-connection', { method: 'POST' });
+      const data = await res.json();
+
+      creditsEl.innerText = data.credits || 'Connected';
+      detailsEl.innerText = data.message || '';
+
+      const badge = document.getElementById('gatewayBadge');
+      if (data.online) {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+        badge.innerText = 'ONLINE';
+      } else if (data.mode === 'MOCK') {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+        badge.innerText = 'SIMULATION';
+      } else {
+        badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800';
+        badge.innerText = data.status || 'ERROR';
+      }
+    } catch(err) {
+      creditsEl.innerText = 'Error';
+      detailsEl.innerText = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-arrows-rotate mr-1.5"></i> Check Connection & Balance';
+    }
+  }
+
+  // Dispatch Test SMS
+  document.getElementById('testSmsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const phone = document.getElementById('testPhone').value;
+    const message = document.getElementById('testMessage').value;
+    const btn = document.getElementById('btnTestSms');
+    const resultBox = document.getElementById('testResult');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Transmitting...';
+
+    try {
+      const res = await fetch('/api/test-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message })
+      });
+      const data = await res.json();
+
+      resultBox.className = data.success 
+        ? 'text-xs p-3 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200'
+        : 'text-xs p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200';
+      
+      const statusBadge = `<span class="font-mono font-bold">${data.status}</span>`;
+      resultBox.innerHTML = `<strong>Result (${statusBadge}):</strong> ${data.info || data.message || 'SMS processed.'}`;
+      resultBox.classList.remove('hidden');
+
+      if (data.success) {
+        setTimeout(() => window.location.reload(), 2500);
+      }
+    } catch(err) {
+      resultBox.className = 'text-xs p-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200';
+      resultBox.innerText = "Error dispatching SMS: " + err.message;
+      resultBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-2"></i> Send Test Notification';
+    }
+  });
+
+  async function clearSmsLogs() {
+    if (!confirm("Are you sure you want to delete all outbound SMS delivery logs?")) return;
+    try {
+      const res = await fetch('/api/clear-sms-logs', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert("Failed to delete SMS logs: " + data.message);
+      }
+    } catch(err) {
+      alert("Error: " + err.message);
+    }
+  }
+</script>
+{% endblock %}

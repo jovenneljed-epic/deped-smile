@@ -1,0 +1,27 @@
+{
+  "name": "Project S.M.I.L.E. - DepEd Parent Portal",
+  "short_name": "SMILE Parent",
+  "description": "Don Montano Central Integrated School - Real-Time Student Gate Attendance, Push Alerts & DepEd Advisories",
+  "id": "/parent",
+  "start_url": "/parent",
+  "scope": "/parent",
+  "display": "standalone",
+  "background_color": "#0B192C",
+  "theme_color": "#0B192C",
+  "orientation": "portrait-primary",
+  "categories": ["education", "parenting", "productivity"],
+  "icons": [
+    {
+      "src": "/static/images/pwa_icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/pwa_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

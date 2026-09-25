@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Commercial Monetization & Billing | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 text-slate-950 relative overflow-hidden">
+    <div class="space-y-1 z-10">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-900 text-amber-300">
+          <i class="fa-solid fa-coins mr-1"></i> DIGITAL PRODUCT MONETIZATION
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/40 text-slate-950">
+          SaaS Revenue Center
+        </span>
+      </div>
+      <h1 class="text-2xl font-black font-heading tracking-tight text-slate-950">Subscriptions & Income Management</h1>
+      <p class="text-xs text-slate-900 font-medium">
+        Manage editable subscription plan prices, monitor Monthly Recurring Revenue (MRR), and track Philippine digital payments (GCash / Maya).
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 z-10 shrink-0">
+      <button onclick="openSimulatePaymentModal()" class="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+        <i class="fa-solid fa-receipt"></i> Simulate Payment (GCash/Maya)
+      </button>
+      <a href="/admin/settings" class="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+        <i class="fa-solid fa-gear"></i> System Settings
+      </a>
+    </div>
+  </div>
+
+  <!-- Revenue KPI Stat Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    
+    <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-white space-y-1">
+      <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Monthly Recurring (MRR)</span>
+      <h3 class="text-2xl font-black text-emerald-600 font-heading">{{ revenue_stats.mrr_formatted }}</h3>
+      <span class="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+        <i class="fa-solid fa-arrow-trend-up"></i> Active SaaS Subscriptions
+      </span>
+    </div>
+
+    <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-white space-y-1">
+      <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Total Income Collected</span>
+      <h3 class="text-2xl font-black text-slate-900 font-heading">{{ revenue_stats.total_revenue_formatted }}</h3>
+      <span class="text-[10px] text-slate-500 font-medium">
+        Across {{ revenue_stats.total_transactions }} transactions
+      </span>
+    </div>
+
+    <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-white space-y-1">
+      <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Parent VIP SMS Revenue</span>
+      <h3 class="text-2xl font-black text-deped-blue font-heading">{{ revenue_stats.parent_pack_formatted }}</h3>
+      <span class="text-[10px] text-blue-700 font-medium">
+        Dual-channel SMS & alert subscriptions
+      </span>
+    </div>
+
+    <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-white space-y-1">
+      <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Current School License</span>
+      <h3 class="text-base font-black text-slate-800 font-heading truncate">{{ revenue_stats.active_school_license }}</h3>
+      <span class="text-[10px] text-emerald-600 font-bold font-mono">
+        ₱{{ "{:,.2f}".format(revenue_stats.school_license_price) }} / mo
+      </span>
+    </div>
+
+  </div>
+
+  <!-- Editable Subscription Pricing Plans Section -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+      <div>
+        <h2 class="text-base font-black font-heading text-slate-900 flex items-center gap-2">
+          <span>Editable Subscription Plans & Pricing</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-900">Customizable Pricing</span>
+        </h2>
+        <p class="text-xs text-slate-500">Super Admin can edit any plan price amount below. Updated prices apply immediately across the checkout portal.</p>
+      </div>
+      <span class="text-xs text-slate-400 font-medium">Currency: <strong>PHP (₱)</strong></span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for p in plans %}
+      <div class="p-5 rounded-2xl border {% if p.plan_code == 'STANDARD_SCHOOL' %}border-amber-400 ring-2 ring-amber-100 bg-amber-50/20{% else %}border-slate-200 bg-slate-50/50{% endif %} flex flex-col justify-between space-y-4 hover:shadow-md transition">
+        
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if p.category == 'SCHOOL' %}bg-blue-100 text-deped-blue{% else %}bg-emerald-100 text-emerald-800{% endif %}">
+              {{ p.category }} PLAN
+            </span>
+            <span class="text-[10px] font-mono text-slate-400 uppercase font-bold">{{ p.billing_cycle }}</span>
+          </div>
+
+          <h3 class="text-sm font-black text-slate-900 font-heading leading-snug">{{ p.name }}</h3>
+          
+          <div class="flex items-baseline gap-1">
+            <span class="text-2xl font-black text-slate-900 font-heading" id="displayPrice_{{ p.plan_code }}">
+              {{ p.price_display }}
+            </span>
+            {% if p.price_php > 0 %}
+            <span class="text-xs text-slate-500 font-medium">/ {{ p.billing_cycle }}</span>
+            {% endif %}
+          </div>
+
+          <p class="text-xs text-slate-600 leading-relaxed">{{ p.description }}</p>
+
+          <!-- Feature Bullets -->
+          <ul class="space-y-1.5 pt-2 text-[11px] text-slate-600">
+            {% for f in p.features %}
+            <li class="flex items-start gap-1.5">
+              <i class="fa-solid fa-check text-emerald-600 text-xs mt-0.5 shrink-0"></i>
+              <span>{{ f }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200/80">
+          <button onclick="openEditPlanModal('{{ p.plan_code }}', '{{ p.name }}', {{ p.price_php }}, '{{ p.description }}', '{{ p.billing_cycle }}')" 
+                  class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow">
+            <i class="fa-solid fa-pen-to-square"></i> Edit Subscription Price
+          </button>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Recent Payment Transactions Table -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-4">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+      <div>
+        <h2 class="text-base font-black font-heading text-slate-900">Payment & Revenue Transactions</h2>
+        <p class="text-xs text-slate-500">Live payment audit trail across School SaaS licenses and Parent SMS subscriptions</p>
+      </div>
+      <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+        {{ transactions|length }} Records
+      </span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black border-y border-slate-200">
+          <tr>
+            <th class="py-3 px-4">Transaction Ref</th>
+            <th class="py-3 px-4">Payer & Contact</th>
+            <th class="py-3 px-4">Role</th>
+            <th class="py-3 px-4">Plan Code</th>
+            <th class="py-3 px-4">Amount</th>
+            <th class="py-3 px-4">Channel</th>
+            <th class="py-3 px-4">Status</th>
+            <th class="py-3 px-4">Date</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+          {% for t in transactions %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-4 font-mono font-bold text-slate-900">{{ t.transaction_ref }}</td>
+            <td class="py-3 px-4">
+              <span class="font-bold text-slate-900 block">{{ t.payer_name }}</span>
+              <span class="text-[10px] text-slate-400 font-mono">{{ t.payer_email_phone or 'N/A' }}</span>
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if t.payer_role == 'PARENT' %}bg-emerald-100 text-emerald-800{% else %}bg-blue-100 text-deped-blue{% endif %}">
+                {{ t.payer_role }}
+              </span>
+            </td>
+            <td class="py-3 px-4 font-mono text-[11px]">{{ t.plan_code }}</td>
+            <td class="py-3 px-4 font-mono font-black text-slate-900">{{ t.amount_formatted }}</td>
+            <td class="py-3 px-4 font-bold text-slate-800">
+              <span class="inline-flex items-center gap-1">
+                {% if t.payment_method == 'GCASH' %}<span class="text-blue-600 font-black">GCash</span>
+                {% elif t.payment_method == 'MAYA' %}<span class="text-emerald-600 font-black">Maya</span>
+                {% else %}{{ t.payment_method }}{% endif %}
+              </span>
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                <i class="fa-solid fa-check text-[9px] mr-0.5"></i> {{ t.status }}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-slate-400 font-mono text-[10px]">{{ t.created_at }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-8 text-slate-400">
+              No transactions recorded yet. Use the "Simulate Payment" button above to generate sample revenue.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Edit Subscription Price Amount -->
+<div id="modalEditPlan" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-200 space-y-4">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </div>
+        <h3 class="text-sm font-black font-heading text-slate-900">Edit Subscription Price</h3>
+      </div>
+      <button onclick="closeEditPlanModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="formEditPlan" onsubmit="handleSavePlanPrice(event)" class="space-y-4">
+      <input type="hidden" id="editPlanCode" name="plan_code">
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Plan Name</label>
+        <input type="text" id="editPlanName" name="name" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Subscription Price (PHP ₱)
+        </label>
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 font-bold text-sm pointer-events-none">₱</span>
+          <input type="number" step="0.01" min="0" id="editPlanPrice" name="price_php" required 
+                 class="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-black font-mono text-slate-900 focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400">
+        </div>
+        <p class="text-[10px] text-slate-400 mt-1">Changes take effect immediately across all parent and school checkouts.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Billing Cycle</label>
+        <select id="editPlanCycle" name="billing_cycle" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800">
+          <option value="monthly">Monthly</option>
+          <option value="annual">Annual</option>
+          <option value="one-time">One-Time Pack</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Description</label>
+        <textarea id="editPlanDesc" name="description" rows="2" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-700"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEditPlanModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">Cancel</button>
+        <button type="submit" id="btnSavePrice" class="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+          <i class="fa-solid fa-floppy-disk"></i> Save Price Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Simulate Philippine Digital Payment (GCash / Maya) -->
+<div id="modalSimulatePayment" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-200 space-y-4">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-xl bg-blue-100 text-deped-blue flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-receipt"></i>
+        </div>
+        <h3 class="text-sm font-black font-heading text-slate-900">Simulate Philippine Digital Payment</h3>
+      </div>
+      <button onclick="closeSimulatePaymentModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <form id="formSimulatePay" onsubmit="handleProcessSimulatePayment(event)" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Select Subscription Plan</label>
+        <select id="simPlanSelect" onchange="syncSimAmount()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800">
+          {% for p in plans %}
+          <option value="{{ p.plan_code }}" data-price="{{ p.price_php }}" data-role="{{ 'PARENT' if p.category == 'PARENT' else 'SCHOOL_ADMIN' }}">
+            {{ p.name }} — {{ p.price_display }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Payer Name</label>
+        <input type="text" id="simPayerName" required value="Mrs. Aviguetero (Parent)" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Mobile / Email</label>
+        <input type="text" id="simPayerContact" value="09913114163" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Payment Channel</label>
+          <select id="simPayMethod" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black text-slate-800">
+            <option value="GCASH">GCash (Philippines)</option>
+            <option value="MAYA">Maya (PayMaya)</option>
+            <option value="CARD">Credit/Debit Card</option>
+            <option value="BANK_TRANSFER">Direct Bank Deposit</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Amount (PHP)</label>
+          <input type="number" id="simAmount" readonly class="w-full px-3.5 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-mono font-black text-slate-900">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" onclick="closeSimulatePaymentModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">Cancel</button>
+        <button type="submit" id="btnSubmitSimPay" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs shadow-md transition flex items-center gap-1.5">
+          <i class="fa-solid fa-check"></i> Process & Record Revenue
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openEditPlanModal(code, name, price, desc, cycle) {
+    document.getElementById('editPlanCode').value = code;
+    document.getElementById('editPlanName').value = name;
+    document.getElementById('editPlanPrice').value = price;
+    document.getElementById('editPlanDesc').value = desc;
+    document.getElementById('editPlanCycle').value = cycle;
+    document.getElementById('modalEditPlan').classList.remove('hidden');
+  }
+
+  function closeEditPlanModal() {
+    document.getElementById('modalEditPlan').classList.add('hidden');
+  }
+
+  async function handleSavePlanPrice(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSavePrice');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+
+    const payload = {
+      plan_code: document.getElementById('editPlanCode').value,
+      name: document.getElementById('editPlanName').value,
+      price_php: parseFloat(document.getElementById('editPlanPrice').value),
+      billing_cycle: document.getElementById('editPlanCycle').value,
+      description: document.getElementById('editPlanDesc').value
+    };
+
+    try {
+      const res = await fetch('/api/admin/pricing/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Subscription price updated successfully to " + data.plan.price_formatted + "!");
+        location.reload();
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch(err) {
+      alert("Connection error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Price Changes';
+    }
+  }
+
+  function openSimulatePaymentModal() {
+    syncSimAmount();
+    document.getElementById('modalSimulatePayment').classList.remove('hidden');
+  }
+
+  function closeSimulatePaymentModal() {
+    document.getElementById('modalSimulatePayment').classList.add('hidden');
+  }
+
+  function syncSimAmount() {
+    const sel = document.getElementById('simPlanSelect');
+    const opt = sel.options[sel.selectedIndex];
+    const price = opt.getAttribute('data-price') || 0;
+    document.getElementById('simAmount').value = price;
+  }
+
+  async function handleProcessSimulatePayment(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitSimPay');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Processing Payment...';
+
+    const sel = document.getElementById('simPlanSelect');
+    const opt = sel.options[sel.selectedIndex];
+
+    const payload = {
+      plan_code: sel.value,
+      payer_name: document.getElementById('simPayerName').value,
+      payer_email_phone: document.getElementById('simPayerContact').value,
+      payment_method: document.getElementById('simPayMethod').value,
+      amount_php: parseFloat(document.getElementById('simAmount').value),
+      payer_role: opt.getAttribute('data-role') || 'PARENT'
+    };
+
+    try {
+      const res = await fetch('/api/payment/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Payment Approved & Recorded!\n\nReference: " + data.transaction.transaction_ref + "\nAmount: " + data.transaction.amount_formatted);
+        location.reload();
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch(err) {
+      alert("Payment simulation failed: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Process & Record Revenue';
+    }
+  }
+</script>
+{% endblock %}
