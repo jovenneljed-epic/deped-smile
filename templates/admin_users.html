@@ -6,9 +6,9 @@
 <div class="space-y-6">
 
   <!-- Header Banner -->
-  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-blue-900 text-white relative overflow-hidden">
+  <div class="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-blue-900 text-white relative overflow-hidden">
     <div class="space-y-1.5 z-10">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
           <i class="fa-solid fa-lock mr-1"></i> SUPER ADMIN ONLY
         </span>
@@ -16,17 +16,17 @@
           Staff Account Settings Module
         </span>
       </div>
-      <h1 class="text-2xl font-black font-heading tracking-tight text-white">Staff Account Settings & Role Permissions</h1>
+      <h1 class="text-xl sm:text-2xl font-black font-heading tracking-tight text-white">Staff Account Settings & Role Permissions</h1>
       <p class="text-xs text-blue-200">
         Add, edit, deactivate, activate, and manage staff accounts, section advisers, and security access levels across the campus.
       </p>
     </div>
 
-    <div class="flex items-center gap-2 z-10 shrink-0">
-      <button onclick="openAddUserModal()" class="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+    <div class="flex items-center gap-2 z-10 flex-wrap">
+      <button onclick="openAddUserModal()" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-user-plus"></i> Add Staff Account
       </button>
-      <a href="/admin/settings" class="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
+      <a href="/admin/settings" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
         <i class="fa-solid fa-gear"></i> System Settings
       </a>
     </div>

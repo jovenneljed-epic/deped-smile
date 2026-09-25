@@ -11,14 +11,14 @@
       <h1 class="text-2xl font-bold font-heading text-deped-darkblue">Enrolled Students Directory</h1>
       <p class="text-sm text-slate-500">Smart ID QR & RFID profiles registered in Project S.M.I.L.E. ({{ students|length }} total learners)</p>
     </div>
-    <div class="flex items-center space-x-3">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
       <!-- Search Input -->
-      <div class="relative w-64">
+      <div class="relative w-full sm:w-64">
         <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
         <input type="text" id="studentSearch" placeholder="Search student or LRN..." 
                class="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
       </div>
-      <a href="/enroll" class="px-4 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-sm font-semibold rounded-lg shadow-sm transition flex items-center whitespace-nowrap">
+      <a href="/enroll" class="px-4 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-sm font-semibold rounded-lg shadow-sm transition flex items-center justify-center whitespace-nowrap">
         <i class="fa-solid fa-user-plus mr-2"></i> Enroll New
       </a>
     </div>

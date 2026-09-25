@@ -34,6 +34,10 @@
     }
   </script>
   <style>
+    html, body {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
     body { font-family: 'Inter', sans-serif; background-color: #F4F7FC; }
     h1, h2, h3, h4, .font-heading { font-family: 'Outfit', sans-serif; }
     .glass-card {
@@ -41,32 +45,38 @@
       backdrop-filter: blur(10px);
       border: 1px solid rgba(226, 232, 240, 0.8);
     }
+    /* Mobile responsive table container */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
-<body class="min-h-screen flex flex-col text-slate-800">
+<body class="min-h-screen flex flex-col text-slate-800 overflow-x-hidden w-full max-w-full">
 
   <!-- DepEd Top Banner -->
-  <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60">
-    <div class="w-full max-w-[1600px] mx-auto px-4 sm:px-6 py-2">
-      <div class="flex items-center justify-between gap-3">
+  <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60 w-full">
+    <div class="w-full max-w-[1600px] mx-auto px-3 sm:px-6 py-2 sm:py-2.5">
+      <div class="flex items-center justify-between gap-2">
         
         <!-- Brand / School Title with Official DepEd Logo -->
-        <a href="/" class="flex items-center space-x-3 shrink-0 group">
-          <img src="/static/images/deped_seal.svg" alt="DepEd Official Seal" class="w-12 h-12 object-contain drop-shadow shrink-0 transition group-hover:scale-105">
-          <div class="flex flex-col justify-center">
-            <div class="flex items-center space-x-2">
-              <span class="font-heading font-black text-lg sm:text-xl tracking-wide text-white drop-shadow-sm leading-tight">PROJECT S.M.I.L.E.</span>
-              <span class="bg-amber-400 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-sm tracking-wider">DepEd</span>
+        <a href="/" class="flex items-center space-x-2 sm:space-x-3 shrink-0 group min-w-0">
+          <img src="/static/images/deped_seal.svg" alt="DepEd Official Seal" class="w-9 h-9 sm:w-11 sm:h-11 object-contain drop-shadow shrink-0 transition group-hover:scale-105">
+          <div class="flex flex-col justify-center min-w-0">
+            <div class="flex items-center space-x-1.5">
+              <span class="font-heading font-black text-base sm:text-lg tracking-wide text-white drop-shadow-sm leading-tight truncate">PROJECT S.M.I.L.E.</span>
+              <span class="bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm tracking-wider shrink-0">DepEd</span>
             </div>
-            <p class="text-xs sm:text-sm font-black text-amber-300 tracking-wide flex items-center gap-1.5 mt-0.5 leading-tight drop-shadow-sm">
-              <i class="fa-solid fa-school text-amber-400 text-xs"></i> {{ school_name }}
+            <p class="text-[11px] sm:text-xs font-black text-amber-300 tracking-wide flex items-center gap-1 mt-0.5 leading-tight drop-shadow-sm truncate max-w-[160px] sm:max-w-[280px] md:max-w-none">
+              <i class="fa-solid fa-school text-amber-400 text-[10px] shrink-0"></i> <span class="truncate">{{ school_name }}</span>
             </p>
           </div>
         </a>
 
-        <!-- Navigation Links (Role-Aware) -->
-        <nav class="flex items-center gap-1 sm:gap-1.5 flex-wrap justify-end">
+        <!-- Desktop Navigation Links (Role-Aware) - Visible on lg screens and up -->
+        <nav class="hidden lg:flex items-center gap-1 xl:gap-1.5 flex-nowrap justify-end">
           <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
             <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
           </a>
@@ -88,7 +98,7 @@
 
           <!-- SUPER ADMIN ONLY CONTROLS -->
           {% if current_user and current_user.is_admin %}
-          <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+          <div class="h-4 w-px bg-white/20 mx-1"></div>
 
           <a href="/admin/billing" class="px-2.5 py-1.5 rounded-lg text-xs font-black transition flex items-center {% if request.path == '/admin/billing' %}bg-amber-400 text-slate-950 shadow-sm{% else %}text-amber-300 hover:bg-white/10{% endif %}" title="SaaS Subscriptions & Income">
             <i class="fa-solid fa-coins mr-1 text-[11px]"></i> Billing
@@ -100,13 +110,13 @@
           {% endif %}
 
           <!-- USER PROFILE & AUTHENTICATION -->
-          <div class="h-4 w-px bg-white/20 mx-1 hidden sm:block"></div>
+          <div class="h-4 w-px bg-white/20 mx-1"></div>
 
           {% if current_user %}
           <div class="flex items-center gap-1.5 pl-1">
             <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 text-xs">
               <span class="w-2 h-2 rounded-full {% if current_user.is_admin %}bg-amber-400{% else %}bg-emerald-400{% endif %} animate-pulse"></span>
-              <span class="font-extrabold text-white text-[11px] max-w-[100px] sm:max-w-[130px] truncate">{{ current_user.full_name }}</span>
+              <span class="font-extrabold text-white text-[11px] max-w-[110px] xl:max-w-[140px] truncate">{{ current_user.full_name }}</span>
               <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'TEACHER' %}bg-emerald-400 text-slate-950{% else %}bg-purple-400 text-slate-950{% endif %}">
                 {{ current_user.role }}
               </span>
@@ -120,17 +130,128 @@
             <i class="fa-solid fa-key text-[10px]"></i> Staff Sign In
           </a>
           {% endif %}
-
         </nav>
 
+        <!-- Mobile Quick Controls (Kiosk + Hamburger Toggle) - Visible on screens below lg -->
+        <div class="flex items-center gap-2 lg:hidden shrink-0">
+          <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-video text-[10px] text-emerald-200 animate-pulse"></i>
+            <span>Kiosk</span>
+          </a>
+          <button id="mobileMenuToggle" onclick="toggleMobileMenu()" type="button" class="w-9 h-9 rounded-xl bg-white/10 active:bg-white/20 text-white flex items-center justify-center text-base transition border border-white/20 focus:outline-none" aria-label="Toggle Navigation Menu">
+            <i id="mobileMenuIcon" class="fa-solid fa-bars text-lg"></i>
+          </button>
+        </div>
+
       </div>
+    </div>
+
+    <!-- Mobile Drawer / Dropdown Menu (Hidden by default, toggled via JS) -->
+    <div id="mobileMenu" class="hidden lg:hidden border-t border-blue-900/80 bg-slate-950/95 backdrop-blur-xl px-4 py-3.5 space-y-3 shadow-2xl transition-all">
+      
+      <!-- User Profile Header (Mobile) -->
+      {% if current_user %}
+      <div class="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-xl {% if current_user.is_admin %}bg-amber-400 text-slate-950{% else %}bg-blue-600 text-white{% endif %} flex items-center justify-center font-bold text-sm shrink-0">
+            {{ current_user.username[0]|upper }}
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-white truncate">{{ current_user.full_name }}</p>
+            <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400/20 text-amber-300 border border-amber-400/40{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400/20 text-blue-300 border border-blue-400/40{% elif current_user.role == 'TEACHER' %}bg-emerald-400/20 text-emerald-300 border border-emerald-400/40{% else %}bg-purple-400/20 text-purple-300 border border-purple-400/40{% endif %}">
+              {{ current_user.role }}
+            </span>
+          </div>
+        </div>
+        <a href="/logout" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5 shrink-0">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>Logout</span>
+        </a>
+      </div>
+      {% else %}
+      <a href="/login" class="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center justify-center gap-2">
+        <i class="fa-solid fa-key"></i> Staff Portal Sign In
+      </a>
+      {% endif %}
+
+      <!-- Navigation Links List (Mobile Touch Friendly 44px+) -->
+      <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+        <a href="/" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-chart-pie text-deped-gold text-sm w-4 text-center"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="/kiosk" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition bg-emerald-600/30 border border-emerald-500/40 text-emerald-200">
+          <i class="fa-solid fa-video text-emerald-400 text-sm w-4 text-center"></i>
+          <span>Gate Kiosk</span>
+        </a>
+        <a href="/enroll" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-user-plus text-blue-400 text-sm w-4 text-center"></i>
+          <span>Enroll Learner</span>
+        </a>
+        <a href="/students" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-users text-indigo-400 text-sm w-4 text-center"></i>
+          <span>Students</span>
+        </a>
+        <a href="/parent" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-mobile-screen text-amber-400 text-sm w-4 text-center"></i>
+          <span>Parent App</span>
+        </a>
+        <a href="/database" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/database' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-database text-cyan-400 text-sm w-4 text-center"></i>
+          <span>Database</span>
+        </a>
+      </div>
+
+      <!-- Super Admin Mobile Links -->
+      {% if current_user and current_user.is_admin %}
+      <div class="pt-2 border-t border-white/10 space-y-1.5">
+        <p class="text-[10px] font-black uppercase tracking-wider text-rose-300 px-1">Super Admin Controls</p>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <a href="/admin/settings" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path.startswith('/admin/settings') %}bg-rose-600 text-white{% else %}bg-rose-950/40 border border-rose-500/30 text-rose-300 hover:bg-rose-900/40{% endif %}">
+            <i class="fa-solid fa-sliders text-sm w-4 text-center"></i>
+            <span>Settings</span>
+          </a>
+          <a href="/admin/billing" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path == '/admin/billing' %}bg-amber-400 text-slate-950{% else %}bg-amber-950/40 border border-amber-500/30 text-amber-300 hover:bg-amber-900/40{% endif %}">
+            <i class="fa-solid fa-coins text-sm w-4 text-center"></i>
+            <span>Billing</span>
+          </a>
+          <a href="/admin/users" class="col-span-2 p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path == '/admin/users' %}bg-blue-600 text-white{% else %}bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/40{% endif %}">
+            <i class="fa-solid fa-users-gear text-sm w-4 text-center"></i>
+            <span>Staff Accounts Management</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
     </div>
   </header>
 
   <!-- Main Content Area -->
-  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <main class="flex-grow max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const icon = document.getElementById('mobileMenuIcon');
+      if (!menu) return;
+      const isHidden = menu.classList.contains('hidden');
+      if (isHidden) {
+        menu.classList.remove('hidden');
+        if (icon) {
+          icon.classList.remove('fa-bars');
+          icon.classList.add('fa-xmark');
+        }
+      } else {
+        menu.classList.add('hidden');
+        if (icon) {
+          icon.classList.remove('fa-xmark');
+          icon.classList.add('fa-bars');
+        }
+      }
+    }
+  </script>
 
   <!-- Footer -->
   <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 text-xs py-4">
