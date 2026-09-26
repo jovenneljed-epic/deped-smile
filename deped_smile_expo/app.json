@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "DepEd S.M.I.L.E. Parent",
+    "slug": "deped-smile-parent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B192C"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.deped.smile.parent"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B192C"
+      },
+      "package": "com.deped.smile.parent",
+      "permissions": [
+        "NOTIFICATIONS",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "deped-smile-parent"
+      }
+    }
+  }
+}
