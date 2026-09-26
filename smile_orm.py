@@ -1760,6 +1760,14 @@ def authenticate_user_orm(username_or_email, password):
         user = session.query(User).filter(
             (User.username == ident) | (User.email == ident)
         ).first()
+
+        # Auto-seed default accounts on fresh/unseeded cloud database
+        if not user and session.query(User).count() == 0:
+            seed_default_users_orm()
+            user = session.query(User).filter(
+                (User.username == ident) | (User.email == ident)
+            ).first()
+
         if not user or not user.is_active:
             return None, "Invalid credentials or inactive account."
         if not check_password_hash(user.password_hash, password.strip()):
@@ -1877,6 +1885,95 @@ def delete_user_orm(user_id):
     except Exception as e:
         session.rollback()
         return False, str(e)
+    finally:
+        session.close()
+
+DEFAULT_STUDENTS = [
+    {
+        "lrn": "152008250007",
+        "first_name": "Juan",
+        "last_name": "Dela Cruz",
+        "gender": "Male",
+        "grade_level": "Grade 10",
+        "section_name": "Rizal",
+        "grade_section": "Grade 10 - Rizal",
+        "track_strand": "Junior High",
+        "parent_name": "Maria Dela Cruz",
+        "parent_phone": "09171234567",
+        "parent_relationship": "Mother",
+        "rfid_card_uid": "RFID-8801"
+    },
+    {
+        "lrn": "152008250008",
+        "first_name": "Maria",
+        "last_name": "Santos",
+        "gender": "Female",
+        "grade_level": "Grade 10",
+        "section_name": "Mabini",
+        "grade_section": "Grade 10 - Mabini",
+        "track_strand": "Junior High",
+        "parent_name": "Elena Santos",
+        "parent_phone": "09189876543",
+        "parent_relationship": "Mother",
+        "rfid_card_uid": "RFID-8802"
+    },
+    {
+        "lrn": "152008250009",
+        "first_name": "Angelo",
+        "last_name": "Reyes",
+        "gender": "Male",
+        "grade_level": "Grade 8",
+        "section_name": "Luna",
+        "grade_section": "Grade 8 - Luna",
+        "track_strand": "Junior High",
+        "parent_name": "Roberto Reyes",
+        "parent_phone": "09205551234",
+        "parent_relationship": "Father",
+        "rfid_card_uid": "RFID-8803"
+    },
+    {
+        "lrn": "152008250010",
+        "first_name": "Chloe",
+        "last_name": "Mendoza",
+        "gender": "Female",
+        "grade_level": "Grade 11",
+        "section_name": "STEM",
+        "grade_section": "Grade 11 - STEM",
+        "track_strand": "STEM",
+        "parent_name": "Carmen Mendoza",
+        "parent_phone": "09173339876",
+        "parent_relationship": "Mother",
+        "rfid_card_uid": "RFID-8804"
+    }
+]
+
+def seed_default_students_orm():
+    """Seeds default DepEd student records if the students table is empty."""
+    session = Session()
+    try:
+        if session.query(Student).count() > 0:
+            return
+        for s in DEFAULT_STUDENTS:
+            st = Student(
+                lrn=s["lrn"],
+                first_name=s["first_name"],
+                last_name=s["last_name"],
+                gender=s["gender"],
+                grade_level=s.get("grade_level", "Grade 10"),
+                section_name=s.get("section_name", "Rizal"),
+                grade_section=s["grade_section"],
+                track_strand=s.get("track_strand", "Junior High"),
+                parent_name=s.get("parent_name", "Guardian"),
+                parent_phone=s.get("parent_phone", "09171234567"),
+                parent_relationship=s.get("parent_relationship", "Parent"),
+                rfid_card_uid=s.get("rfid_card_uid", "N/A"),
+                qr_code_path=f"/qr/{s['lrn']}.png"
+            )
+            session.add(st)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] Error seeding students: {e}")
     finally:
         session.close()
 
