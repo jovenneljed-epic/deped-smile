@@ -44,27 +44,23 @@
   </script>
 
   <style>
-    html {
+    html, body {
       width: 100%;
       height: 100%;
-      overflow-x: hidden;
-      overscroll-behavior: none;
+      height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #0B192C;
       -webkit-text-size-adjust: 100%;
     }
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #0B192C;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
-      width: 100%;
-      min-height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow-x: hidden;
-      overscroll-behavior-x: none;
-      overscroll-behavior-y: contain;
-      touch-action: pan-y;
-      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
     .font-heading { font-family: 'Outfit', sans-serif; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -73,47 +69,92 @@
       background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(12px);
     }
-    /* Fixed container from left to right with zero wobble */
+    /* Fixed container from left to right with zero horizontal wobble */
     #appContainer {
       width: 100%;
       max-width: 100%;
-      margin-left: auto;
-      margin-right: auto;
-      overflow-x: hidden;
+      height: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       box-sizing: border-box;
-      touch-action: pan-y;
+      position: relative;
+      background-color: #f1f5f9;
     }
     @media (min-width: 640px) {
       #appContainer {
         max-width: 448px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
       }
+    }
+    /* Natural up and down touch sliding with full momentum like TikTok/Shopee */
+    main.tab-pane {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior-y: contain !important;
+      padding-bottom: 6.5rem !important; /* clearance for bottom navigation bar */
     }
     /* Fixed bottom navigation bar pinned from left to right */
     .fixed-bottom-nav {
-      position: fixed;
+      position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
       width: 100%;
       max-width: 100%;
-      margin-left: auto;
-      margin-right: auto;
       z-index: 40;
+      flex-shrink: 0;
     }
-    @media (min-width: 640px) {
-      .fixed-bottom-nav {
-        max-width: 448px;
-      }
+    /* Shopee / TikTok Style In-App Floating Heads-Up Banner */
+    #floatingPushBanner {
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    #floatingPushBanner.banner-hidden {
+      transform: translateY(-160%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    #floatingPushBanner.banner-visible {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
     }
   </style>
 </head>
-<body class="min-h-screen flex justify-center text-slate-800 antialiased">
+<body class="text-slate-800 antialiased">
 
   <!-- Mobile Phone Viewport Shell (Edge-to-edge from left to right on phones, smartphone frame on desktop) -->
-  <div id="appContainer" class="w-full sm:max-w-md min-h-screen bg-slate-100 flex flex-col relative pb-28 sm:border-x sm:border-slate-700/20 overflow-x-hidden shadow-2xl">
+  <div id="appContainer" class="w-full sm:max-w-md bg-slate-100 flex flex-col relative overflow-hidden">
+
+    <!-- Shopee / TikTok Style In-App Heads-Up Push Banner -->
+    <div id="floatingPushBanner" class="banner-hidden fixed top-3 inset-x-3 sm:max-w-[420px] sm:mx-auto z-50 cursor-pointer" onclick="switchTab('alerts'); dismissFloatingBanner();">
+      <div class="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-start gap-3">
+        <div id="bannerIconBox" class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md">
+          <i id="bannerIcon" class="fa-solid fa-bell-ring"></i>
+        </div>
+        <div class="flex-grow min-w-0">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
+              <i class="fa-solid fa-school text-[9px]"></i> DepEd Gate Alert
+            </span>
+            <span id="bannerTimestamp" class="text-[10px] text-slate-400 font-mono">Just Now</span>
+          </div>
+          <h4 id="bannerStudentName" class="text-xs font-black text-white truncate mt-0.5">{{ active_student.full_name }}</h4>
+          <p id="bannerMessage" class="text-[11px] text-slate-200 mt-0.5 leading-snug">Scanned at Gate 1 (TIME-IN verified by AI Face Scan).</p>
+        </div>
+        <button onclick="event.stopPropagation(); dismissFloatingBanner();" class="text-slate-400 hover:text-white text-sm p-1 shrink-0">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
 
     <!-- Top Mobile App Header -->
-    <header class="bg-deped-darkblue text-white px-5 pt-5 pb-4 sticky top-0 z-40 border-b border-slate-800 shadow-md">
+    <header class="bg-deped-darkblue text-white px-5 pt-4 pb-3 flex-shrink-0 z-30 border-b border-slate-800 shadow-md">
       <div class="flex items-center justify-between">
         
         <!-- School Crest / Parent Info -->
@@ -900,6 +941,45 @@
     </div>
   </div>
 
+  <!-- Shopee / TikTok Style Live Notification Activation Modal -->
+  <div id="notifPromptModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+    <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-3xl shadow-2xl border-2 border-amber-400/80 w-full max-w-sm space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 flex items-center justify-center text-xl font-black shadow-lg">
+          <i class="fa-solid fa-bell-ring"></i>
+        </div>
+        <div>
+          <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white">LIVE GATE ALERTS</span>
+          <h3 class="text-sm font-black text-white mt-1">Get Instant Gate Alerts</h3>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-200 leading-relaxed">
+        Receive real-time push alerts on your lock screen and notification drawer (like Shopee & TikTok) whenever <strong>{{ active_student.first_name }}</strong> scans biometrics at the school gate.
+      </p>
+
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-3 text-[11px] text-slate-300 space-y-1.5">
+        <div class="flex items-center gap-2 text-emerald-400 font-bold">
+          <i class="fa-solid fa-circle-check text-xs"></i>
+          <span>Alerts sound & vibrate even when phone is locked</span>
+        </div>
+        <div class="flex items-center gap-2 text-emerald-400 font-bold">
+          <i class="fa-solid fa-circle-check text-xs"></i>
+          <span>Real-time arrival & dismissal tracking</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 pt-1">
+        <button onclick="dismissNotifPromptModal()" class="py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition">
+          Not Now
+        </button>
+        <button onclick="turnOnShopeeTikTokNotifications()" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 text-slate-950 font-black text-xs shadow-lg transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-bell"></i> Turn On Now
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Parent VIP Checkout (GCash / Maya) -->
   <div id="parentCheckoutModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
     <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
@@ -1116,6 +1196,8 @@
         updateDiagnostics();
       }
       window.scrollTo(0, 0);
+      const activePane = document.querySelector('.tab-pane:not(.hidden)');
+      if (activePane) activePane.scrollTop = 0;
     }
 
     function filterEvents(cat) {
@@ -1242,6 +1324,68 @@
           navigator.vibrate([300, 100, 300, 100, 300]);
         } catch(e) {}
       }
+    }
+
+    // -------------------------------------------------------------
+    // Shopee & TikTok Style In-App Floating Heads-Up Banner
+    // -------------------------------------------------------------
+    let floatingBannerTimer = null;
+    function showFloatingPushBanner(name, action, timeStr, isEntry = true) {
+      const banner = document.getElementById('floatingPushBanner');
+      if (!banner) return;
+
+      const iconBox = document.getElementById('bannerIconBox');
+      const icon = document.getElementById('bannerIcon');
+      const nameEl = document.getElementById('bannerStudentName');
+      const msgEl = document.getElementById('bannerMessage');
+      const timeEl = document.getElementById('bannerTimestamp');
+
+      if (nameEl) nameEl.textContent = name || studentName;
+      if (msgEl) msgEl.textContent = action || (isEntry ? 'Scanned at Gate 1 (TIME-IN verified by AI Face Scan).' : 'Safely Exited Gate 1 (TIME-OUT).');
+      if (timeEl) timeEl.textContent = timeStr || 'Just Now';
+
+      if (iconBox && icon) {
+        if (isEntry) {
+          iconBox.className = "w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md";
+          icon.className = "fa-solid fa-right-to-bracket";
+        } else {
+          iconBox.className = "w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md";
+          icon.className = "fa-solid fa-right-from-bracket";
+        }
+      }
+
+      // Slide down spring animation like Shopee / TikTok
+      banner.classList.remove('banner-hidden');
+      banner.classList.add('banner-visible');
+
+      if (floatingBannerTimer) clearTimeout(floatingBannerTimer);
+      floatingBannerTimer = setTimeout(() => {
+        dismissFloatingBanner();
+      }, 7000);
+    }
+
+    function dismissFloatingBanner() {
+      const banner = document.getElementById('floatingPushBanner');
+      if (banner) {
+        banner.classList.remove('banner-visible');
+        banner.classList.add('banner-hidden');
+      }
+    }
+
+    function dismissNotifPromptModal() {
+      const modal = document.getElementById('notifPromptModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function turnOnShopeeTikTokNotifications() {
+      dismissNotifPromptModal();
+      await requestPushPermission();
+      showFloatingPushBanner(
+        studentName,
+        "Shopee/TikTok style live gate notifications activated! Sound & vibration alerts active.",
+        "Just Now",
+        true
+      );
     }
 
     // -------------------------------------------------------------
@@ -1384,6 +1528,13 @@
             `;
           }
 
+          showFloatingPushBanner(
+            studentName,
+            "Lock-screen push alerts & sound activated! (Shopee/TikTok style)",
+            "Just Now",
+            true
+          );
+
           showSystemNotification(
             "Project S.M.I.L.E. Parent App",
             `Lock-screen push alerts activated for ${studentName}!`,
@@ -1446,6 +1597,14 @@
 
       playChime(isEntry);
       vibratePhone();
+
+      // Shopee / TikTok Style Floating Heads-Up Banner Dropdown
+      showFloatingPushBanner(
+        studentName,
+        `${isEntry ? 'TIME-IN (Entered Campus)' : 'TIME-OUT (Safely Exited)'}: Verified at ${eventData.time_formatted || 'Just Now'} via ${eventData.verification_method || 'AI Biometrics'}.`,
+        eventData.time_formatted || 'Just Now',
+        isEntry
+      );
 
       // System Notification
       const notifTitle = `DepEd Gate Alert: ${studentName}`;
@@ -1567,6 +1726,19 @@
 
       playChime(true);
       vibratePhone();
+
+      // Show immediate floating heads-up banner confirmation
+      showFloatingPushBanner(
+        studentName,
+        "TEST NOTIFICATION: Biometric gate chime, phone vibration, and live push alert verified!",
+        "Just Now",
+        true
+      );
+
+      // If notification permission not yet granted, prompt user directly
+      if ("Notification" in window && Notification.permission === "default") {
+        await requestPushPermission();
+      }
 
       // 2. Ensure lock-screen WebPush subscription is registered with FCM/APNs
       if ('serviceWorker' in navigator && Notification.permission === 'granted') {
@@ -1811,9 +1983,17 @@
       }
     }
 
-    // Load dynamic pricing on page ready
+    // Load dynamic pricing on page ready & trigger Shopee/TikTok gate alert modal
     document.addEventListener('DOMContentLoaded', () => {
       loadParentPricingPlans();
+
+      // Show Shopee/TikTok style gate alert prompt if notifications not yet turned on
+      if ("Notification" in window && Notification.permission === "default") {
+        setTimeout(() => {
+          const modal = document.getElementById('notifPromptModal');
+          if (modal) modal.classList.remove('hidden');
+        }, 1200);
+      }
     });
   </script>
 </body>
