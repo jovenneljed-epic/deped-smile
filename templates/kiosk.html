@@ -660,6 +660,72 @@
       }
     }
 
+    // -----------------------------------------------------------------
+    // Web Audio Chime & Speech Synthesis
+    // -----------------------------------------------------------------
+    let kioskAudioCtx = null;
+    function getKioskAudioContext() {
+      if (!kioskAudioCtx) {
+        kioskAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (kioskAudioCtx.state === 'suspended') {
+        kioskAudioCtx.resume();
+      }
+      return kioskAudioCtx;
+    }
+
+    // Unlock Web Audio on any click/touch
+    ['click', 'touchstart'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        try {
+          const ctx = getKioskAudioContext();
+          if (ctx && ctx.state === 'suspended') ctx.resume();
+        } catch(e) {}
+      }, { once: false });
+    });
+
+    function playKioskChime(isEntry = true) {
+      try {
+        const ctx = getKioskAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        if (isEntry) {
+          osc.frequency.setValueAtTime(587.33, now);        // D5
+          osc.frequency.setValueAtTime(880.00, now + 0.12);  // A5
+        } else {
+          osc.frequency.setValueAtTime(880.00, now);         // A5
+          osc.frequency.setValueAtTime(587.33, now + 0.12);  // D5
+        }
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.6);
+      } catch (e) {
+        console.warn("Chime audio note:", e);
+      }
+    }
+
+    function speakVoiceOver(text) {
+      if (!('speechSynthesis' in window) || !text) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        utterance.lang = 'en-PH';
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn("Voice speech note:", e);
+      }
+    }
+
     function handleMatchedStudent(data) {
       const st = data.student || {};
       const lrn = st.lrn || (data.event ? data.event.lrn : '');
@@ -679,7 +745,8 @@
       setTimeout(() => targetBracket.classList.remove('scan-flash-green'), 1200);
 
       // Play Audio Chime
-      playKioskChime();
+      const isEntry = (data.scan_type || (data.event ? data.event.scan_type : 'TIME_IN')) === 'TIME_IN';
+      playKioskChime(isEntry);
 
       // Speak Student Name
       const voiceText = data.voice_text || (data.event ? data.event.voice_text : `Welcome, ${st.full_name || 'Student'}`);

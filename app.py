@@ -13,7 +13,7 @@ from flask import (
 )
 
 from smile_config import (
-    SCHOOL_NAME, DB_PATH, PHOTOS_DIR, BASE_DIR,
+    SCHOOL_NAME, DB_PATH, PHOTOS_DIR, BASE_DIR, pht_now,
     get_sms_config, save_sms_settings
 )
 import smile_config
@@ -719,8 +719,8 @@ def parent_portal(lrn=None):
         if not linked_students:
             linked_students = [student.to_dict()]
 
-        # Today's gate logs
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        # Today's gate logs (Philippine Standard Time)
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
         today_logs = [l.to_dict() for l in orm_session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(target_lrn),
             AttendanceLog.timestamp >= today_start
@@ -753,8 +753,8 @@ def parent_portal(lrn=None):
             excuse_notes=excuse_notes,
             announcements=announcements,
             events=events,
-            today_date=datetime.now().strftime("%A, %B %d, %Y"),
-            today_iso=date.today().isoformat()
+            today_date=pht_now().strftime("%A, %B %d, %Y"),
+            today_iso=pht_now().date().isoformat()
         ))
         resp.set_cookie('parent_lrn', target_lrn, max_age=86400 * 30)
         resp.set_cookie('parent_phone', student.parent_phone, max_age=86400 * 30)
@@ -1158,7 +1158,8 @@ def api_parent_test_notification():
         student = session.query(Student).filter_by(lrn=str(lrn)).first() if lrn else session.query(Student).first()
         student_name = student.full_name if student else "Learner"
         student_lrn = student.lrn if student else "152008250007"
-        now_time = datetime.now().strftime("%I:%M %p")
+        pht_current = pht_now()
+        now_time = pht_current.strftime("%I:%M %p")
         return jsonify({
             "success": True,
             "title": f"Project S.M.I.L.E. Gate Alert: {student_name}",
@@ -1171,7 +1172,7 @@ def api_parent_test_notification():
                 "lrn": student_lrn,
                 "scan_type": "TIME_IN",
                 "time_formatted": now_time,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p"),
+                "timestamp": pht_current.strftime("%Y-%m-%d %I:%M:%S %p"),
                 "verification_method": "AI Face Scan"
             }
         })

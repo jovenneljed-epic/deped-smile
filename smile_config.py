@@ -1,5 +1,13 @@
 import os
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
+
+# Official Philippine Standard Time (PST / PHT = UTC+8)
+PHT = timezone(timedelta(hours=8))
+
+def pht_now() -> datetime:
+    """Returns current naive datetime in Philippine Standard Time (UTC+8)."""
+    return datetime.now(PHT).replace(tzinfo=None)
 
 # Detect Vercel or Serverless Runtime
 IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))

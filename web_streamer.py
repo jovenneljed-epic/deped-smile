@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from smile_config import (
     CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT, SCHOOL_NAME,
-    COOLDOWN_SECONDS, PHOTOS_DIR
+    COOLDOWN_SECONDS, PHOTOS_DIR, pht_now
 )
 from smile_orm import (
     get_all_enrolled_students_orm, get_student_by_lrn_or_rfid_orm,
@@ -114,7 +114,7 @@ class GateStreamer:
             cooldown_seconds=10,
             gate_mode=self.current_gate_mode
         )
-        now_dt = datetime.now()
+        now_dt = pht_now()
         timestamp_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
         if eval_res["can_scan"]:

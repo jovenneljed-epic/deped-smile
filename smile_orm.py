@@ -9,7 +9,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 from smile_config import (
-    get_database_url, DATABASE_TYPE, COOLDOWN_SECONDS, MIDDAY_SPLIT_HOUR
+    get_database_url, DATABASE_TYPE, COOLDOWN_SECONDS, MIDDAY_SPLIT_HOUR,
+    pht_now, PHT
 )
 from smile_qr import generate_student_qr
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -882,7 +883,7 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
           * "AUTO": Automatically handles arrival vs dismissal based on dwell time and school schedule.
     """
     session = Session()
-    now = current_time or datetime.now()
+    now = current_time or pht_now()
     today_start = datetime.combine(now.date(), datetime.min.time())
     clean_lrn = str(lrn).strip()
     norm_gate_mode = (gate_mode or "AUTO").upper()
@@ -1120,7 +1121,7 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
             student_name=student_name,
             grade_section=grade_section,
             scan_type=scan_type,
-            timestamp=datetime.now(),
+            timestamp=pht_now(),
             verification_method=method,
             sms_status=sms_status
         )
@@ -1154,7 +1155,7 @@ def record_sms_orm(recipient_phone, student_lrn, message_body, status, gateway="
             message_body=message_body,
             gateway_type=gateway,
             status=status,
-            sent_at=datetime.now(),
+            sent_at=pht_now(),
             response_info=str(response_info)
         )
         session.add(sms)
@@ -1168,7 +1169,7 @@ def record_sms_orm(recipient_phone, student_lrn, message_body, status, gateway="
 def get_today_summary_orm():
     session = Session()
     try:
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
         total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
         unique_students = session.query(func.count(func.distinct(AttendanceLog.lrn))).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
         recent_logs = session.query(AttendanceLog).order_by(desc(AttendanceLog.id)).limit(10).all()
@@ -1184,7 +1185,7 @@ def get_today_attendance_logs_orm(limit=None):
     """Returns today's attendance logs with student info from the active ORM database."""
     session = Session()
     try:
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
         query = session.query(AttendanceLog).filter(AttendanceLog.timestamp >= today_start).order_by(desc(AttendanceLog.id))
         if limit:
             query = query.limit(limit)
@@ -1197,7 +1198,7 @@ def get_today_sms_count_orm():
     """Returns count of SMS sent today."""
     session = Session()
     try:
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
         return session.query(func.count(SmsLog.id)).filter(SmsLog.sent_at >= today_start).scalar() or 0
     finally:
         session.close()

@@ -218,6 +218,14 @@
             <span class="font-bold text-emerald-600 font-mono">{{ active_student.parent_phone }}</span>
           </div>
         </div>
+
+        <!-- Live Test Alert & Chime Button -->
+        <div class="mt-3 pt-2.5 border-t border-slate-100">
+          <button type="button" onclick="testMobileNotification()" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-deped-blue font-bold text-xs border border-blue-200 shadow-2xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <i class="fa-solid fa-bell-ring text-amber-500"></i>
+            <span>Test Gate Alert Sound & Vibration</span>
+          </button>
+        </div>
       </div>
 
       <!-- Quick Action Grid -->
@@ -1112,90 +1120,179 @@
     // -------------------------------------------------------------
     // Audio Chime & Vibration
     // -------------------------------------------------------------
+    // -------------------------------------------------------------
+    // Audio Chime & Vibration Engine
+    // -------------------------------------------------------------
+    let parentAudioCtx = null;
+    function getParentAudioContext() {
+      if (!parentAudioCtx) {
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioClass) parentAudioCtx = new AudioClass();
+      }
+      if (parentAudioCtx && parentAudioCtx.state === 'suspended') {
+        parentAudioCtx.resume();
+      }
+      return parentAudioCtx;
+    }
+
+    // Auto-unlock Web Audio on ANY user interaction
+    ['click', 'touchstart', 'touchend', 'keydown'].forEach(evt => {
+      document.addEventListener(evt, () => {
+        try {
+          const ctx = getParentAudioContext();
+          if (ctx && ctx.state === 'suspended') ctx.resume();
+        } catch(e) {}
+      }, { once: false });
+    });
+
     function playChime(isEntry = true) {
       const soundCheckbox = document.getElementById('prefSound');
       if (soundCheckbox && !soundCheckbox.checked) return;
       try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const now = audioCtx.currentTime;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+        const ctx = getParentAudioContext();
+        if (!ctx) return;
 
-        osc.type = 'sine';
-        if (isEntry) {
-          osc.frequency.setValueAtTime(587.33, now);       // D5 (Arrival)
-          osc.frequency.setValueAtTime(880.00, now + 0.14); // A5
+        const executeChime = () => {
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'triangle';
+          if (isEntry) {
+            // High-contrast cheerful double ding for Gate Entry (G5 -> C6)
+            osc.frequency.setValueAtTime(783.99, now);
+            osc.frequency.setValueAtTime(1046.50, now + 0.14);
+          } else {
+            // Soft descending chime for Gate Exit (C6 -> G5)
+            osc.frequency.setValueAtTime(1046.50, now);
+            osc.frequency.setValueAtTime(783.99, now + 0.14);
+          }
+
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.7);
+        };
+
+        if (ctx.state === 'suspended') {
+          ctx.resume().then(executeChime).catch(executeChime);
         } else {
-          osc.frequency.setValueAtTime(880.00, now);        // A5 (Departure)
-          osc.frequency.setValueAtTime(587.33, now + 0.14); // D5
+          executeChime();
         }
-
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.65);
-      } catch(e) {}
+      } catch(e) {
+        console.warn("Audio chime error:", e);
+      }
     }
 
     function vibratePhone() {
       const vibCheckbox = document.getElementById('prefVibrate');
       if (vibCheckbox && !vibCheckbox.checked) return;
       if ("vibrate" in navigator) {
-        navigator.vibrate([300, 100, 300, 100, 300]);
+        try {
+          navigator.vibrate([300, 100, 300, 100, 300]);
+        } catch(e) {}
       }
     }
 
     // -------------------------------------------------------------
-    // Push Notifications
+    // Safe Cross-Platform Push & In-App Notification Sender
+    // -------------------------------------------------------------
+    async function showSystemNotification(title, body, tag, data) {
+      if (!("Notification" in window) || Notification.permission !== "granted") {
+        return false;
+      }
+      const options = {
+        body: body,
+        icon: "/static/images/pwa_icon_192.png",
+        badge: "/static/images/apple_touch_icon.png",
+        vibrate: [300, 100, 300, 100, 300],
+        tag: tag || `scan-${Date.now()}`,
+        renotify: true,
+        data: data || {}
+      };
+
+      // 1. Try ServiceWorkerRegistration (Mandatory on Android Chrome)
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && reg.showNotification) {
+            await reg.showNotification(title, options);
+            return true;
+          }
+        }
+      } catch (swErr) {
+        console.warn("ServiceWorker showNotification note:", swErr);
+      }
+
+      // 2. Try window Notification (Desktop Safari, Chrome, Edge)
+      try {
+        new Notification(title, options);
+        return true;
+      } catch (notifErr) {
+        console.warn("Window Notification note:", notifErr);
+      }
+      return false;
+    }
+
+    // -------------------------------------------------------------
+    // Push Notifications Permission Request
     // -------------------------------------------------------------
     async function requestPushPermission() {
+      // 1. Unlock Audio immediately during user tap gesture!
+      try {
+        const ctx = getParentAudioContext();
+        if (ctx && ctx.state === 'suspended') await ctx.resume();
+      } catch(e) {}
+
+      // 2. Request Notification Permission
       if (!("Notification" in window)) {
-        alert("Web notifications are not supported on this browser.");
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      updateDiagnostics();
-
-      if (perm === "granted") {
-        const card = document.getElementById('pushPromptCard');
-        if (card) {
-          card.innerHTML = `
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
-                <i class="fa-solid fa-circle-check"></i>
-              </div>
-              <div>
-                <h4 class="text-xs font-bold leading-tight">Push Alerts Active</h4>
-                <p class="text-[10px] text-blue-200">Instant gate arrival & exit notifications enabled</p>
-              </div>
-            </div>
-            <button onclick="testMobileNotification()" class="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs shadow transition">
-              Test
-            </button>
-          `;
-        }
-
-        // Show welcome notification
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification("Project S.M.I.L.E. Parent App", {
-              body: `Instant gate scan alerts activated for ${studentName}!`,
-              icon: "/static/images/pwa_icon_192.png",
-              badge: "/static/images/apple_touch_icon.png",
-              vibrate: [200, 100, 200]
-            });
-          });
-        } else {
-          new Notification("Project S.M.I.L.E. Parent App", {
-            body: `Instant gate scan alerts activated for ${studentName}!`,
-            icon: "/static/images/pwa_icon_192.png"
-          });
-        }
-
+        alert("Web push notifications are not supported on this browser. In-app sound and visual alerts are active!");
         vibratePhone();
         playChime(true);
+        return;
+      }
+
+      try {
+        const perm = await Notification.requestPermission();
+        updateDiagnostics();
+
+        if (perm === "granted") {
+          const card = document.getElementById('pushPromptCard');
+          if (card) {
+            card.innerHTML = `
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
+                  <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold leading-tight">Push Alerts & Sound Active</h4>
+                  <p class="text-[10px] text-blue-200">Instant gate arrival & exit notifications enabled</p>
+                </div>
+              </div>
+              <button onclick="testMobileNotification()" class="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs shadow transition">
+                Test Alert
+              </button>
+            `;
+          }
+
+          showSystemNotification(
+            "Project S.M.I.L.E. Parent App",
+            `Instant gate scan alerts activated for ${studentName}!`,
+            "welcome-alert",
+            { url: `/parent?lrn=${studentLrn}` }
+          );
+
+          vibratePhone();
+          playChime(true);
+        } else {
+          vibratePhone();
+          playChime(true);
+          alert("Notification permission was denied. You will still hear alert sounds and see live banners while this app is open.");
+        }
+      } catch (err) {
+        console.warn("Push permission error:", err);
       }
     }
 
@@ -1208,12 +1305,12 @@
               <i class="fa-solid fa-circle-check"></i>
             </div>
             <div>
-              <h4 class="text-xs font-bold leading-tight">Push Alerts Active</h4>
+              <h4 class="text-xs font-bold leading-tight">Push Alerts & Sound Active</h4>
               <p class="text-[10px] text-blue-200">Connected to Gate 1 Live Stream</p>
             </div>
           </div>
           <button onclick="testMobileNotification()" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] shadow transition">
-            Test Chime
+            Test Alert
           </button>
         `;
       }
@@ -1240,28 +1337,14 @@
       vibratePhone();
 
       // System Notification
-      if ("Notification" in window && Notification.permission === "granted") {
-        const notifTitle = `DepEd S.M.I.L.E. Gate Alert: ${studentName}`;
-        const notifBody = `${studentName} has ${action} at ${eventData.time_formatted}.`;
-
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification(notifTitle, {
-              body: notifBody,
-              icon: "/static/images/pwa_icon_192.png",
-              badge: "/static/images/apple_touch_icon.png",
-              vibrate: [300, 100, 300, 100, 300],
-              tag: `scan-${eventData.id || Date.now()}`,
-              data: { url: `/parent?lrn=${studentLrn}` }
-            });
-          });
-        } else {
-          new Notification(notifTitle, {
-            body: notifBody,
-            icon: "/static/images/pwa_icon_192.png"
-          });
-        }
-      }
+      const notifTitle = `DepEd Gate Alert: ${studentName}`;
+      const notifBody = `${studentName} has ${action} at ${eventData.time_formatted}.`;
+      showSystemNotification(
+        notifTitle,
+        notifBody,
+        `scan-${eventData.id || Date.now()}`,
+        { url: `/parent?lrn=${studentLrn}` }
+      );
 
       // Top Animated Banner
       const banner = document.getElementById('liveAlertBanner');
@@ -1365,6 +1448,15 @@
     // Test Notification Trigger
     // -------------------------------------------------------------
     async function testMobileNotification() {
+      // 1. Immediately unlock audio context & trigger instant chime and vibration on user gesture
+      try {
+        const ctx = getParentAudioContext();
+        if (ctx && ctx.state === 'suspended') await ctx.resume();
+      } catch(e) {}
+
+      playChime(true);
+      vibratePhone();
+
       try {
         const res = await fetch('/api/parent/test-notification', {
           method: 'POST',
