@@ -88,6 +88,10 @@ def get_database_url():
                 pass
         elif env_url.startswith("mysql://") and not env_url.startswith("mysql+pymysql://"):
             env_url = env_url.replace("mysql://", "mysql+pymysql://", 1)
+
+        # Ensure SSL is enabled for cloud PostgreSQL providers (Supabase, Neon, AWS)
+        if any(h in env_url for h in ["supabase.co", "neon.tech", "pooler.supabase.com", "rds.amazonaws.com"]) and "sslmode" not in env_url:
+            env_url += ("&" if "?" in env_url else "?") + "sslmode=require"
             
         return env_url
 
