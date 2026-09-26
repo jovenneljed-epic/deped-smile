@@ -1,4 +1,4 @@
-name: Build Android APK (DepEd S.M.I.L.E. Parent App)
+name: Build Android APK & Publish Release (DepEd S.M.I.L.E. Parent App)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,9 @@ on:
     paths:
       - 'parent_mobile_app/**'
       - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -50,15 +53,40 @@ jobs:
         working-directory: parent_mobile_app/android
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Find and Rename APK
+      - name: Prepare APK Output
         run: |
           mkdir -p output_apk
           find parent_mobile_app/android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} output_apk/deped-smile-parent.apk \;
           ls -la output_apk/
 
-      - name: Upload APK Artifact
+      - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
         with:
           name: deped-smile-parent-apk
           path: output_apk/deped-smile-parent.apk
           retention-days: 30
+
+      - name: Publish Official GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.4.0
+          name: "DepEd S.M.I.L.E. Parent Mobile App v2.4.0 (Android APK)"
+          body: |
+            ### 📱 DepEd Project S.M.I.L.E. - Official Parent Mobile App (Android APK)
+            
+            Official Android APK release for **Don Montano Central Integrated School** parents and legal guardians.
+            
+            #### 🌟 Features:
+            - 🔔 **Real-Time Attendance Alerts**: Instant push alerts on learner gate arrivals (`TIME-IN`) & departures (`TIME-OUT`).
+            - ⚠️ **Emergency Safety Bulletins**: Official weather suspensions, typhoons, and DepEd advisory alerts.
+            - 📅 **School Calendar & Activities**: Interactive timeline of upcoming examinations, card days, and sports fests (with 1-click **Add to Calendar**).
+            - 🪪 **Digital Pick-Up Pass**: Verified security QR pass to show campus security guards.
+            - 📝 **Digital Excuse Letters**: Instant absence/tardiness notifications sent directly to the class adviser.
+            
+            #### 📲 Installation Instructions:
+            1. Tap `deped-smile-parent.apk` below to download.
+            2. If prompted by Android, toggle **"Allow installation from this source"**.
+            3. Open the app and log in with your child's 12-digit LRN!
+          files: output_apk/deped-smile-parent.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

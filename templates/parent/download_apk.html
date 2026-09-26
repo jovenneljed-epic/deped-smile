@@ -38,7 +38,7 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 flex justify-center py-6 px-4">
 
-  <div class="w-full max-w-md flex flex-col space-y-5">
+  <div class="w-full max-w-md flex flex-col space-y-4">
     
     <!-- Top Brand Header -->
     <div class="text-center pt-2">
@@ -50,10 +50,21 @@
       <p class="text-xs text-slate-400 mt-1">{{ school_name }}</p>
     </div>
 
+    <!-- Messenger In-App Browser Advisory Notice -->
+    <div id="messengerWarning" class="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-200 text-xs flex items-start gap-2.5">
+      <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm shrink-0 mt-0.5"></i>
+      <div>
+        <span class="font-bold text-amber-300 block">Using Facebook or Messenger?</span>
+        <span class="text-[11px] text-amber-200/90 leading-tight">
+          Tap the <strong>3 dots (⋮)</strong> at the top right of your screen and select <strong>"Open in Chrome"</strong> or <strong>"Open in Safari"</strong> for direct 1-tap app installation.
+        </span>
+      </div>
+    </div>
+
     <!-- Quick Switch Tabs: Android vs iOS -->
     <div class="flex p-1 bg-slate-900 rounded-2xl border border-slate-800">
       <button id="tabBtnAndroid" onclick="switchPlatform('android')" class="flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow transition">
-        <i class="fa-brands fa-android text-base"></i> Android (APK)
+        <i class="fa-brands fa-android text-base"></i> Android App
       </button>
       <button id="tabBtnIos" onclick="switchPlatform('ios')" class="flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 text-slate-400 hover:text-white transition">
         <i class="fa-brands fa-apple text-base"></i> Apple iOS (iPhone)
@@ -63,60 +74,52 @@
     <!-- ANDROID VIEW -->
     <div id="viewAndroid" class="space-y-4">
       
-      <!-- Primary Download Card -->
-      <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/30 shadow-xl space-y-4 text-center">
-        <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-3xl mx-auto">
-          <i class="fa-solid fa-cloud-arrow-down"></i>
+      <!-- Primary Installation Card (Method 1: Instant 1-Tap WebAPK) -->
+      <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/40 shadow-xl space-y-3.5 text-center">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <i class="fa-solid fa-bolt text-amber-400"></i> Recommended Method
         </div>
+
         <div>
-          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Release v2.4 APK</span>
-          <h2 class="text-lg font-black font-heading text-white mt-1">Download Android Installer</h2>
-          <p class="text-xs text-slate-400 mt-1">Direct APK package for Android smartphones and tablets (Android 8.0+)</p>
+          <h2 class="text-lg font-black font-heading text-white">Method 1: 1-Tap Instant Install</h2>
+          <p class="text-xs text-slate-400 mt-1">Directly adds the official DepEd Parent App to your Android home screen. No APK download or unknown sources permissions needed!</p>
         </div>
 
-        <div class="space-y-2 pt-1">
-          <a href="https://github.com/jovenneljed-epic/deped-smile/releases" target="_blank" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-heading font-black text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 transition active:scale-95">
-            <i class="fa-brands fa-android text-lg"></i>
-            <span>Download APK (Direct)</span>
-          </a>
-
-          <a href="/mobile" class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-heading font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 transition">
-            <i class="fa-solid fa-globe"></i>
-            <span>Or Open Instant Web App</span>
-          </a>
-        </div>
+        <a href="/mobile" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-heading font-black text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 transition active:scale-95">
+          <i class="fa-solid fa-mobile-screen-button text-base"></i>
+          <span>Open & Install on Phone</span>
+        </a>
       </div>
 
-      <!-- Android Installation Steps -->
+      <!-- Secondary Installation Card (Method 2: Standalone APK Sideload) -->
       <div class="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
-        <h3 class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
-          <i class="fa-solid fa-list-check text-emerald-400"></i> Easy 3-Step Installation
-        </h3>
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <i class="fa-brands fa-android text-emerald-400"></i> Method 2: Sideload APK File
+          </h3>
+          <span class="text-[10px] font-mono text-slate-400">v2.4.0 APK (4 MB)</span>
+        </div>
+        <p class="text-xs text-slate-400">Download the standalone APK installer directly to your phone.</p>
 
-        <div class="space-y-2.5 text-xs text-slate-300">
-          <div class="flex items-start gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
-            <div>
-              <p class="font-bold text-white">Download the APK file</p>
-              <p class="text-[11px] text-slate-400">Tap the green button above to download <code class="text-emerald-300 font-mono">deped-smile-parent.apk</code>.</p>
-            </div>
-          </div>
+        <a href="https://github.com/jovenneljed-epic/deped-smile/releases/download/v2.4.0/deped-smile-parent.apk" class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-heading font-extrabold text-xs border border-emerald-500/30 flex items-center justify-center gap-2 transition active:scale-95">
+          <i class="fa-solid fa-download"></i>
+          <span>Download `deped-smile-parent.apk`</span>
+        </a>
 
-          <div class="flex items-start gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">2</span>
-            <div>
-              <p class="font-bold text-white">Enable Install from Unknown Sources</p>
-              <p class="text-[11px] text-slate-400">If prompted by Chrome or Files, tap <span class="text-amber-300 font-semibold">"Settings"</span> and toggle <span class="text-amber-300 font-semibold">"Allow from this source"</span>.</p>
-            </div>
-          </div>
-
-          <div class="flex items-start gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">3</span>
-            <div>
-              <p class="font-bold text-white">Install & Log In</p>
-              <p class="text-[11px] text-slate-400">Open the app, enter your student's 12-digit LRN, and enjoy real-time gate notifications!</p>
-            </div>
-          </div>
+        <!-- 3 Step APK Guidance -->
+        <div class="space-y-2 pt-2 text-[11px] text-slate-400 border-t border-slate-800">
+          <p class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-slate-800 text-emerald-400 font-bold flex items-center justify-center text-[10px]">1</span>
+            <span>Tap Download APK above</span>
+          </p>
+          <p class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-slate-800 text-emerald-400 font-bold flex items-center justify-center text-[10px]">2</span>
+            <span>Tap <strong class="text-amber-300">"Settings"</strong> $\rightarrow$ toggle <strong class="text-amber-300">"Allow from this source"</strong></span>
+          </p>
+          <p class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-slate-800 text-emerald-400 font-bold flex items-center justify-center text-[10px]">3</span>
+            <span>Tap <strong class="text-emerald-400">"Install"</strong> $\rightarrow$ Log in with your child's 12-digit LRN!</span>
+          </p>
         </div>
       </div>
 
@@ -179,33 +182,10 @@
 
     </div>
 
-    <!-- Key App Features Grid -->
-    <div class="p-4 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
-      <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-400">What You Can Monitor:</h4>
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-bell-ring text-amber-400"></i>
-          <span>Real-time Gate Alerts</span>
-        </div>
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-bullhorn text-blue-400"></i>
-          <span>School Announcements</span>
-        </div>
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-calendar-days text-emerald-400"></i>
-          <span>Events & Activities</span>
-        </div>
-        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-file-signature text-purple-400"></i>
-          <span>Digital Excuse Letters</span>
-        </div>
-      </div>
-    </div>
-
     <!-- Back to Web Portal Link -->
     <div class="text-center pt-2 pb-6">
       <a href="/mobile" class="text-xs text-amber-300 hover:text-amber-200 font-bold inline-flex items-center gap-1.5 transition">
-        <span>Proceed to Parent App</span>
+        <span>Proceed to Parent App Directly</span>
         <i class="fa-solid fa-arrow-right"></i>
       </a>
     </div>
