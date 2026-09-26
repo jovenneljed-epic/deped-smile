@@ -740,7 +740,7 @@ def parent_portal(lrn=None):
             linked_students = [student.to_dict()]
 
         # Single fast query for recent gate scans (last 30 logs)
-        all_logs = [l.to_dict() for l in orm_session.query(AttendanceLog).filter(
+        all_logs = [l.to_dict(parent_phone=student.parent_phone) for l in orm_session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(target_lrn)
         ).order_by(AttendanceLog.id.desc()).limit(30).all()]
 
@@ -1406,7 +1406,7 @@ def api_mobile_home(lrn):
             linked_students = [student.to_dict()]
 
         # Single fast query for recent gate scans (last 20 logs)
-        all_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
+        all_logs = [l.to_dict(parent_phone=student.parent_phone) for l in session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(lrn)
         ).order_by(AttendanceLog.id.desc()).limit(20).all()]
 
@@ -1440,7 +1440,7 @@ def api_mobile_home(lrn):
             "latest_log": latest_log,
             "today_logs": today_logs,
             "upcoming_events": upcoming_events,
-            "featured_event": featured_event.to_dict() if featured_event else None,
+            "featured_event": featured_event,
             "urgent_announcements": urgent_announcements,
             "today_date": pht_now().strftime("%A, %B %d, %Y")
         })

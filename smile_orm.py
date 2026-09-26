@@ -91,6 +91,16 @@ class Student(Base):
         return f"{self.first_name} {self.last_name}".strip()
 
     def to_dict(self):
+        adviser = self.class_adviser or ""
+        if not adviser and self.section_id:
+            from sqlalchemy.orm import inspect as sa_inspect
+            try:
+                insp = sa_inspect(self)
+                if 'section_rel' in insp.dict and self.section_rel:
+                    adviser = self.section_rel.adviser_teacher or ""
+            except Exception:
+                pass
+
         return {
             "lrn": self.lrn,
             "first_name": self.first_name,
@@ -101,7 +111,7 @@ class Student(Base):
             "birthdate": self.birthdate or "",
             "grade_level": self.grade_level or "",
             "section_name": self.section_name or "",
-            "class_adviser": self.class_adviser or (self.section_rel.adviser_teacher if self.section_rel else ""),
+            "class_adviser": adviser,
             "grade_section": self.grade_section,
             "track_strand": self.track_strand,
             "parent_name": self.parent_name,
@@ -132,7 +142,19 @@ class AttendanceLog(Base):
 
     student_rel = relationship("Student", back_populates="attendance_records")
 
-    def to_dict(self):
+    def to_dict(self, parent_phone=None):
+        phone = parent_phone
+        if phone is None:
+            from sqlalchemy.orm import inspect as sa_inspect
+            try:
+                insp = sa_inspect(self)
+                if 'student_rel' in insp.dict and self.student_rel:
+                    phone = self.student_rel.parent_phone or ""
+                else:
+                    phone = ""
+            except Exception:
+                phone = ""
+
         return {
             "id": self.id,
             "lrn": self.lrn,
@@ -144,7 +166,7 @@ class AttendanceLog(Base):
             "device_id": self.device_id,
             "verification_method": self.verification_method,
             "sms_status": self.sms_status,
-            "parent_phone": self.student_rel.parent_phone if self.student_rel else ""
+            "parent_phone": phone or ""
         }
 
 class SmsLog(Base):
