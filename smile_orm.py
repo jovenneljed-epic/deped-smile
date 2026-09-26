@@ -669,19 +669,42 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
     finally:
         session.close()
 
+_db_initialized = False
+
 def init_orm_db(force=False):
     """
     Initializes database schema and seeds default records.
     Optimized for Serverless / Cloud: Checks if tables already exist and skips redundant
     DDL and bulk queries to prevent Lambda cold-start timeout.
     """
-    global engine
+    global engine, _db_initialized
+    if _db_initialized and not force:
+        return
+
     try:
         from sqlalchemy import inspect
         inspector = inspect(engine)
         existing_tables = inspector.get_table_names()
 
-        # Auto-migrate PostgreSQL column lengths if running against Postgres
+        # If core tables already exist in Supabase / Cloud Postgres, skip heavy re-initialization IMMEDIATELY
+        if "students" in existing_tables and "users" in existing_tables and not force:
+            print(f"[+] Connected to existing database ({engine.dialect.name.upper()}). Skipping cold-start DDL.")
+            if "school_events" not in existing_tables:
+                try:
+                    SchoolEvent.__table__.create(engine, checkfirst=True)
+                    seed_default_events_orm()
+                except Exception as ex:
+                    print(f"[!] school_events creation note: {ex}")
+            if "push_subscriptions" not in existing_tables:
+                try:
+                    PushSubscription.__table__.create(engine, checkfirst=True)
+                    print("[+] Created push_subscriptions table in cloud database.")
+                except Exception as ex:
+                    print(f"[!] push_subscriptions creation note: {ex}")
+            _db_initialized = True
+            return
+
+        # Auto-migrate PostgreSQL column lengths ONLY on initial creation / forced migration
         if "postgres" in engine.dialect.name.lower():
             try:
                 from sqlalchemy import text
@@ -700,23 +723,6 @@ def init_orm_db(force=False):
                     conn.commit()
             except Exception as ex:
                 print(f"[!] PostgreSQL column auto-migration note: {ex}")
-
-        # If core tables already exist in Supabase / Cloud Postgres, skip heavy re-initialization
-        if "students" in existing_tables and "users" in existing_tables and not force:
-            print(f"[+] Connected to existing database ({engine.dialect.name.upper()}). Skipping cold-start DDL.")
-            if "school_events" not in existing_tables:
-                try:
-                    SchoolEvent.__table__.create(engine, checkfirst=True)
-                    seed_default_events_orm()
-                except Exception as ex:
-                    print(f"[!] school_events creation note: {ex}")
-            if "push_subscriptions" not in existing_tables:
-                try:
-                    PushSubscription.__table__.create(engine, checkfirst=True)
-                    print("[+] Created push_subscriptions table in cloud database.")
-                except Exception as ex:
-                    print(f"[!] push_subscriptions creation note: {ex}")
-            return
 
         Base.metadata.create_all(engine)
         # Check and migrate columns in SQLite if needed
@@ -880,6 +886,52 @@ def get_all_enrolled_students_orm():
             else:
                 d["embedding"] = None
             result.append(d)
+        return result
+    finally:
+        session.close()
+
+def get_enrolled_students_count_orm():
+    """Ultra-fast count of enrolled students without loading objects or embeddings (2ms)."""
+    session = Session()
+    try:
+        return session.query(func.count(Student.lrn)).filter_by(is_active=True).scalar() or 0
+    finally:
+        session.close()
+
+def get_students_directory_orm():
+    """Fast student directory listing omitting heavy JSON/NumPy face embeddings."""
+    session = Session()
+    try:
+        students = session.query(
+            Student.lrn, Student.first_name, Student.middle_name, Student.last_name,
+            Student.gender, Student.grade_level, Student.section_name, Student.class_adviser,
+            Student.grade_section, Student.parent_name, Student.parent_phone,
+            Student.rfid_card_uid, Student.qr_code_path, Student.photo_path,
+            Student.is_active, Student.created_at
+        ).filter_by(is_active=True).all()
+        
+        result = []
+        for s in students:
+            full_name = f"{s.first_name} {s.middle_name} {s.last_name}".strip() if s.middle_name else f"{s.first_name} {s.last_name}".strip()
+            result.append({
+                "lrn": s.lrn,
+                "first_name": s.first_name,
+                "middle_name": s.middle_name or "",
+                "last_name": s.last_name,
+                "full_name": full_name,
+                "gender": s.gender or "Unspecified",
+                "grade_level": s.grade_level or "",
+                "section_name": s.section_name or "",
+                "class_adviser": s.class_adviser or "",
+                "grade_section": s.grade_section or "",
+                "parent_name": s.parent_name or "",
+                "parent_phone": s.parent_phone or "",
+                "rfid_card_uid": s.rfid_card_uid or "N/A",
+                "qr_code_path": s.qr_code_path or f"/qr/{s.lrn}.png",
+                "photo_path": s.photo_path or "",
+                "is_active": s.is_active,
+                "created_at": s.created_at.strftime("%Y-%m-%d %H:%M:%S") if s.created_at else ""
+            })
         return result
     finally:
         session.close()
@@ -2242,6 +2294,8 @@ save_push_subscription = save_push_subscription_orm
 get_all_push_subscriptions = get_all_push_subscriptions_orm
 delete_push_subscription = delete_push_subscription_orm
 dispatch_web_push = dispatch_web_push_notification
+get_enrolled_students_count = get_enrolled_students_count_orm
+get_students_directory = get_students_directory_orm
 
 
 

@@ -42,11 +42,12 @@ from web_streamer import GateStreamer
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'deped-project-smile-2026-secret'
 
-# Initialize background AI camera streamer
+# Initialize background AI camera streamer (lightweight in cloud/serverless)
 streamer = GateStreamer.get_instance()
-streamer.start()
+if not smile_config.IS_VERCEL and os.environ.get("ENABLE_LOCAL_CAMERA") == "1":
+    streamer.start()
 
-# Initialize AI Face Recognition Engine (YuNet + SFace)
+# Initialize AI Face Recognition Engine (YuNet + SFace) - Lazy Loaded on Demand
 face_engine = None
 def get_face_engine():
     global face_engine
@@ -57,11 +58,6 @@ def get_face_engine():
             print(f"[!] Note: Face engine lazy initialized or disabled: {e}")
             face_engine = None
     return face_engine
-
-try:
-    face_engine = get_face_engine()
-except Exception:
-    face_engine = None
 
 def decode_image_payload(req):
     """Extracts OpenCV BGR frame from file upload or base64 data string."""
@@ -552,19 +548,27 @@ def api_get_pricing_plans():
 # Web Page Routes
 # -------------------------------------------------------------
 
+@app.after_request
+def add_performance_headers(response):
+    """Adds aggressive browser caching headers for static assets (0ms repeat loads)."""
+    if request.path.startswith('/static/'):
+        response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+    return response
+
 @app.route('/')
 @login_required
 def dashboard():
-    """Administrative Attendance Dashboard."""
+    """Administrative Attendance Dashboard - High Performance."""
+    from smile_orm import get_enrolled_students_count_orm
     summary = get_today_summary()
-    enrolled = get_all_enrolled_students()
-    logs = get_today_attendance_logs_orm()
+    total_enrolled = get_enrolled_students_count_orm()
+    logs = get_today_attendance_logs_orm(30)
     total_sms_today = get_today_sms_count_orm()
 
     return render_template(
         'dashboard.html',
         school_name=SCHOOL_NAME,
-        total_enrolled=len(enrolled),
+        total_enrolled=total_enrolled,
         total_scans_today=summary["total_scans"],
         unique_students_today=summary["unique_students"],
         total_sms_today=total_sms_today,
@@ -576,13 +580,14 @@ def dashboard():
 @login_required
 @role_required('SUPER_ADMIN', 'GUARD', 'PRINCIPAL')
 def kiosk():
-    """Fullscreen DepEd Gate Kiosk Interface with Live AI HUD."""
+    """Fullscreen DepEd Gate Kiosk Interface with Live AI HUD - High Performance."""
+    from smile_orm import get_enrolled_students_count_orm
     summary = get_today_summary()
-    enrolled = get_all_enrolled_students()
+    total_enrolled = get_enrolled_students_count_orm()
     return render_template(
         'kiosk.html',
         school_name=SCHOOL_NAME,
-        total_enrolled=len(enrolled),
+        total_enrolled=total_enrolled,
         total_scans=summary["total_scans"]
     )
 
@@ -605,8 +610,9 @@ def enroll_page():
 @login_required
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER')
 def students_directory():
-    """Directory of enrolled students with photos and parent contacts."""
-    students = get_all_enrolled_students()
+    """Directory of enrolled students with photos and parent contacts - High Performance."""
+    from smile_orm import get_students_directory_orm
+    students = get_students_directory_orm()
     return render_template('students.html', school_name=SCHOOL_NAME, students=students)
 
 @app.route('/sms')
