@@ -837,19 +837,23 @@ def delete_student_orm(lrn):
         if not student:
             return False, "Student not found"
         
-        if student.photo_path:
-            p = Path("C:/Users/Client/.gemini/antigravity/scratch/project_smile") / student.photo_path.lstrip("/")
-            if p.exists():
-                try:
-                    p.unlink()
-                except Exception:
-                    pass
-        qr_file = Path("C:/Users/Client/.gemini/antigravity/scratch/project_smile/static/qrcodes") / f"{student.lrn}.png"
-        if qr_file.exists():
+        # Safely remove local file only if photo_path is a real filesystem path (not a base64 data URI)
+        if student.photo_path and not str(student.photo_path).startswith("data:") and len(str(student.photo_path)) < 255:
             try:
-                qr_file.unlink()
+                base_dir = Path(__file__).resolve().parent
+                p = (base_dir / str(student.photo_path).lstrip("/")).resolve()
+                if p.exists() and p.is_file():
+                    p.unlink(missing_ok=True)
             except Exception:
                 pass
+
+        try:
+            base_dir = Path(__file__).resolve().parent
+            qr_file = base_dir / "static" / "qrcodes" / f"{student.lrn}.png"
+            if qr_file.exists() and qr_file.is_file():
+                qr_file.unlink(missing_ok=True)
+        except Exception:
+            pass
 
         session.delete(student)
         session.commit()

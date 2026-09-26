@@ -139,10 +139,14 @@ class GateStreamer:
                 attendance_log_id=log_id
             )
 
-            score_str = f"{score*100:.1f}%" if score is not None else None
             photo_name = ""
             if student.get("photo_path"):
-                photo_name = Path(student["photo_path"]).name
+                photo_str = str(student["photo_path"])
+                if not photo_str.startswith("data:") and len(photo_str) < 255:
+                    try:
+                        photo_name = Path(photo_str).name
+                    except Exception:
+                        photo_name = ""
 
             with self.lock:
                 self.event_counter += 1
