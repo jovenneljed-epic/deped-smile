@@ -2135,7 +2135,7 @@ def dispatch_web_push_notification(lrn, title, body, tag=None, data_url=None, ic
     try:
         query = session.query(PushSubscription)
         if lrn and lrn != "ALL":
-            query = query.filter((PushSubscription.lrn == str(lrn)) | (PushSubscription.lrn == "ALL") | (PushSubscription.lrn.is_(None)))
+            query = query.filter((PushSubscription.lrn == str(lrn)) | (PushSubscription.lrn == "ALL") | (PushSubscription.lrn == "") | (PushSubscription.lrn.is_(None)))
         subs = query.all()
         if not subs:
             return 0
@@ -2173,6 +2173,8 @@ def dispatch_web_push_notification(lrn, title, body, tag=None, data_url=None, ic
                     data=payload,
                     vapid_private_key=VAPID_PRIVATE_KEY,
                     vapid_claims=VAPID_CLAIMS,
+                    ttl=86400,
+                    headers={"Urgency": "high", "Topic": "attendance"},
                     timeout=5
                 )
                 success_count += 1

@@ -1165,18 +1165,37 @@ def api_parent_test_notification():
         notif_title = f"Project S.M.I.L.E. Gate Alert: {student_name}"
         notif_body = f"Official Gate Scan Verified: {student_name} arrived at Don Montano CIS Gate 1 at {now_time}."
 
-        # Dispatch real background WebPush to all subscribed mobile devices (wakes locked phones)
+        delay_seconds = int(data.get('delay_seconds') or 0)
         pushed_count = 0
-        try:
-            pushed_count = dispatch_web_push_notification(
-                lrn=student_lrn,
-                title=notif_title,
-                body=notif_body,
-                tag=f"test-scan-{student_lrn}",
-                data_url=f"/parent?lrn={student_lrn}"
-            )
-        except Exception as _pe:
-            print(f"[Push] Test dispatch error: {_pe}")
+
+        if delay_seconds > 0:
+            import threading
+            def delayed_push():
+                import time
+                time.sleep(delay_seconds)
+                try:
+                    dispatch_web_push_notification(
+                        lrn=student_lrn,
+                        title=notif_title,
+                        body=notif_body,
+                        tag=f"test-scan-{student_lrn}-{int(time.time())}",
+                        data_url=f"/parent?lrn={student_lrn}"
+                    )
+                except Exception as _pe:
+                    print(f"[Push] Delayed test dispatch error: {_pe}")
+            threading.Thread(target=delayed_push, daemon=True).start()
+        else:
+            # Dispatch real background WebPush immediately
+            try:
+                pushed_count = dispatch_web_push_notification(
+                    lrn=student_lrn,
+                    title=notif_title,
+                    body=notif_body,
+                    tag=f"test-scan-{student_lrn}",
+                    data_url=f"/parent?lrn={student_lrn}"
+                )
+            except Exception as _pe:
+                print(f"[Push] Test dispatch error: {_pe}")
 
         return jsonify({
             "success": True,

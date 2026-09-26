@@ -131,6 +131,9 @@
   <!-- Mobile Phone Viewport Shell (Edge-to-edge from left to right on phones, smartphone frame on desktop) -->
   <div id="appContainer" class="w-full sm:max-w-md bg-slate-100 flex flex-col relative overflow-hidden">
 
+    <!-- Native Audio Chime Element -->
+    <audio id="parentChimeAudio" src="/static/audio/gate_alert.wav" preload="auto" class="hidden"></audio>
+
     <!-- Shopee / TikTok Style In-App Heads-Up Push Banner -->
     <div id="floatingPushBanner" class="banner-hidden fixed top-3 inset-x-3 sm:max-w-[420px] sm:mx-auto z-50 cursor-pointer" onclick="switchTab('alerts'); dismissFloatingBanner();">
       <div class="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-start gap-3">
@@ -308,11 +311,15 @@
           </div>
         </div>
 
-        <!-- Live Test Alert & Chime Button -->
-        <div class="mt-3 pt-2.5 border-t border-slate-100">
-          <button type="button" onclick="testMobileNotification()" class="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-deped-blue font-bold text-xs border border-blue-200 shadow-2xs flex items-center justify-center gap-2 transition active:scale-[0.98]">
+        <!-- Live Test Alert & Chime Buttons (Instant & Screen-Off / Locked Test) -->
+        <div class="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2">
+          <button type="button" onclick="testMobileNotification()" class="w-full py-2 px-2.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 text-deped-blue font-bold text-[11px] border border-blue-200 flex items-center justify-center gap-1.5 transition active:scale-[0.98]">
             <i class="fa-solid fa-bell-ring text-amber-500"></i>
-            <span>Test Gate Alert Sound & Vibration</span>
+            <span>Instant Alert</span>
+          </button>
+          <button type="button" onclick="testDelayedLockScreenAlert(5)" id="btnDelayLockTest" class="w-full py-2 px-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-deped-blue hover:from-indigo-700 text-white font-bold text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition active:scale-[0.98]">
+            <i class="fa-solid fa-mobile-screen-button text-amber-300"></i>
+            <span>Test Locked (5s)</span>
           </button>
         </div>
       </div>
@@ -1278,6 +1285,17 @@
     function playChime(isEntry = true) {
       const soundCheckbox = document.getElementById('prefSound');
       if (soundCheckbox && !soundCheckbox.checked) return;
+
+      // 1. Play real audio chime element
+      try {
+        const audio = document.getElementById('parentChimeAudio');
+        if (audio) {
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+        }
+      } catch(e) {}
+
+      // 2. Synthesize with Web Audio Oscillator
       try {
         const ctx = getParentAudioContext();
         if (!ctx) return;
@@ -1321,7 +1339,8 @@
       if (vibCheckbox && !vibCheckbox.checked) return;
       if ("vibrate" in navigator) {
         try {
-          navigator.vibrate([300, 100, 300, 100, 300]);
+          // Strong dual pulse: 500ms vibrate, 150ms pause, 500ms vibrate, 150ms pause, 500ms vibrate
+          navigator.vibrate([500, 150, 500, 150, 500]);
         } catch(e) {}
       }
     }
@@ -1522,9 +1541,14 @@
                   <p class="text-[10px] text-blue-200">Alerts will sound & vibrate even when phone is locked or screen is off</p>
                 </div>
               </div>
-              <button onclick="testMobileNotification()" class="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs shadow transition">
-                Test Alert
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button onclick="testMobileNotification()" class="px-2 py-1 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-[10px] shadow transition">
+                  Instant
+                </button>
+                <button onclick="testDelayedLockScreenAlert(5)" class="px-2 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] shadow transition">
+                  Locked (5s)
+                </button>
+              </div>
             `;
           }
 
@@ -1567,20 +1591,26 @@
               <p class="text-[10px] text-blue-200">Phone will alert even when screen is locked or off</p>
             </div>
           </div>
-          <button onclick="testMobileNotification()" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] shadow transition">
-            Test Alert
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button onclick="testMobileNotification()" class="px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[10px] shadow transition">
+              Instant
+            </button>
+            <button onclick="testDelayedLockScreenAlert(5)" class="px-2 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[10px] shadow transition">
+              Locked (5s)
+            </button>
+          </div>
         `;
       }
     }
 
     // Service Worker Registration for PWA & Background Push
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js').then(reg => {
+      navigator.serviceWorker.register('/static/sw.js').catch(err => console.log('SW reg error:', err));
+      navigator.serviceWorker.ready.then(reg => {
         if (Notification.permission === 'granted') {
           registerDevicePushSubscription(reg);
         }
-      }).catch(err => console.log('SW reg error:', err));
+      });
     }
 
     // Child Switcher
@@ -1760,6 +1790,69 @@
         }
       } catch(e) {
         console.error("Test notification error:", e);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Screen-Off & Locked Device Push Test (5-Second Cloud Timer)
+    // -------------------------------------------------------------
+    async function testDelayedLockScreenAlert(seconds = 5) {
+      // 1. Ensure permission is granted
+      if (!("Notification" in window) || Notification.permission !== "granted") {
+        await requestPushPermission();
+      }
+
+      // 2. Ensure device subscription is saved to server
+      if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          await registerDevicePushSubscription(reg);
+        } catch(e) {}
+      }
+
+      // 3. Audio & Vibration on user gesture
+      try {
+        const ctx = getParentAudioContext();
+        if (ctx && ctx.state === 'suspended') await ctx.resume();
+      } catch(e) {}
+      playChime(true);
+      vibratePhone();
+
+      const btn = document.getElementById('btnDelayLockTest');
+      if (btn) {
+        btn.disabled = true;
+        btn.className = "w-full py-2 px-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition";
+        btn.innerHTML = `<i class="fa-solid fa-lock text-slate-950 animate-pulse"></i> <span>Lock Phone Now! (${seconds}s)</span>`;
+      }
+
+      showFloatingPushBanner(
+        studentName,
+        `📱 LOCK YOUR SCREEN NOW! The cloud server will wake up your phone, vibrate, and sound the alert chime in ${seconds} seconds.`,
+        "Just Now",
+        true
+      );
+
+      try {
+        const res = await fetch('/api/parent/test-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lrn: studentLrn || "ALL",
+            delay_seconds: seconds
+          })
+        });
+        const data = await res.json();
+        console.log("[Push] Delayed test queued:", data);
+      } catch (err) {
+        console.error("Delayed test error:", err);
+      } finally {
+        setTimeout(() => {
+          if (btn) {
+            btn.disabled = false;
+            btn.className = "w-full py-2 px-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-deped-blue hover:from-indigo-700 text-white font-bold text-[11px] shadow-sm flex items-center justify-center gap-1.5 transition active:scale-[0.98]";
+            btn.innerHTML = `<i class="fa-solid fa-mobile-screen-button text-amber-300"></i> <span>Test Locked (5s)</span>`;
+          }
+        }, (seconds + 2) * 1000);
       }
     }
 

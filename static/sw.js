@@ -1,5 +1,5 @@
 // Project S.M.I.L.E. - DepEd Parent Mobile App Service Worker
-const CACHE_NAME = 'smile-parent-v4';
+const CACHE_NAME = 'smile-parent-v5';
 const STATIC_ASSETS = [
   '/parent',
   '/static/manifest.json',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/static/images/pwa_icon_512.png',
   '/static/images/apple_touch_icon.png',
   '/static/images/deped_seal.svg',
+  '/static/audio/gate_alert.wav',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css'
 ];
@@ -80,10 +81,12 @@ self.addEventListener('push', event => {
     icon: data.icon || "/static/images/pwa_icon_192.png",
     badge: "/static/images/pwa_icon_192.png",
     image: data.image || null,
-    vibrate: [300, 100, 300, 100, 300],
-    tag: data.tag || 'gate-attendance-notification',
+    vibrate: [500, 150, 500, 150, 500],
+    tag: data.tag || ('gate-' + Date.now()),
     renotify: true,
     requireInteraction: true,
+    silent: false,
+    sound: '/static/audio/gate_alert.wav',
     data: {
       url: data.url || '/parent',
       timestamp: Date.now(),
