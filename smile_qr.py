@@ -1,19 +1,24 @@
+import io
 import qrcode
 from pathlib import Path
-from smile_config import BASE_DIR
+from smile_config import BASE_DIR, IS_VERCEL
 
-QR_DIR = BASE_DIR / "static" / "qrcodes"
-QR_DIR.mkdir(parents=True, exist_ok=True)
+if IS_VERCEL:
+    QR_DIR = Path("/tmp/smile_data/qrcodes")
+else:
+    QR_DIR = BASE_DIR / "static" / "qrcodes"
 
-def generate_student_qr(lrn: str) -> str:
+try:
+    QR_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
+def generate_student_qr_bytes(lrn: str) -> bytes:
     """
-    Generates a high-contrast QR code image for a student's LRN.
-    Saves to static/qrcodes/{lrn}.png and returns the web URL path.
+    Generates high-contrast PNG QR code image bytes in-memory for a student's LRN.
+    Zero-disk I/O dependency for 100% serverless / read-only environment stability.
     """
     lrn_clean = str(lrn).strip()
-    qr_file = QR_DIR / f"{lrn_clean}.png"
-    
-    # Generate QR Code containing standard DepEd LRN identifier
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -24,9 +29,32 @@ def generate_student_qr(lrn: str) -> str:
     qr.make(fit=True)
 
     img = qr.make_image(fill_color="#072648", back_color="#ffffff")
-    img.save(str(qr_file))
-    
-    return f"/static/qrcodes/{lrn_clean}.png"
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+def generate_student_qr(lrn: str) -> str:
+    """
+    Generates a high-contrast QR code image for a student's LRN.
+    Saves to disk if writable; safely skips disk I/O on read-only serverless filesystems.
+    Always returns the resilient web URL path /qr/{lrn}.png.
+    """
+    lrn_clean = str(lrn).strip()
+    try:
+        qr_bytes = generate_student_qr_bytes(lrn_clean)
+        # Attempt to save to disk if directory is writable (e.g. local or /tmp)
+        try:
+            QR_DIR.mkdir(parents=True, exist_ok=True)
+            qr_file = QR_DIR / f"{lrn_clean}.png"
+            with open(qr_file, "wb") as f:
+                f.write(qr_bytes)
+        except (OSError, IOError):
+            # Read-only serverless filesystem (e.g. Vercel /var/task); dynamic route will serve it seamlessly
+            pass
+    except Exception as e:
+        print(f"[!] Note: QR disk write skipped: {e}")
+
+    return f"/qr/{lrn_clean}.png"
 
 def parse_scanned_code(scanned_data: str) -> str:
     """

@@ -67,8 +67,8 @@ class Student(Base):
     parent_phone = Column(String(50), nullable=True, default="N/A", index=True)
     parent_relationship = Column(String(30), default="Parent")
     rfid_card_uid = Column(String(50), nullable=True, index=True) # Optional physical RFID tap card
-    qr_code_path = Column(String(255), default="")          # URL to student's QR ID badge
-    photo_path = Column(String(255), default="")            # Relative path to student portrait photo
+    qr_code_path = Column(Text, default="")                 # URL or dynamic path to student's QR ID badge
+    photo_path = Column(Text, default="")                   # Path or data URI to student portrait photo
     face_embedding = Column(Text, nullable=True)            # JSON list of 128 floats for SFace recognition
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
@@ -100,7 +100,7 @@ class Student(Base):
             "parent_phone": self.parent_phone,
             "parent_relationship": self.parent_relationship,
             "rfid_card_uid": self.rfid_card_uid or "N/A",
-            "qr_code_path": self.qr_code_path or f"/static/qrcodes/{self.lrn}.png",
+            "qr_code_path": self.qr_code_path or f"/qr/{self.lrn}.png",
             "photo_path": self.photo_path or "",
             "has_face": bool(self.face_embedding),
             "is_active": self.is_active,
@@ -666,6 +666,8 @@ def init_orm_db(force=False):
                     conn.execute(text("ALTER TABLE students ALTER COLUMN last_name TYPE VARCHAR(100);"))
                     conn.execute(text("ALTER TABLE students ALTER COLUMN grade_section TYPE VARCHAR(150);"))
                     conn.execute(text("ALTER TABLE students ALTER COLUMN parent_name TYPE VARCHAR(150);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN photo_path TYPE TEXT;"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN qr_code_path TYPE TEXT;"))
                     conn.commit()
             except Exception as ex:
                 print(f"[!] PostgreSQL column auto-migration note: {ex}")

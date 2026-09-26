@@ -18,6 +18,11 @@ if IS_VERCEL:
     except Exception:
         pass
     DB_PATH = WRITABLE_DIR / "smile_records.db"
+    PHOTOS_DIR = WRITABLE_DIR / "student_photos"
+    try:
+        PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     # Seed SQLite into /tmp if not present
     src_db = DATA_DIR / "smile_records.db"
     if not DB_PATH.exists() and src_db.exists():

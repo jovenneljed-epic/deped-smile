@@ -13,7 +13,7 @@ from flask import (
 )
 
 from smile_config import (
-    SCHOOL_NAME, DB_PATH, PHOTOS_DIR,
+    SCHOOL_NAME, DB_PATH, PHOTOS_DIR, BASE_DIR,
     get_sms_config, save_sms_settings
 )
 import smile_config
@@ -958,8 +958,49 @@ def api_detect_face_preview():
 
 @app.route('/photos/<filename>')
 def serve_photo(filename):
-    """Serves enrolled student photos."""
-    return send_from_directory(PHOTOS_DIR, filename)
+    """Serves enrolled student photos from writable or repo directory."""
+    try:
+        photo_file = PHOTOS_DIR / filename
+        if photo_file.exists():
+            return send_from_directory(PHOTOS_DIR, filename)
+        repo_photos = BASE_DIR / "data" / "student_photos"
+        if (repo_photos / filename).exists():
+            return send_from_directory(repo_photos, filename)
+    except Exception:
+        pass
+    return send_from_directory(BASE_DIR / "static" / "images", "deped_logo.png", mimetype="image/png")
+
+@app.route('/qr/<lrn>')
+@app.route('/qr/<lrn>.png')
+@app.route('/static/qrcodes/<path:filename>')
+def serve_dynamic_qr(lrn=None, filename=None):
+    """
+    Dynamically renders high-contrast DepEd QR ID codes.
+    Zero-disk I/O fallback ensures 100% serverless / read-only environment stability.
+    """
+    from smile_qr import generate_student_qr_bytes, QR_DIR
+    target = (lrn or filename or "").replace(".png", "").strip()
+    if not target:
+        return "Not found", 404
+    
+    # Check if a static file actually exists on disk
+    try:
+        static_file = BASE_DIR / "static" / "qrcodes" / f"{target}.png"
+        if static_file.exists():
+            return send_from_directory(BASE_DIR / "static" / "qrcodes", f"{target}.png", mimetype="image/png")
+        if (QR_DIR / f"{target}.png").exists():
+            return send_from_directory(QR_DIR, f"{target}.png", mimetype="image/png")
+    except Exception:
+        pass
+    
+    # Dynamically generate crisp PNG in memory
+    try:
+        qr_bytes = generate_student_qr_bytes(target)
+        resp = send_file(io.BytesIO(qr_bytes), mimetype="image/png")
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
+    except Exception as ex:
+        return f"Error generating QR: {ex}", 500
 
 # -------------------------------------------------------------
 # REST API Endpoints
@@ -1449,11 +1490,27 @@ def api_enroll_student():
             best_face = max(faces, key=lambda f: f[2] * f[3])
             embedding_vector = face_engine.extract_face_embedding(img, best_face)
             
-            # Save portrait photo
+            # Create high-res, lightweight Base64 data URI so photo persists in DB without disk dependency
+            try:
+                h, w = img.shape[:2]
+                scale = min(360 / max(h, w), 1.0)
+                thumb = cv2.resize(img, (int(w * scale), int(h * scale))) if scale < 1.0 else img
+                _, enc = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                b64_img = base64.b64encode(enc).decode('utf-8')
+                photo_rel_path = f"data:image/jpeg;base64,{b64_img}"
+            except Exception:
+                photo_rel_path = ""
+
+            # Attempt to cache portrait photo to disk if writable
             filename = f"{lrn}_{last_name.lower().replace(' ', '_')}.jpg"
-            save_path = PHOTOS_DIR / filename
-            cv2.imwrite(str(save_path), img)
-            photo_rel_path = f"/photos/{filename}"
+            try:
+                PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+                save_path = PHOTOS_DIR / filename
+                cv2.imwrite(str(save_path), img)
+                if not photo_rel_path:
+                    photo_rel_path = f"/photos/{filename}"
+            except Exception as e:
+                print(f"[!] Note: photo disk cache skipped: {e}")
 
         from smile_orm import save_student_orm
         student = save_student_orm(
