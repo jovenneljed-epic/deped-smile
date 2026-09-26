@@ -30,7 +30,7 @@ class Section(Base):
     section_name = Column(String(50), nullable=False)       # e.g. "Rizal"
     adviser_teacher = Column(String(100), default="")       # e.g. "Mrs. Corazon Aquino"
     room_number = Column(String(30), default="")            # e.g. "Bldg 2 - Room 104"
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=pht_now)
 
     students = relationship("Student", back_populates="section_rel", cascade="all, delete-orphan")
 
@@ -72,7 +72,7 @@ class Student(Base):
     photo_path = Column(Text, default="")                   # Path or data URI to student portrait photo
     face_embedding = Column(Text, nullable=True)            # JSON list of 128 floats for SFace recognition
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=pht_now)
 
     section_rel = relationship("Section", back_populates="students")
     attendance_records = relationship("AttendanceLog", back_populates="student_rel", cascade="all, delete-orphan")
@@ -117,7 +117,7 @@ class AttendanceLog(Base):
     student_name = Column(String(120), nullable=False)
     grade_section = Column(String(80), default="")
     scan_type = Column(String(20), nullable=False)          # TIME_IN, TIME_OUT
-    timestamp = Column(DateTime, default=datetime.now, index=True)
+    timestamp = Column(DateTime, default=pht_now, index=True)
     device_id = Column(String(50), default="GATE-1-SMART-ID")
     verification_method = Column(String(30), default="QR_CODE") # QR_CODE, RFID_TAP, MANUAL_LRN
     sms_status = Column(String(30), default="PENDING")      # PENDING, SENT, MOCKED, FAILED
@@ -150,7 +150,7 @@ class SmsLog(Base):
     message_body = Column(Text, nullable=False)
     gateway_type = Column(String(30), default="MOCK")       # MOCK, SEMAPHORE, GSM
     status = Column(String(30), default="PENDING")          # SENT, MOCKED, FAILED
-    sent_at = Column(DateTime, default=datetime.now, index=True)
+    sent_at = Column(DateTime, default=pht_now, index=True)
     response_info = Column(Text, default="")
 
     def to_dict(self):
@@ -177,7 +177,7 @@ class ExcuseNote(Base):
     reason = Column(String(50), nullable=False)
     details = Column(Text, nullable=False)
     status = Column(String(20), default="SUBMITTED")
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=pht_now)
 
     student_rel = relationship("Student")
 
@@ -206,7 +206,7 @@ class Announcement(Base):
     badge_color = Column(String(20), default="blue") # amber, red, blue, emerald
     is_urgent = Column(Boolean, default=False)
     target_grade = Column(String(50), default="ALL")
-    created_at = Column(DateTime, default=datetime.now, index=True)
+    created_at = Column(DateTime, default=pht_now, index=True)
 
     def to_dict(self):
         return {
@@ -238,7 +238,7 @@ class SchoolEvent(Base):
     organizer = Column(String(100), default="School Administration")
     badge_color = Column(String(20), default="blue") # blue, emerald, amber, purple, rose
     is_highlighted = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now, index=True)
+    created_at = Column(DateTime, default=pht_now, index=True)
 
     def to_dict(self):
         formatted_date = self.event_date
@@ -251,8 +251,8 @@ class SchoolEvent(Base):
             formatted_date = d_obj.strftime("%A, %b %d, %Y")
             short_month = d_obj.strftime("%b").upper()
             day_num = d_obj.strftime("%d")
-            is_upcoming = d_obj.date() >= date.today()
-            days_until = (d_obj.date() - date.today()).days
+            is_upcoming = d_obj.date() >= pht_now().date()
+            days_until = (d_obj.date() - pht_now().date()).days
         except Exception:
             pass
 
@@ -291,7 +291,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     phone_number = Column(String(30), default="")
     assigned_section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=pht_now)
     last_login = Column(DateTime, nullable=True)
 
     assigned_section = relationship("Section", foreign_keys=[assigned_section_id])
@@ -324,7 +324,7 @@ class PricingPlan(Base):
     description = Column(Text, default="")
     features_json = Column(Text, default="[]")
     is_active = Column(Boolean, default=True)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    updated_at = Column(DateTime, default=pht_now, onupdate=pht_now)
 
     def to_dict(self):
         features = []
@@ -361,7 +361,7 @@ class PaymentTransaction(Base):
     payment_method = Column(String(30), default="GCASH") # GCASH, MAYA, BANK_TRANSFER, CARD
     status = Column(String(20), default="COMPLETED") # COMPLETED, PENDING, FAILED
     notes = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.now, index=True)
+    created_at = Column(DateTime, default=pht_now, index=True)
 
     def to_dict(self):
         return {
@@ -1524,7 +1524,7 @@ def get_all_events_orm(limit=50, category=None, upcoming_only=False):
         if category and category.upper() != "ALL":
             query = query.filter(SchoolEvent.category == category.upper())
         if upcoming_only:
-            today_str = date.today().isoformat()
+            today_str = pht_now().date().isoformat()
             query = query.filter(SchoolEvent.event_date >= today_str)
         items = query.order_by(SchoolEvent.event_date.asc(), SchoolEvent.id.asc()).limit(limit).all()
         return [i.to_dict() for i in items]
@@ -1618,7 +1618,7 @@ def authenticate_user_orm(username_or_email, password):
         if not check_password_hash(user.password_hash, password.strip()):
             return None, "Incorrect password."
         
-        user.last_login = datetime.now()
+        user.last_login = pht_now()
         session.commit()
         return user.to_dict(), "Authentication successful."
     finally:
@@ -1955,7 +1955,7 @@ def record_payment_transaction_orm(payer_name, plan_code, amount_php, payment_me
     try:
         import uuid
         prefix = "SMILE-PAY"
-        ref_num = f"{prefix}-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        ref_num = f"{prefix}-{pht_now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
         
         tx = PaymentTransaction(
             transaction_ref=ref_num,

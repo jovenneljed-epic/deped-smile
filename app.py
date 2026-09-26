@@ -569,7 +569,7 @@ def dashboard():
         unique_students_today=summary["unique_students"],
         total_sms_today=total_sms_today,
         logs=logs,
-        today_date=datetime.now().strftime("%A, %B %d, %Y")
+        today_date=pht_now().strftime("%A, %B %d, %Y")
     )
 
 @app.route('/kiosk')
@@ -795,7 +795,7 @@ def api_db_backup():
     try:
         data = {
             "school_name": SCHOOL_NAME,
-            "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "export_date": pht_now().strftime("%Y-%m-%d %H:%M:%S"),
             "sections": [sec.to_dict() for sec in orm_session.query(Section).all()],
             "students": [s.to_dict() for s in orm_session.query(Student).all()],
             "attendance_logs": [a.to_dict() for a in orm_session.query(AttendanceLog).all()],
@@ -805,7 +805,7 @@ def api_db_backup():
         return Response(
             json_str,
             mimetype="application/json",
-            headers={"Content-Disposition": f"attachment;filename=DepEd_Smile_Database_Backup_{date.today()}.json"}
+            headers={"Content-Disposition": f"attachment;filename=DepEd_Smile_Database_Backup_{pht_now().date()}.json"}
         )
     finally:
         orm_session.close()
@@ -1303,8 +1303,8 @@ def api_mobile_home(lrn):
         if not linked_students:
             linked_students = [student.to_dict()]
 
-        # Today's gate scans
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        # Today's gate scans (Philippine Standard Time)
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
         today_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(lrn),
             AttendanceLog.timestamp >= today_start
@@ -1324,7 +1324,7 @@ def api_mobile_home(lrn):
                 status_text = "SAFELY_EXITED"
 
         # Events
-        today_str = date.today().isoformat()
+        today_str = pht_now().date().isoformat()
         upcoming_events = [e.to_dict() for e in session.query(SchoolEvent).filter(
             SchoolEvent.event_date >= today_str
         ).order_by(SchoolEvent.event_date.asc()).limit(3).all()]
@@ -1348,7 +1348,7 @@ def api_mobile_home(lrn):
             "upcoming_events": upcoming_events,
             "featured_event": featured_event.to_dict() if featured_event else None,
             "urgent_announcements": urgent_announcements,
-            "today_date": datetime.now().strftime("%A, %B %d, %Y")
+            "today_date": pht_now().strftime("%A, %B %d, %Y")
         })
     finally:
         session.close()
@@ -1791,7 +1791,7 @@ def api_test_sms():
     if not phone:
         return jsonify({"success": False, "message": "Recipient phone number is required."}), 400
 
-    test_msg = custom_msg or f"DepEd Project S.M.I.L.E. Gateway Test: System is active and operational at {SCHOOL_NAME} on {datetime.now().strftime('%I:%M %p, %b %d, %Y')}."
+    test_msg = custom_msg or f"DepEd Project S.M.I.L.E. Gateway Test: System is active and operational at {SCHOOL_NAME} on {pht_now().strftime('%I:%M %p, %b %d, %Y')}."
     
     result = dispatch_sms_sync(phone, test_msg, student_lrn="GATEWAY_TEST")
     return jsonify(result)
@@ -1836,7 +1836,7 @@ def api_simulate_scan():
 @app.route('/export/csv')
 def export_attendance_csv():
     """Generates DepEd SF2 (School Form 2) compliant Daily Attendance CSV."""
-    today_str = date.today().strftime("%Y-%m-%d")
+    today_str = pht_now().date().strftime("%Y-%m-%d")
     rows = get_all_attendance_logs_for_export_orm()
 
     output = io.StringIO()
@@ -1845,7 +1845,7 @@ def export_attendance_csv():
     # DepEd Standard Header
     writer.writerow(["DEPED SCHOOL ATTENDANCE REPORT (PROJECT S.M.I.L.E.)"])
     writer.writerow(["School Name:", SCHOOL_NAME])
-    writer.writerow(["Generated Date:", datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")])
+    writer.writerow(["Generated Date:", pht_now().strftime("%Y-%m-%d %I:%M:%S %p")])
     writer.writerow([])
     writer.writerow(["Timestamp", "DepEd LRN", "Student Full Name", "Grade & Section", "Class Adviser", "Entry / Exit Type", "Parent Phone", "SMS Alert Status"])
 
