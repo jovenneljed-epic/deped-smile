@@ -1,0 +1,36 @@
+{
+  "appId": "ph.gov.deped.smile.parent",
+  "appName": "SMILE Parent",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://deped-smile.vercel.app/mobile",
+    "cleartext": true,
+    "allowNavigation": [
+      "deped-smile.vercel.app",
+      "*.supabase.co"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "buildOptions": {
+      "releaseType": "APK"
+    }
+  },
+  "ios": {
+    "contentInset": "always",
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#0038A8",
+      "sound": "beep.wav"
+    }
+  }
+}

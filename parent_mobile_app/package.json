@@ -1,0 +1,36 @@
+{
+  "name": "deped-smile-parent-mobile",
+  "version": "2.4.0",
+  "description": "DepEd Project S.M.I.L.E. - Official Parent Mobile Companion App for Android & iOS",
+  "main": "www/index.html",
+  "scripts": {
+    "build": "echo \"Building web assets for mobile app...\"",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
+    "android": "cap run android",
+    "ios": "cap run ios"
+  },
+  "keywords": [
+    "deped",
+    "parent-app",
+    "school-safety",
+    "rfid",
+    "attendance",
+    "push-notifications"
+  ],
+  "author": "DepEd Region IV-A / Project S.M.I.L.E.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/local-notifications": "^6.0.2",
+    "@capacitor/preferences": "^6.0.2",
+    "@capacitor/push-notifications": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1"
+  }
+}

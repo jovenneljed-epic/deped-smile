@@ -277,6 +277,14 @@ def admin_save_school_settings():
         })
     return redirect(url_for('admin_settings', msg="School identity and Public Domain settings updated successfully."))
 
+@app.route('/admin/events')
+@admin_required
+def admin_events_page():
+    """Super Admin & Principal: Manage and publish school events and activities to the Parent Mobile App."""
+    from smile_orm import get_all_events_orm
+    events = get_all_events_orm(limit=100)
+    return render_template('admin_events.html', events=events, school_name=smile_config.SCHOOL_NAME)
+
 @app.route('/admin/billing', methods=['GET'])
 @admin_required
 def admin_billing():
@@ -672,6 +680,7 @@ def parent_logout():
     resp.set_cookie('parent_phone', '', expires=0)
     return resp
 
+@app.route('/mobile')
 @app.route('/parent')
 @app.route('/parent/<lrn>')
 def parent_portal(lrn=None):
@@ -681,7 +690,11 @@ def parent_portal(lrn=None):
     target_lrn = lrn or request.args.get('lrn') or request.cookies.get('parent_lrn')
     parent_phone = request.args.get('phone') or request.cookies.get('parent_phone')
 
-    from smile_orm import Session, Student, AttendanceLog, get_student_excuse_notes_orm, get_students_by_parent_phone_orm, get_all_announcements_orm
+    from smile_orm import (
+        Session, Student, AttendanceLog,
+        get_student_excuse_notes_orm, get_students_by_parent_phone_orm,
+        get_all_announcements_orm, get_all_events_orm
+    )
     orm_session = Session()
     try:
         if not target_lrn and parent_phone:
@@ -726,6 +739,9 @@ def parent_portal(lrn=None):
         # Real Database Announcements
         announcements = get_all_announcements_orm()
 
+        # Real Database School Events & Activities
+        events = get_all_events_orm()
+
         resp = Response(render_template(
             'parent/app.html',
             school_name=SCHOOL_NAME,
@@ -736,6 +752,7 @@ def parent_portal(lrn=None):
             all_logs=all_logs,
             excuse_notes=excuse_notes,
             announcements=announcements,
+            events=events,
             today_date=datetime.now().strftime("%A, %B %d, %Y"),
             today_iso=date.today().isoformat()
         ))
@@ -1163,6 +1180,212 @@ def api_delete_announcement(announcement_id):
     success, msg = delete_announcement_orm(announcement_id)
     status_code = 200 if success else 404
     return jsonify({"success": success, "message": msg}), status_code
+
+# -------------------------------------------------------------
+# School Events & Calendar Endpoints
+# -------------------------------------------------------------
+
+@app.route('/api/events', methods=['GET', 'POST'])
+@app.route('/api/mobile/events', methods=['GET'])
+def api_events():
+    """Retrieves school events and activities or saves a new event."""
+    from smile_orm import get_all_events_orm, save_event_orm
+    if request.method == 'GET':
+        category = request.args.get('category', 'ALL')
+        upcoming_only = request.args.get('upcoming', 'false').lower() == 'true'
+        limit = request.args.get('limit', 50, type=int)
+        items = get_all_events_orm(limit=limit, category=category, upcoming_only=upcoming_only)
+        return jsonify({"success": True, "events": items})
+
+    # POST (Admin/Principal)
+    data = request.json or {}
+    title = data.get('title', '').strip()
+    category = data.get('category', 'ACADEMIC').strip().upper()
+    description = data.get('description', '').strip()
+    event_date = data.get('event_date', '').strip()
+    start_time = data.get('start_time', '08:00 AM').strip()
+    end_time = data.get('end_time', '04:00 PM').strip()
+    location = data.get('location', 'School Gymnasium').strip()
+    target_grades = data.get('target_grades', 'ALL').strip()
+    organizer = data.get('organizer', 'School Administration').strip()
+    badge_color = data.get('badge_color', 'blue').strip()
+    is_highlighted = bool(data.get('is_highlighted', False))
+
+    if not title or not description or not event_date:
+        return jsonify({"success": False, "message": "Title, description, and event date are required."}), 400
+
+    try:
+        new_event, msg = save_event_orm(
+            title=title,
+            category=category,
+            description=description,
+            event_date=event_date,
+            start_time=start_time,
+            end_time=end_time,
+            location=location,
+            target_grades=target_grades,
+            organizer=organizer,
+            badge_color=badge_color,
+            is_highlighted=is_highlighted
+        )
+        return jsonify({"success": True, "message": msg, "event": new_event})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/events/<int:event_id>', methods=['DELETE'])
+@app.route('/api/admin/events/<int:event_id>', methods=['DELETE'])
+def api_delete_event(event_id):
+    """Deletes a school event by ID."""
+    from smile_orm import delete_event_orm
+    success, msg = delete_event_orm(event_id)
+    return jsonify({"success": success, "message": msg}), (200 if success else 404)
+
+# -------------------------------------------------------------
+# Mobile App Dedicated APIs & Real-Time Notification Stream
+# -------------------------------------------------------------
+
+@app.route('/api/mobile/home/<lrn>')
+def api_mobile_home(lrn):
+    """Consolidated single-payload mobile dashboard for learner."""
+    from smile_orm import Session, Student, AttendanceLog, SchoolEvent, Announcement
+    session = Session()
+    try:
+        student = session.query(Student).filter_by(lrn=str(lrn)).first()
+        if not student:
+            return jsonify({"success": False, "message": "Student not found"}), 404
+
+        # Siblings
+        linked_students = []
+        if student.parent_phone:
+            linked_students = [s.to_dict() for s in session.query(Student).filter_by(parent_phone=student.parent_phone).all()]
+        if not linked_students:
+            linked_students = [student.to_dict()]
+
+        # Today's gate scans
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
+            AttendanceLog.lrn == str(lrn),
+            AttendanceLog.timestamp >= today_start
+        ).order_by(AttendanceLog.id.desc()).all()]
+
+        all_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
+            AttendanceLog.lrn == str(lrn)
+        ).order_by(AttendanceLog.id.desc()).limit(15).all()]
+
+        latest_log = today_logs[0] if today_logs else (all_logs[0] if all_logs else None)
+
+        status_text = "AWAITING_ARRIVAL"
+        if latest_log:
+            if latest_log.get("scan_type") == "TIME_IN":
+                status_text = "INSIDE_CAMPUS"
+            elif latest_log.get("scan_type") == "TIME_OUT":
+                status_text = "SAFELY_EXITED"
+
+        # Events
+        today_str = date.today().isoformat()
+        upcoming_events = [e.to_dict() for e in session.query(SchoolEvent).filter(
+            SchoolEvent.event_date >= today_str
+        ).order_by(SchoolEvent.event_date.asc()).limit(3).all()]
+
+        featured_event = session.query(SchoolEvent).filter(
+            SchoolEvent.is_highlighted == True,
+            SchoolEvent.event_date >= today_str
+        ).order_by(SchoolEvent.event_date.asc()).first()
+
+        urgent_announcements = [a.to_dict() for a in session.query(Announcement).filter(
+            Announcement.is_urgent == True
+        ).order_by(Announcement.id.desc()).limit(3).all()]
+
+        return jsonify({
+            "success": True,
+            "student": student.to_dict(),
+            "siblings": linked_students,
+            "status": status_text,
+            "latest_log": latest_log,
+            "today_logs": today_logs,
+            "upcoming_events": upcoming_events,
+            "featured_event": featured_event.to_dict() if featured_event else None,
+            "urgent_announcements": urgent_announcements,
+            "today_date": datetime.now().strftime("%A, %B %d, %Y")
+        })
+    finally:
+        session.close()
+
+@app.route('/api/mobile/notifications/<lrn>')
+def api_mobile_notifications(lrn):
+    """Returns aggregated real-time notification stream for parents."""
+    from smile_orm import Session, Student, AttendanceLog, Announcement, ExcuseNote
+    session = Session()
+    try:
+        student = session.query(Student).filter_by(lrn=str(lrn)).first()
+        student_name = student.first_name if student else "Learner"
+
+        notifications = []
+        # 1. Gate attendance alerts
+        logs = session.query(AttendanceLog).filter_by(lrn=str(lrn)).order_by(AttendanceLog.id.desc()).limit(12).all()
+        for l in logs:
+            is_in = (l.scan_type == "TIME_IN")
+            action = "entered" if is_in else "safely exited from"
+            icon = "fa-right-to-bracket" if is_in else "fa-right-from-bracket"
+            color = "emerald" if is_in else "blue"
+            t_str = l.timestamp.strftime("%b %d, %I:%M %p") if l.timestamp else ""
+            notifications.append({
+                "id": f"scan-{l.id}",
+                "type": "GATE_SCAN",
+                "title": f"Gate Scan ({'TIME-IN' if is_in else 'TIME-OUT'})",
+                "body": f"{student_name} {action} {l.device_id or 'School Gate 1'} at {l.time_formatted or ''}.",
+                "timestamp": t_str,
+                "icon": icon,
+                "color": color,
+                "is_urgent": False,
+                "read": False
+            })
+
+        # 2. Urgent School Announcements
+        announcements = session.query(Announcement).filter_by(is_urgent=True).order_by(Announcement.id.desc()).limit(5).all()
+        for a in announcements:
+            t_str = a.created_at.strftime("%b %d, %I:%M %p") if a.created_at else ""
+            notifications.append({
+                "id": f"ann-{a.id}",
+                "type": "URGENT_ADVISORY",
+                "title": f"⚠️ {a.title}",
+                "body": a.content[:140] + ("..." if len(a.content) > 140 else ""),
+                "timestamp": t_str,
+                "icon": "fa-triangle-exclamation",
+                "color": "red",
+                "is_urgent": True,
+                "read": False
+            })
+
+        # 3. Excuse Note Status
+        notes = session.query(ExcuseNote).filter_by(lrn=str(lrn)).order_by(ExcuseNote.id.desc()).limit(3).all()
+        for n in notes:
+            t_str = n.created_at.strftime("%b %d, %I:%M %p") if n.created_at else ""
+            notifications.append({
+                "id": f"excuse-{n.id}",
+                "type": "EXCUSE_NOTE",
+                "title": f"Excuse Note: {n.status.upper()}",
+                "body": f"Excuse note for {n.date_effective} ({n.reason}) is marked as {n.status}.",
+                "timestamp": t_str,
+                "icon": "fa-file-signature",
+                "color": "amber",
+                "is_urgent": False,
+                "read": True
+            })
+
+        return jsonify({
+            "success": True,
+            "notifications": notifications,
+            "unread_count": sum(1 for n in notifications if not n["read"])
+        })
+    finally:
+        session.close()
+
+@app.route('/download/apk')
+@app.route('/apk')
+def download_apk_page():
+    """Portal for downloading the Android APK and iOS installation guidance."""
+    return render_template('parent/download_apk.html', school_name=SCHOOL_NAME)
 
 @app.route('/api/scan-id', methods=['POST'])
 def api_scan_id():

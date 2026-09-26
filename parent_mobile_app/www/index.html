@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DepEd S.M.I.L.E. Parent Companion</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0038A8',
+              red: '#CE1126',
+              gold: '#FCD116',
+              darkblue: '#0B192C'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0B192C;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center text-slate-800">
+
+  <!-- Mobile Viewport Shell -->
+  <div class="w-full max-w-md min-h-screen bg-slate-100 flex flex-col shadow-2xl relative pb-20 border-x border-slate-700/20">
+
+    <!-- Top App Bar -->
+    <header class="bg-deped-darkblue text-white px-5 pt-4 pb-3 sticky top-0 z-40 border-b border-slate-800 shadow-md">
+      <div class="flex items-center justify-between">
+        
+        <div class="flex items-center gap-2.5">
+          <img src="https://deped-smile.vercel.app/static/images/deped_seal.svg" alt="DepEd Seal" class="w-8 h-8 object-contain">
+          <div>
+            <span class="text-[9px] font-extrabold uppercase tracking-wider text-amber-300 block">DepEd Parent App</span>
+            <h1 id="appSchoolName" class="text-xs font-bold text-white truncate max-w-[170px]">Don Montano CIS</h1>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button onclick="switchTab('alerts')" id="btnHeaderBell" class="relative w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-amber-300 transition">
+            <i class="fa-solid fa-bell"></i>
+            <span id="notifBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center">0</span>
+          </button>
+
+          <button onclick="openConfigModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-slate-300 transition">
+            <i class="fa-solid fa-gear"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Live Real-Time Banner -->
+      <div id="liveBanner" class="hidden mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce transition-all">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-full bg-white text-emerald-700 flex items-center justify-center text-sm shrink-0">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div class="flex-grow">
+            <h4 id="bannerTitle" class="text-[11px] font-black uppercase">GATE SCAN VERIFIED</h4>
+            <p id="bannerDesc" class="text-[10px] text-emerald-100 leading-tight">Child checked in at gate.</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- LOGIN / LRN PROMPT (Shown if not yet connected) -->
+    <div id="loginView" class="p-6 flex-grow flex flex-col justify-center items-center text-center space-y-4">
+      <div class="w-20 h-20 rounded-3xl bg-blue-50 border border-blue-200 flex items-center justify-center text-deped-blue text-4xl shadow-inner">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-black font-heading text-slate-900">Parent Companion Login</h2>
+        <p class="text-xs text-slate-500 mt-1 max-w-xs">Enter your child's 12-digit Learner Reference Number (LRN) or your registered mobile number.</p>
+      </div>
+
+      <div class="w-full space-y-3 pt-2">
+        <input type="text" id="inputLrn" placeholder="Enter 12-digit LRN (e.g. 109876543210)" maxlength="12" class="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-mono font-bold text-center tracking-widest focus:ring-2 focus:ring-deped-blue focus:outline-none">
+        <button onclick="loginWithLrn()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-deped-blue to-indigo-700 text-white font-heading font-black text-xs shadow-lg shadow-blue-500/20 active:scale-95 transition">
+          Connect to School Gate
+        </button>
+      </div>
+
+      <div class="pt-4 border-t border-slate-200 w-full text-[11px] text-slate-400">
+        <span>Protected by DepEd Project S.M.I.L.E. Cloud Service</span>
+      </div>
+    </div>
+
+    <!-- MAIN APP TABS CONTAINER (Shown when connected) -->
+    <div id="mainAppViews" class="hidden flex-grow flex flex-col">
+
+      <!-- TAB 1: SAFETY / HOME -->
+      <main id="tabHome" class="tab-pane flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+        <!-- Campus Presence Status Hero Card -->
+        <div class="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm text-center relative overflow-hidden">
+          <div class="flex justify-center mb-3">
+            <div id="statusBadge" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black tracking-wide bg-slate-100 text-slate-600 border border-slate-200">
+              <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+              <span id="statusText">AWAITING ARRIVAL AT GATE</span>
+            </div>
+          </div>
+
+          <div class="relative w-24 h-24 mx-auto mb-2.5">
+            <div id="studentAvatar" class="w-24 h-24 rounded-3xl bg-blue-50 border-4 border-white shadow-md text-deped-blue flex items-center justify-center text-4xl mx-auto overflow-hidden">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shadow-md border-2 border-white">
+              <i class="fa-solid fa-shield-check"></i>
+            </div>
+          </div>
+
+          <h2 id="studentFullName" class="font-heading font-black text-lg text-slate-900 uppercase">Learner Name</h2>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-deped-blue font-bold text-xs mt-1">
+            <span id="studentGradeSection">Grade & Section</span>
+          </div>
+          <p class="text-[11px] font-mono text-slate-400 mt-1">LRN: <span id="studentLrnLabel" class="font-bold text-slate-700">--</span></p>
+        </div>
+
+        <!-- Featured Activity Banner -->
+        <div id="featuredEventBanner" onclick="switchTab('events')" class="cursor-pointer p-4 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-deped-darkblue text-white shadow-md border border-blue-700/40 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400 text-slate-950">
+              <i class="fa-solid fa-calendar-star text-[8px]"></i> Next School Activity
+            </span>
+            <span id="featEventDate" class="text-[10px] text-blue-200 font-mono font-semibold">OCT 08</span>
+          </div>
+          <h4 id="featEventTitle" class="text-xs font-black font-heading text-white truncate">1st Quarter Periodical Examinations</h4>
+          <div class="flex items-center justify-between text-[11px] text-blue-200 mt-2">
+            <span id="featEventLoc" class="flex items-center gap-1 truncate max-w-[200px]"><i class="fa-solid fa-location-dot text-rose-400 text-[10px]"></i> School Classrooms</span>
+            <span class="text-amber-300 font-bold flex items-center gap-1 text-[10px]">View Calendar <i class="fa-solid fa-arrow-right text-[9px]"></i></span>
+          </div>
+        </div>
+
+        <!-- Today's Gate Timeline -->
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <i class="fa-solid fa-clock-rotate-left text-deped-blue"></i> Today's Gate Timeline
+            </h3>
+            <span id="todayDateLabel" class="text-[10px] text-slate-400 font-mono">Today</span>
+          </div>
+          <div id="timelineList" class="space-y-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </main>
+
+      <!-- TAB 2: ALERTS & NOTIFICATIONS -->
+      <main id="tabAlerts" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+          <div>
+            <h2 class="text-base font-black font-heading text-slate-900">Notification Center</h2>
+            <span class="text-[10px] text-slate-500 font-medium">Real-Time Gate Scans & Safety Bulletins</span>
+          </div>
+          <button onclick="testAppChime()" class="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-extrabold text-[10px] rounded-lg border border-amber-300 transition flex items-center gap-1">
+            <i class="fa-solid fa-volume-high text-[9px]"></i> Chime
+          </button>
+        </div>
+
+        <div id="notificationsList" class="space-y-2.5">
+          <!-- Populated from API -->
+        </div>
+      </main>
+
+      <!-- TAB 3: ANNOUNCEMENTS / BULLETINS -->
+      <main id="tabAdvisories" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+          <div>
+            <h2 class="text-base font-black font-heading text-slate-900">Official Bulletins</h2>
+            <span class="text-[10px] text-slate-500 font-medium">DepEd Memos & Weather Advisories</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          <button onclick="filterMobileAnnouncements('ALL')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-deped-blue text-white shrink-0 shadow-sm" data-category="ALL">All</button>
+          <button onclick="filterMobileAnnouncements('WEATHER_ALERT')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0" data-category="WEATHER_ALERT">⛈️ Weather</button>
+          <button onclick="filterMobileAnnouncements('DEPED_MEMO')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0" data-category="DEPED_MEMO">📜 Memos</button>
+          <button onclick="filterMobileAnnouncements('ANNOUNCEMENT')" class="ann-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 shrink-0" data-category="ANNOUNCEMENT">📢 General</button>
+        </div>
+
+        <div id="announcementsList" class="space-y-3">
+          <!-- Populated from API -->
+        </div>
+      </main>
+
+      <!-- TAB 4: SCHOOL EVENTS & CALENDAR -->
+      <main id="tabEvents" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+          <div>
+            <h2 class="text-base font-black font-heading text-slate-900">Events & School Calendar</h2>
+            <span class="text-[10px] text-slate-500 font-medium">Upcoming Don Montano CIS Activities</span>
+          </div>
+        </div>
+
+        <div id="eventsList" class="space-y-3">
+          <!-- Populated from API -->
+        </div>
+      </main>
+
+      <!-- TAB 5: STUDENT PROFILE & PICK-UP PASS -->
+      <main id="tabProfile" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+        <div class="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm text-center">
+          <h3 class="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Digital Guardian Pick-Up Pass</h3>
+          <div id="qrPassContainer" class="p-3 bg-slate-50 rounded-2xl border border-slate-200 inline-block mb-2">
+            <!-- QR Image -->
+            <img id="passQrImg" src="" alt="Guardian QR" class="w-36 h-36 mx-auto rounded-xl">
+          </div>
+          <p class="text-xs text-slate-600 font-bold">Present to Gate Security when fetching your child.</p>
+          <p class="text-[10px] text-slate-400 mt-1">Authorized Guardian Pass • DepEd Project S.M.I.L.E.</p>
+        </div>
+
+        <div class="pt-2">
+          <button onclick="logoutMobile()" class="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-2xl text-xs transition flex items-center justify-center gap-1.5 border border-rose-200">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i> Disconnect / Switch Student LRN
+          </button>
+        </div>
+      </main>
+
+    </div>
+
+    <!-- BOTTOM APP NAVIGATION BAR -->
+    <nav id="bottomNav" class="hidden fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2 px-2 flex justify-around items-center z-40">
+      <button onclick="switchTab('home')" id="navBtnHome" class="nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1">
+        <i class="fa-solid fa-shield-halved text-base"></i>
+        <span class="text-[10px] mt-0.5">Safety</span>
+      </button>
+
+      <button onclick="switchTab('alerts')" id="navBtnAlerts" class="nav-btn relative flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <div class="relative inline-block">
+          <i class="fa-solid fa-bell text-base"></i>
+          <span id="navAlertBadge" class="hidden absolute -top-1 -right-2 w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center">0</span>
+        </div>
+        <span class="text-[10px] mt-0.5">Alerts</span>
+      </button>
+
+      <button onclick="switchTab('advisories')" id="navBtnAdvisories" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-bullhorn text-base"></i>
+        <span class="text-[10px] mt-0.5">Bulletins</span>
+      </button>
+
+      <button onclick="switchTab('events')" id="navBtnEvents" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-calendar-days text-base"></i>
+        <span class="text-[10px] mt-0.5">Events</span>
+      </button>
+
+      <button onclick="switchTab('profile')" id="navBtnProfile" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-id-card-clip text-base"></i>
+        <span class="text-[10px] mt-0.5">Student</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

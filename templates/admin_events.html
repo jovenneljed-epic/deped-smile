@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}School Calendar & Activities Manager | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-slate-900 text-white relative overflow-hidden">
+    <div class="space-y-1 z-10">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <i class="fa-solid fa-calendar-days mr-1"></i> SCHOOL ACTIVITIES
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+          Synced with Parent Mobile App
+        </span>
+      </div>
+      <h1 class="text-xl sm:text-2xl font-black font-heading tracking-tight text-white">School Calendar & Activities Manager</h1>
+      <p class="text-xs text-slate-300">
+        Publish academic examinations, sports fests, PTA meetings, and cultural events. All events immediately appear on parents' mobile apps with 1-click calendar export.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 z-10 flex-wrap">
+      <a href="/mobile" target="_blank" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-mobile-screen"></i> Preview Parent App
+      </a>
+      <a href="/admin/settings" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 border border-slate-700">
+        <i class="fa-solid fa-gear"></i> Settings
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left Column: Add New Event Form -->
+    <div class="lg:col-span-1 space-y-6">
+      <div class="glass-card rounded-3xl p-5 border border-slate-200 shadow-sm bg-white space-y-4">
+        <div class="flex items-center gap-2 pb-3 border-b border-slate-100">
+          <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-calendar-plus"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-black text-slate-900">Publish New Activity</h3>
+            <p class="text-[10px] text-slate-500">Broadcast to parents' mobile calendar</p>
+          </div>
+        </div>
+
+        <form id="addEventForm" class="space-y-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Event Title *</label>
+            <input type="text" id="evTitle" required placeholder="e.g. 2nd Quarter Periodical Exam" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Category</label>
+              <select id="evCategory" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+                <option value="ACADEMIC">📚 Academic</option>
+                <option value="PTA">👨‍👩‍👧 PTA Assembly</option>
+                <option value="SPORTS">🏆 Sports & Intrams</option>
+                <option value="CULTURAL">🎭 Cultural</option>
+                <option value="GENERAL">🧹 Brigada / General</option>
+                <option value="HOLIDAY">🏖️ School Holiday</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Date *</label>
+              <input type="date" id="evDate" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Start Time</label>
+              <input type="text" id="evStartTime" value="08:00 AM" placeholder="08:00 AM" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">End Time</label>
+              <input type="text" id="evEndTime" value="04:00 PM" placeholder="04:00 PM" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Location / Venue</label>
+            <input type="text" id="evLocation" value="School Gymnasium" placeholder="e.g. Covered Court / Main Quadrangle" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Target Learners</label>
+            <input type="text" id="evTarget" value="All Grade Levels" placeholder="e.g. Grade 7 to 10" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Event Description *</label>
+            <textarea id="evDescription" rows="3" required placeholder="Provide clear instructions, reminders, or dress code for parents..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-deped-blue focus:outline-none"></textarea>
+          </div>
+
+          <div class="flex items-center gap-2 pt-1">
+            <input type="checkbox" id="evHighlight" class="w-4 h-4 text-deped-blue rounded focus:ring-deped-blue">
+            <label for="evHighlight" class="text-xs font-bold text-slate-700">Highlight as Featured Activity on Parent Home Screen</label>
+          </div>
+
+          <button type="submit" id="btnPublishEvent" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-bullhorn"></i> Publish Activity to Parent App
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Right Column: Scheduled Activities List -->
+    <div class="lg:col-span-2 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-black font-heading text-slate-900">Scheduled School Activities</h2>
+          <p class="text-xs text-slate-500">Live calendar records currently displayed in the Parent Companion App</p>
+        </div>
+        <span class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+          {{ events|length }} Active Events
+        </span>
+      </div>
+
+      <div class="space-y-3" id="eventsTableContainer">
+        {% for ev in events %}
+        <div class="glass-card rounded-2xl p-4 border border-slate-200 shadow-sm bg-white space-y-2 hover:shadow-md transition">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-blue-600 to-indigo-700 text-white flex flex-col items-center justify-center p-1 shadow-sm shrink-0">
+                <span class="text-[9px] font-black uppercase leading-none">{{ ev.short_month }}</span>
+                <span class="text-base font-black font-heading leading-tight">{{ ev.day_num }}</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-100 text-blue-800">{{ ev.category }}</span>
+                  {% if ev.is_highlighted %}
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-400 text-slate-950">Featured</span>
+                  {% endif %}
+                  <span class="text-[10px] text-slate-400 font-mono">{{ ev.formatted_date }}</span>
+                </div>
+                <h3 class="text-sm font-black text-slate-900 mt-1">{{ ev.title }}</h3>
+              </div>
+            </div>
+
+            <button onclick="deleteEvent({{ ev.id }})" class="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center text-xs transition" title="Delete Event">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+
+          <p class="text-xs text-slate-600 leading-relaxed">{{ ev.description }}</p>
+
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-location-dot text-rose-500 text-[10px]"></i> {{ ev.location }}</span>
+            <span class="flex items-center gap-1"><i class="fa-solid fa-clock text-amber-500 text-[10px]"></i> {{ ev.time_range }}</span>
+            <span class="font-bold text-slate-600">For: {{ ev.target_grades }}</span>
+          </div>
+        </div>
+        {% else %}
+        <div class="p-12 text-center bg-white rounded-3xl border border-slate-200 text-slate-400 space-y-2">
+          <i class="fa-solid fa-calendar-xmark text-4xl text-slate-300"></i>
+          <p class="text-sm font-bold">No school activities scheduled.</p>
+          <p class="text-xs text-slate-400">Use the form on the left to publish your first school event.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  document.getElementById('addEventForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnPublishEvent');
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Publishing...`;
+
+    const payload = {
+      title: document.getElementById('evTitle').value.trim(),
+      category: document.getElementById('evCategory').value,
+      event_date: document.getElementById('evDate').value,
+      start_time: document.getElementById('evStartTime').value.trim(),
+      end_time: document.getElementById('evEndTime').value.trim(),
+      location: document.getElementById('evLocation').value.trim(),
+      target_grades: document.getElementById('evTarget').value.trim(),
+      description: document.getElementById('evDescription').value.trim(),
+      is_highlighted: document.getElementById('evHighlight').checked
+    };
+
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("School activity published to parent app successfully!");
+        window.location.reload();
+      } else {
+        alert("Error: " + (data.message || "Failed to save event."));
+      }
+    } catch(err) {
+      alert("Network error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-bullhorn"></i> Publish Activity to Parent App`;
+    }
+  });
+
+  async function deleteEvent(id) {
+    if (!confirm("Remove this event from the parent school calendar?")) return;
+    try {
+      const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert("Error deleting event: " + data.message);
+      }
+    } catch(err) {
+      alert("Network error: " + err.message);
+    }
+  }
+</script>
+{% endblock %}

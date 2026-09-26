@@ -1,0 +1,64 @@
+name: Build Android APK (DepEd S.M.I.L.E. Parent App)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'parent_mobile_app/**'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build-apk:
+    name: Compile Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: parent_mobile_app/package.json
+
+      - name: Install Mobile App Dependencies
+        working-directory: parent_mobile_app
+        run: |
+          npm install
+
+      - name: Initialize & Sync Capacitor Android
+        working-directory: parent_mobile_app
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Grant Execute Permission to Gradle Wrapper
+        working-directory: parent_mobile_app/android
+        run: chmod +x gradlew
+
+      - name: Build Android Debug APK
+        working-directory: parent_mobile_app/android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Find and Rename APK
+        run: |
+          mkdir -p output_apk
+          find parent_mobile_app/android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} output_apk/deped-smile-parent.apk \;
+          ls -la output_apk/
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deped-smile-parent-apk
+          path: output_apk/deped-smile-parent.apk
+          retention-days: 30

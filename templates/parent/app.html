@@ -78,7 +78,7 @@
         </div>
 
         <!-- Child Switcher & App Actions -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
           {% if students|length > 1 %}
           <select onchange="switchStudent(this.value)" class="bg-slate-800 text-white text-[11px] font-bold rounded-lg px-2 py-1.5 border border-slate-700 focus:outline-none">
             {% for s in students %}
@@ -87,12 +87,17 @@
           </select>
           {% endif %}
 
+          <a href="/download/apk" class="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-extrabold text-[10px] rounded-lg border border-emerald-500/40 transition flex items-center gap-1" title="Get Android APK / iOS">
+            <i class="fa-solid fa-mobile-screen-button text-[10px]"></i> APK
+          </a>
+
           <button onclick="testMobileNotification()" class="px-2 py-1 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 font-extrabold text-[10px] rounded-lg border border-amber-400/40 transition flex items-center gap-1" title="Test Notification">
             <i class="fa-solid fa-bell-ring text-[10px]"></i> Test
           </button>
 
-          <button onclick="requestPushPermission()" id="btnPushBell" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-amber-300 transition" title="Notification Settings">
+          <button onclick="switchTab('alerts')" id="btnPushBell" class="relative w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-amber-300 transition" title="Notification Alerts">
             <i class="fa-solid fa-bell"></i>
+            <span id="unreadNotifBadge" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center {% if not logs %}hidden{% endif %}">{{ logs|length }}</span>
           </button>
         </div>
 
@@ -242,6 +247,24 @@
         </a>
       </div>
 
+      <!-- Upcoming School Activity / Event Banner -->
+      {% if events %}
+      {% set next_event = events[0] %}
+      <div onclick="switchTab('events')" class="cursor-pointer p-4 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-deped-darkblue text-white shadow-md border border-blue-700/40 relative overflow-hidden transition hover:scale-[1.01] active:scale-[0.99]">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400 text-slate-950">
+            <i class="fa-solid fa-calendar-star text-[8px]"></i> Next School Activity
+          </span>
+          <span class="text-[10px] text-blue-200 font-mono font-semibold">{{ next_event.short_month }} {{ next_event.day_num }}</span>
+        </div>
+        <h4 class="text-xs font-black font-heading text-white truncate">{{ next_event.title }}</h4>
+        <div class="flex items-center justify-between text-[11px] text-blue-200 mt-2">
+          <span class="flex items-center gap-1 truncate max-w-[200px]"><i class="fa-solid fa-location-dot text-rose-400 text-[10px]"></i> {{ next_event.location }}</span>
+          <span class="text-amber-300 font-bold flex items-center gap-1 text-[10px]">View Calendar <i class="fa-solid fa-arrow-right text-[9px]"></i></span>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Today's Gate Timeline -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
@@ -286,48 +309,114 @@
 
     </main>
 
-    <!-- TAB 2: ATTENDANCE HISTORY -->
-    <main id="tabContentHistory" class="tab-pane hidden flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
+    <!-- TAB 2: ALERTS & NOTIFICATION CENTER -->
+    <main id="tabContentAlerts" class="tab-pane hidden flex-grow p-4 space-y-4 overflow-y-auto no-scrollbar">
       <div class="flex items-center justify-between pb-2 border-b border-slate-200">
-        <h2 class="text-base font-black font-heading text-slate-900">Attendance Records</h2>
-        <span class="text-xs text-slate-500 font-medium">School Year 2026–2027</span>
+        <div>
+          <h2 class="text-base font-black font-heading text-slate-900">Notification Center</h2>
+          <span class="text-[10px] text-slate-500 font-medium">Live Gate Alerts & School Safety Notices</span>
+        </div>
+        <button onclick="testMobileNotification()" class="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-extrabold text-[10px] rounded-lg border border-amber-300 transition flex items-center gap-1">
+          <i class="fa-solid fa-bell-ring text-[9px]"></i> Test Alert
+        </button>
       </div>
 
-      <!-- KPI Summary Chips -->
-      <div class="grid grid-cols-2 gap-2.5">
-        <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Attendance Rate</span>
-          <h3 class="text-2xl font-black text-emerald-600 font-heading">98.5%</h3>
-          <span class="text-[10px] text-emerald-700 font-medium"><i class="fa-solid fa-arrow-trend-up"></i> Excellent Standing</span>
-        </div>
-        <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Days Present</span>
-          <h3 class="text-2xl font-black text-slate-800 font-heading">45 <span class="text-xs text-slate-400 font-normal">/ 46</span></h3>
-          <span class="text-[10px] text-slate-500 font-medium">0 Unexcused Absences</span>
-        </div>
-      </div>
-
-      <!-- Recent Attendance History Table -->
-      <div class="glass-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-3.5 border-b border-slate-100 flex items-center justify-between">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Past Gate Activity</h3>
-          <span class="text-[10px] font-mono text-slate-400">Last 10 Scans</span>
-        </div>
-        <div class="divide-y divide-slate-100 text-xs">
-          {% for h in all_logs %}
-          <div class="p-3 flex items-center justify-between hover:bg-slate-50 transition">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg {% if h.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-700{% else %}bg-blue-50 text-blue-700{% endif %} flex items-center justify-center text-xs font-bold">
-                <i class="fa-solid {% if h.scan_type == 'TIME_IN' %}fa-arrow-right-to-bracket{% else %}fa-arrow-right-from-bracket{% endif %}"></i>
-              </div>
-              <div>
-                <span class="font-bold text-slate-800">{{ h.scan_type }} ({{ h.verification_method }})</span>
-                <p class="text-[10px] font-mono text-slate-400">{{ h.timestamp }}</p>
-              </div>
-            </div>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">VERIFIED</span>
+      <!-- Notification Sound & Push Preferences -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-volume-high text-deped-blue text-sm"></i>
+            <span class="text-xs font-bold text-slate-800">Scan Audio</span>
           </div>
-          {% endfor %}
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="prefSound" class="sr-only peer" checked>
+            <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+          </label>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-mobile-screen text-amber-500 text-sm"></i>
+            <span class="text-xs font-bold text-slate-800">Vibration</span>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="prefVibrate" class="sr-only peer" checked>
+            <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Real-time Alerts Feed -->
+      <div id="alertsFeedList" class="space-y-2.5">
+        {% for log in logs %}
+        <div class="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl {% if log.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-600 border border-emerald-200{% else %}bg-blue-50 text-blue-600 border border-blue-200{% endif %} flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+            <i class="fa-solid {% if log.scan_type == 'TIME_IN' %}fa-right-to-bracket{% else %}fa-right-from-bracket{% endif %}"></i>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-slate-900">
+                {% if log.scan_type == 'TIME_IN' %}Gate Entry (TIME-IN){% else %}Gate Exit (TIME-OUT){% endif %}
+              </span>
+              <span class="text-[10px] font-mono text-slate-400">{{ log.time_formatted }}</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-0.5 leading-snug">
+              {{ active_student.first_name }} has {% if log.scan_type == 'TIME_IN' %}arrived at{% else %}safely exited from{% endif %} {{ log.device_id or 'School Gate 1' }}. Verified by {{ log.verification_method or 'Biometric AI' }}.
+            </p>
+            <span class="inline-flex items-center gap-1 text-[9px] text-emerald-600 font-semibold mt-1">
+              <i class="fa-solid fa-check-double text-[8px]"></i> SMS Alert Sent to {{ active_student.parent_phone }}
+            </span>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% for a in announcements if a.is_urgent %}
+        <div class="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 shadow-sm flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-rose-900">Urgent Safety Advisory</span>
+              <span class="text-[10px] font-mono text-rose-600">{{ a.date_formatted }}</span>
+            </div>
+            <h4 class="text-xs font-bold text-rose-950 mt-0.5">{{ a.title }}</h4>
+            <p class="text-[11px] text-rose-800 mt-0.5 leading-relaxed">{{ a.content }}</p>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if not logs and not (announcements|selectattr('is_urgent')|list) %}
+        <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+          <i class="fa-solid fa-bell-slash text-3xl text-slate-300"></i>
+          <p class="text-xs font-medium">No alerts recorded yet today.</p>
+          <p class="text-[10px] text-slate-400">When your child scans at the gate or an urgent advisory is posted, alerts will appear here in real time.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Past Attendance History Section -->
+      <div class="pt-2">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-clock-rotate-left text-deped-blue"></i> Recent Attendance History
+        </h3>
+        <div class="glass-card rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="divide-y divide-slate-100 text-xs">
+            {% for h in all_logs %}
+            <div class="p-3 flex items-center justify-between hover:bg-slate-50 transition">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-lg {% if h.scan_type == 'TIME_IN' %}bg-emerald-50 text-emerald-700{% else %}bg-blue-50 text-blue-700{% endif %} flex items-center justify-center text-xs font-bold">
+                  <i class="fa-solid {% if h.scan_type == 'TIME_IN' %}fa-arrow-right-to-bracket{% else %}fa-arrow-right-from-bracket{% endif %}"></i>
+                </div>
+                <div>
+                  <span class="font-bold text-slate-800">{{ h.scan_type }} ({{ h.verification_method }})</span>
+                  <p class="text-[10px] font-mono text-slate-400">{{ h.timestamp }}</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">VERIFIED</span>
+            </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
     </main>
@@ -399,6 +488,94 @@
         <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
           <i class="fa-solid fa-newspaper text-3xl text-slate-300"></i>
           <p class="text-xs font-medium">No bulletins published at this moment.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </main>
+
+    <!-- TAB 4: SCHOOL EVENTS & ACTIVITIES CALENDAR -->
+    <main id="tabContentEvents" class="tab-pane hidden flex-grow p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div>
+          <h2 class="text-base font-black font-heading text-slate-900">Events & School Calendar</h2>
+          <span class="text-[10px] text-slate-500 font-medium">Don Montano Central Integrated School Activities</span>
+        </div>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          {{ events|length }} Activities
+        </span>
+      </div>
+
+      <!-- Event Filter Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <button onclick="filterEvents('ALL')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-deped-blue text-white shrink-0 shadow-sm transition" data-cat="ALL">All Events</button>
+        <button onclick="filterEvents('ACADEMIC')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-cat="ACADEMIC">📚 Academic</button>
+        <button onclick="filterEvents('PTA')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-cat="PTA">👨‍👩‍👧 PTA</button>
+        <button onclick="filterEvents('SPORTS')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-cat="SPORTS">🏆 Sports & Intrams</button>
+        <button onclick="filterEvents('CULTURAL')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-cat="CULTURAL">🎭 Cultural</button>
+        <button onclick="filterEvents('GENERAL')" class="event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition" data-cat="GENERAL">🧹 Brigada</button>
+      </div>
+
+      <!-- Events List -->
+      <div id="eventsListContainer" class="space-y-3">
+        {% for ev in events %}
+        <div class="event-card p-4 rounded-2xl bg-white border {% if ev.is_highlighted %}border-amber-300 ring-2 ring-amber-100 bg-amber-50/20{% else %}border-slate-200{% endif %} shadow-sm space-y-2.5 transition hover:shadow-md" data-category="{{ ev.category }}">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start gap-3">
+              <!-- Calendar Date Block -->
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-b {% if ev.category == 'ACADEMIC' %}from-blue-600 to-indigo-700 text-white{% elif ev.category == 'SPORTS' %}from-emerald-600 to-teal-700 text-white{% elif ev.category == 'PTA' %}from-amber-500 to-orange-600 text-slate-950{% elif ev.category == 'CULTURAL' %}from-purple-600 to-pink-600 text-white{% else %}from-slate-700 to-slate-900 text-white{% endif %} flex flex-col items-center justify-center p-1 shadow-sm shrink-0">
+                <span class="text-[9px] font-black uppercase tracking-wider leading-none">{{ ev.short_month }}</span>
+                <span class="text-base font-black font-heading leading-tight">{{ ev.day_num }}</span>
+              </div>
+
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider {% if ev.category == 'ACADEMIC' %}bg-blue-100 text-blue-800{% elif ev.category == 'SPORTS' %}bg-emerald-100 text-emerald-800{% elif ev.category == 'PTA' %}bg-amber-100 text-amber-900{% else %}bg-purple-100 text-purple-900{% endif %}">
+                    {{ ev.category }}
+                  </span>
+                  {% if ev.is_highlighted %}
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-400 text-slate-950">
+                    <i class="fa-solid fa-star text-[8px]"></i> Highlight
+                  </span>
+                  {% endif %}
+                  {% if ev.days_until == 0 %}
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-600 text-white animate-pulse">TODAY</span>
+                  {% elif ev.days_until > 0 %}
+                  <span class="text-[10px] text-slate-500 font-semibold font-mono">In {{ ev.days_until }} days</span>
+                  {% endif %}
+                </div>
+
+                <h3 class="text-xs font-black text-slate-900 mt-1 leading-snug">{{ ev.title }}</h3>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-600 leading-relaxed">{{ ev.description }}</p>
+
+          <!-- Event Details Bar -->
+          <div class="pt-2 border-t border-slate-100 space-y-1.5 text-[11px] text-slate-600">
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5 text-slate-700 font-semibold">
+                <i class="fa-solid fa-clock text-amber-500 text-[10px]"></i> {{ ev.time_range }}
+              </span>
+              <span class="flex items-center gap-1 text-slate-500 font-mono text-[10px]">
+                <i class="fa-solid fa-users text-slate-400"></i> {{ ev.target_grades }}
+              </span>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <span class="flex items-center gap-1 text-slate-600 truncate max-w-[210px]">
+                <i class="fa-solid fa-location-dot text-rose-500 text-[10px]"></i> {{ ev.location }}
+              </span>
+              <!-- Add to Calendar Button -->
+              <button onclick="downloadIcsCalendar('{{ ev.title|escape }}', '{{ ev.description|escape }}', '{{ ev.event_date }}', '{{ ev.location|escape }}')" class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-deped-blue font-bold text-[10px] border border-blue-200 transition flex items-center gap-1">
+                <i class="fa-solid fa-calendar-plus text-[9px]"></i> Add to Cal
+              </button>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+          <i class="fa-solid fa-calendar-xmark text-3xl text-slate-300"></i>
+          <p class="text-xs font-medium">No upcoming school events scheduled.</p>
         </div>
         {% endfor %}
       </div>
@@ -592,31 +769,34 @@
     </main>
 
     <!-- Bottom Native Mobile App Navigation Bar -->
-    <nav class="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2 px-3 flex justify-around items-center z-40">
+    <nav class="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2 px-2 flex justify-around items-center z-40">
       
       <button onclick="switchTab('home')" id="navHome" class="nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1">
-        <i class="fa-solid fa-house text-lg"></i>
+        <i class="fa-solid fa-shield-halved text-base"></i>
         <span class="text-[10px] mt-0.5">Safety</span>
       </button>
 
-      <button onclick="switchTab('history')" id="navHistory" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
-        <i class="fa-solid fa-calendar-check text-lg"></i>
-        <span class="text-[10px] mt-0.5">Records</span>
+      <button onclick="switchTab('alerts')" id="navAlerts" class="nav-btn relative flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <div class="relative inline-block">
+          <i class="fa-solid fa-bell text-base"></i>
+          <span id="navAlertBadge" class="absolute -top-1 -right-2 w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center {% if not logs %}hidden{% endif %}">{{ logs|length }}</span>
+        </div>
+        <span class="text-[10px] mt-0.5">Alerts</span>
       </button>
 
       <button onclick="switchTab('advisories')" id="navAdvisories" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
-        <i class="fa-solid fa-bullhorn text-lg"></i>
-        <span class="text-[10px] mt-0.5">Advisories</span>
+        <i class="fa-solid fa-bullhorn text-base"></i>
+        <span class="text-[10px] mt-0.5">Bulletins</span>
       </button>
 
-      <button onclick="switchTab('excuse')" id="navExcuse" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
-        <i class="fa-solid fa-file-pen text-lg"></i>
-        <span class="text-[10px] mt-0.5">Excuse</span>
+      <button onclick="switchTab('events')" id="navEvents" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
+        <i class="fa-solid fa-calendar-days text-base"></i>
+        <span class="text-[10px] mt-0.5">Events</span>
       </button>
 
       <button onclick="switchTab('profile')" id="navProfile" class="nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition">
-        <i class="fa-solid fa-id-card-clip text-lg"></i>
-        <span class="text-[10px] mt-0.5">Pass</span>
+        <i class="fa-solid fa-id-card-clip text-base"></i>
+        <span class="text-[10px] mt-0.5">Student</span>
       </button>
 
     </nav>
@@ -852,27 +1032,81 @@
     function switchTab(tabId) {
       document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
       document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.className = "nav-btn flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition";
+        btn.className = "nav-btn relative flex flex-col items-center text-slate-400 hover:text-deped-blue flex-1 py-1 transition";
       });
 
       if (tabId === 'home') {
         document.getElementById('tabContentHome').classList.remove('hidden');
         document.getElementById('navHome').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
-      } else if (tabId === 'history') {
-        document.getElementById('tabContentHistory').classList.remove('hidden');
-        document.getElementById('navHistory').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'alerts' || tabId === 'history') {
+        document.getElementById('tabContentAlerts').classList.remove('hidden');
+        document.getElementById('navAlerts').className = "nav-btn relative flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+        const b = document.getElementById('unreadNotifBadge');
+        if (b) b.classList.add('hidden');
+        const nb = document.getElementById('navAlertBadge');
+        if (nb) nb.classList.add('hidden');
       } else if (tabId === 'advisories') {
         document.getElementById('tabContentAdvisories').classList.remove('hidden');
         document.getElementById('navAdvisories').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+      } else if (tabId === 'events') {
+        document.getElementById('tabContentEvents').classList.remove('hidden');
+        document.getElementById('navEvents').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
       } else if (tabId === 'excuse') {
         document.getElementById('tabContentExcuse').classList.remove('hidden');
-        document.getElementById('navExcuse').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
+        document.getElementById('navProfile').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
       } else if (tabId === 'profile') {
         document.getElementById('tabContentProfile').classList.remove('hidden');
         document.getElementById('navProfile').className = "nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1";
         updateDiagnostics();
       }
       window.scrollTo(0, 0);
+    }
+
+    function filterEvents(cat) {
+      document.querySelectorAll('.event-filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-cat') === cat) {
+          btn.className = "event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-deped-blue text-white shrink-0 shadow-sm transition";
+        } else {
+          btn.className = "event-filter-btn px-3 py-1 rounded-full text-xs font-bold bg-white text-slate-600 border border-slate-200 hover:border-deped-blue shrink-0 transition";
+        }
+      });
+
+      document.querySelectorAll('.event-card').forEach(card => {
+        const cardCat = card.getAttribute('data-category');
+        if (cat === 'ALL' || cardCat === cat) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    }
+
+    function downloadIcsCalendar(title, description, eventDate, location) {
+      const dateStr = (eventDate || '').replace(/-/g, '');
+      const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//DepEd Project S.M.I.L.E.//Parent App//EN',
+        'BEGIN:VEVENT',
+        `SUMMARY:${(title || 'School Event').replace(/[\n\r]/g, ' ')}`,
+        `DESCRIPTION:${(description || '').replace(/[\n\r]/g, ' ')}`,
+        `LOCATION:${(location || '').replace(/[\n\r]/g, ' ')}`,
+        `DTSTART;VALUE=DATE:${dateStr}`,
+        `DTEND;VALUE=DATE:${dateStr}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n');
+
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${(title || 'school_event').replace(/[^a-zA-Z0-9]/g, '_')}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
 
     // -------------------------------------------------------------
@@ -1088,6 +1322,43 @@
         timeline.insertBefore(newCard, timeline.firstChild);
         setTimeout(() => newCard.classList.remove('animate-pulse'), 3000);
       }
+
+      // Also Prepend to Alerts Feed List
+      const alertsFeed = document.getElementById('alertsFeedList');
+      if (alertsFeed) {
+        const notifCard = document.createElement('div');
+        notifCard.className = "p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-start gap-3 transition-all animate-pulse";
+        notifCard.innerHTML = `
+          <div class="w-9 h-9 rounded-xl ${isEntry ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'} flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+            <i class="fa-solid ${isEntry ? 'fa-right-to-bracket' : 'fa-right-from-bracket'}"></i>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-slate-900">Gate Scan (${isEntry ? 'TIME-IN' : 'TIME-OUT'})</span>
+              <span class="text-[10px] font-mono text-slate-400">${eventData.time_formatted}</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-0.5 leading-snug">
+              ${studentName} has ${isEntry ? 'arrived at' : 'safely exited from'} ${eventData.device_id || 'School Gate 1'}. Verified by ${eventData.verification_method || 'Biometric AI'}.
+            </p>
+            <span class="inline-flex items-center gap-1 text-[9px] text-emerald-600 font-semibold mt-1">
+              <i class="fa-solid fa-check-double text-[8px]"></i> SMS Alert Sent
+            </span>
+          </div>
+        `;
+        alertsFeed.insertBefore(notifCard, alertsFeed.firstChild);
+        setTimeout(() => notifCard.classList.remove('animate-pulse'), 3000);
+      }
+
+      // Increment badge counts
+      const unreadBadge = document.getElementById('unreadNotifBadge');
+      const navBadge = document.getElementById('navAlertBadge');
+      [unreadBadge, navBadge].forEach(badge => {
+        if (badge) {
+          const currentCount = parseInt(badge.innerText || '0') + 1;
+          badge.innerText = currentCount;
+          badge.classList.remove('hidden');
+        }
+      });
     }
 
     // -------------------------------------------------------------

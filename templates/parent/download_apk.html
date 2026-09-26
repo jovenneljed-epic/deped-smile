@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Download DepEd S.M.I.L.E. Parent App | Android APK & iOS</title>
+  
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple_touch_icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/images/pwa_icon_192.png">
+  <meta name="theme-color" content="#0B192C">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0038A8',
+              red: '#CE1126',
+              gold: '#FCD116',
+              darkblue: '#0B192C',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex justify-center py-6 px-4">
+
+  <div class="w-full max-w-md flex flex-col space-y-5">
+    
+    <!-- Top Brand Header -->
+    <div class="text-center pt-2">
+      <div class="inline-flex items-center justify-center p-3 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl mb-3">
+        <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-14 h-14 object-contain">
+      </div>
+      <h1 class="text-2xl font-black font-heading text-white tracking-tight uppercase">DepEd Project S.M.I.L.E.</h1>
+      <p class="text-xs text-amber-300 font-extrabold uppercase tracking-widest mt-0.5">Official Parent Mobile Companion</p>
+      <p class="text-xs text-slate-400 mt-1">{{ school_name }}</p>
+    </div>
+
+    <!-- Quick Switch Tabs: Android vs iOS -->
+    <div class="flex p-1 bg-slate-900 rounded-2xl border border-slate-800">
+      <button id="tabBtnAndroid" onclick="switchPlatform('android')" class="flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow transition">
+        <i class="fa-brands fa-android text-base"></i> Android (APK)
+      </button>
+      <button id="tabBtnIos" onclick="switchPlatform('ios')" class="flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 text-slate-400 hover:text-white transition">
+        <i class="fa-brands fa-apple text-base"></i> Apple iOS (iPhone)
+      </button>
+    </div>
+
+    <!-- ANDROID VIEW -->
+    <div id="viewAndroid" class="space-y-4">
+      
+      <!-- Primary Download Card -->
+      <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/30 shadow-xl space-y-4 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-3xl mx-auto">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+        </div>
+        <div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Release v2.4 APK</span>
+          <h2 class="text-lg font-black font-heading text-white mt-1">Download Android Installer</h2>
+          <p class="text-xs text-slate-400 mt-1">Direct APK package for Android smartphones and tablets (Android 8.0+)</p>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <a href="https://github.com/jovenneljed-epic/deped-smile/releases" target="_blank" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-heading font-black text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 transition active:scale-95">
+            <i class="fa-brands fa-android text-lg"></i>
+            <span>Download APK (Direct)</span>
+          </a>
+
+          <a href="/mobile" class="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-heading font-bold text-xs border border-slate-700 flex items-center justify-center gap-2 transition">
+            <i class="fa-solid fa-globe"></i>
+            <span>Or Open Instant Web App</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Android Installation Steps -->
+      <div class="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
+        <h3 class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-emerald-400"></i> Easy 3-Step Installation
+        </h3>
+
+        <div class="space-y-2.5 text-xs text-slate-300">
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
+            <div>
+              <p class="font-bold text-white">Download the APK file</p>
+              <p class="text-[11px] text-slate-400">Tap the green button above to download <code class="text-emerald-300 font-mono">deped-smile-parent.apk</code>.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">2</span>
+            <div>
+              <p class="font-bold text-white">Enable Install from Unknown Sources</p>
+              <p class="text-[11px] text-slate-400">If prompted by Chrome or Files, tap <span class="text-amber-300 font-semibold">"Settings"</span> and toggle <span class="text-amber-300 font-semibold">"Allow from this source"</span>.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">3</span>
+            <div>
+              <p class="font-bold text-white">Install & Log In</p>
+              <p class="text-[11px] text-slate-400">Open the app, enter your student's 12-digit LRN, and enjoy real-time gate notifications!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- IOS VIEW -->
+    <div id="viewIos" class="space-y-4 hidden">
+      
+      <!-- iOS Native Card -->
+      <div class="p-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 border border-blue-500/30 shadow-xl space-y-4 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-3xl mx-auto">
+          <i class="fa-brands fa-apple"></i>
+        </div>
+        <div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">Apple Home Screen App</span>
+          <h2 class="text-lg font-black font-heading text-white mt-1">Install on iPhone & iPad</h2>
+          <p class="text-xs text-slate-400 mt-1">Zero app store download required. Uses Apple's official standalone Home Screen App engine.</p>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <a href="/mobile" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-heading font-black text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2.5 transition active:scale-95">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span>Open Mobile App in Safari</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- iOS Installation Steps -->
+      <div class="p-4 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
+        <h3 class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-blue-400"></i> 3-Tap iPhone Installation
+        </h3>
+
+        <div class="space-y-3 text-xs text-slate-300">
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
+            <div>
+              <p class="font-bold text-white">Open in Safari</p>
+              <p class="text-[11px] text-slate-400">Open <code class="text-blue-300 font-mono">https://deped-smile.vercel.app/mobile</code> in Safari.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">2</span>
+            <div>
+              <p class="font-bold text-white">Tap the Share Icon (⬆)</p>
+              <p class="text-[11px] text-slate-400">Tap the blue <span class="text-blue-300 font-semibold">Share</span> icon located at the bottom toolbar of Safari.</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">3</span>
+            <div>
+              <p class="font-bold text-white">Tap "Add to Home Screen"</p>
+              <p class="text-[11px] text-slate-400">Scroll down and select <span class="text-amber-300 font-semibold">"Add to Home Screen"</span> $\rightarrow$ tap <span class="text-emerald-300 font-semibold">"Add"</span>. The app icon will appear directly on your home screen!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Key App Features Grid -->
+    <div class="p-4 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+      <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-400">What You Can Monitor:</h4>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-bell-ring text-amber-400"></i>
+          <span>Real-time Gate Alerts</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-bullhorn text-blue-400"></i>
+          <span>School Announcements</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-calendar-days text-emerald-400"></i>
+          <span>Events & Activities</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-file-signature text-purple-400"></i>
+          <span>Digital Excuse Letters</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Back to Web Portal Link -->
+    <div class="text-center pt-2 pb-6">
+      <a href="/mobile" class="text-xs text-amber-300 hover:text-amber-200 font-bold inline-flex items-center gap-1.5 transition">
+        <span>Proceed to Parent App</span>
+        <i class="fa-solid fa-arrow-right"></i>
+      </a>
+    </div>
+
+  </div>
+
+  <script>
+    function switchPlatform(platform) {
+      const btnAndroid = document.getElementById('tabBtnAndroid');
+      const btnIos = document.getElementById('tabBtnIos');
+      const viewAndroid = document.getElementById('viewAndroid');
+      const viewIos = document.getElementById('viewIos');
+
+      if (platform === 'android') {
+        btnAndroid.className = 'flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow transition';
+        btnIos.className = 'flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 text-slate-400 hover:text-white transition';
+        viewAndroid.classList.remove('hidden');
+        viewIos.classList.add('hidden');
+      } else {
+        btnIos.className = 'flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow transition';
+        btnAndroid.className = 'flex-1 py-2.5 rounded-xl font-heading font-extrabold text-xs flex items-center justify-center gap-2 text-slate-400 hover:text-white transition';
+        viewIos.classList.remove('hidden');
+        viewAndroid.classList.add('hidden');
+      }
+    }
+
+    // Auto-detect iOS devices
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isIos) {
+      switchPlatform('ios');
+    }
+  </script>
+</body>
+</html>

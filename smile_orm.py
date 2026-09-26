@@ -221,6 +221,62 @@ class Announcement(Base):
             "date_formatted": self.created_at.strftime("%b %d, %Y") if self.created_at else ""
         }
 
+class SchoolEvent(Base):
+    """DepEd School Activities, Academic Calendar & Community Events."""
+    __tablename__ = 'school_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(150), nullable=False)
+    category = Column(String(40), default="ACADEMIC") # ACADEMIC, SPORTS, CULTURAL, PTA, HOLIDAY, GENERAL
+    description = Column(Text, nullable=False)
+    event_date = Column(String(20), nullable=False, index=True) # e.g. "2026-10-15" (ISO YYYY-MM-DD)
+    start_time = Column(String(20), default="08:00 AM")
+    end_time = Column(String(20), default="04:00 PM")
+    location = Column(String(100), default="School Gymnasium")
+    target_grades = Column(String(50), default="ALL")
+    organizer = Column(String(100), default="School Administration")
+    badge_color = Column(String(20), default="blue") # blue, emerald, amber, purple, rose
+    is_highlighted = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    def to_dict(self):
+        formatted_date = self.event_date
+        short_month = "EVENT"
+        day_num = "01"
+        is_upcoming = True
+        days_until = 0
+        try:
+            d_obj = datetime.strptime(self.event_date, "%Y-%m-%d")
+            formatted_date = d_obj.strftime("%A, %b %d, %Y")
+            short_month = d_obj.strftime("%b").upper()
+            day_num = d_obj.strftime("%d")
+            is_upcoming = d_obj.date() >= date.today()
+            days_until = (d_obj.date() - date.today()).days
+        except Exception:
+            pass
+
+        return {
+            "id": self.id,
+            "title": self.title,
+            "category": self.category,
+            "description": self.description,
+            "event_date": self.event_date,
+            "formatted_date": formatted_date,
+            "short_month": short_month,
+            "day_num": day_num,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "time_range": f"{self.start_time} - {self.end_time}" if self.end_time else self.start_time,
+            "location": self.location,
+            "target_grades": self.target_grades,
+            "organizer": self.organizer,
+            "badge_color": self.badge_color,
+            "is_highlighted": self.is_highlighted,
+            "is_upcoming": is_upcoming,
+            "days_until": days_until,
+            "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else ""
+        }
+
 class User(Base):
     """Staff and Administrator accounts with Role-Based Access Control (RBAC)."""
     __tablename__ = 'users'
@@ -599,6 +655,12 @@ def init_orm_db(force=False):
         # If core tables already exist in Supabase / Cloud Postgres, skip heavy re-initialization
         if "students" in existing_tables and "users" in existing_tables and not force:
             print(f"[+] Connected to existing database ({engine.dialect.name.upper()}). Skipping cold-start DDL.")
+            if "school_events" not in existing_tables:
+                try:
+                    SchoolEvent.__table__.create(engine, checkfirst=True)
+                    seed_default_events_orm()
+                except Exception as ex:
+                    print(f"[!] school_events creation note: {ex}")
             return
 
         Base.metadata.create_all(engine)
@@ -628,6 +690,8 @@ def init_orm_db(force=False):
         seed_default_users_orm()
         # Auto-seed editable SaaS pricing plans
         seed_default_pricing_plans_orm()
+        # Auto-seed school events & activities
+        seed_default_events_orm()
         print(f"[+] Non-Biometric Smart ID Relational Database initialized ({engine.dialect.name.upper()}).")
     except Exception as e:
         print(f"[!] Warning: init_orm_db deferred or failed ({e}). App running in resilient mode.")
@@ -1328,6 +1392,166 @@ def delete_announcement_orm(announcement_id):
         session.close()
 
 # -------------------------------------------------------------
+# School Events & Calendar Functions
+# -------------------------------------------------------------
+
+DEFAULT_EVENTS = [
+    {
+        "title": "1st Quarter Periodical Examinations",
+        "category": "ACADEMIC",
+        "description": "Comprehensive first quarter examinations for all Kindergarten to Grade 12 learners. Morning and afternoon testing schedules apply. Review materials are available with class advisers.",
+        "event_date": "2026-10-08",
+        "start_time": "07:30 AM",
+        "end_time": "03:30 PM",
+        "location": "Respective Classrooms",
+        "target_grades": "Kindergarten to Grade 12",
+        "organizer": "Academic Affairs & DepEd Testing Committee",
+        "badge_color": "blue",
+        "is_highlighted": True
+    },
+    {
+        "title": "General PTA Assembly & Report Card Day",
+        "category": "PTA",
+        "description": "Distribution of 1st Quarter Learner Progress Report Cards (SF9) and parent-teacher consultations regarding student academic progress and gate attendance safety.",
+        "event_date": "2026-10-16",
+        "start_time": "01:30 PM",
+        "end_time": "05:00 PM",
+        "location": "School Covered Court & Main Gymnasium",
+        "target_grades": "All Grade Levels",
+        "organizer": "General PTA Executive Council & Faculty",
+        "badge_color": "amber",
+        "is_highlighted": True
+    },
+    {
+        "title": "Annual Intramural Sports Festival & Cheerdance",
+        "category": "SPORTS",
+        "description": "Annual campus sports fest featuring basketball, volleyball, badminton, track and field, chess tournament, and the inter-unit cheerdance competition.",
+        "event_date": "2026-10-23",
+        "start_time": "08:00 AM",
+        "end_time": "05:00 PM",
+        "location": "Main Athletic Grounds & Gymnasium",
+        "target_grades": "Junior & Senior High School",
+        "organizer": "MAPEH Department & Sports Club",
+        "badge_color": "emerald",
+        "is_highlighted": False
+    },
+    {
+        "title": "National Reading Month Celebration & Book Parade",
+        "category": "CULTURAL",
+        "description": "School-wide celebration honoring reading literacy. Activities include 'Drop Everything and Read' (DEAR), storytelling by guest teachers, and the literary character dress-up parade.",
+        "event_date": "2026-11-06",
+        "start_time": "09:00 AM",
+        "end_time": "03:00 PM",
+        "location": "School Audio-Visual Room (AVR) & Library",
+        "target_grades": "Elementary & Junior High",
+        "organizer": "English & Filipino Learning Areas",
+        "badge_color": "purple",
+        "is_highlighted": False
+    },
+    {
+        "title": "Brigada Eskwela & Campus Safety Clean-up",
+        "category": "GENERAL",
+        "description": "Community volunteer maintenance drive focusing on classroom sanitation, electrical safety checks, and tree pruning for disaster preparedness.",
+        "event_date": "2026-11-20",
+        "start_time": "07:00 AM",
+        "end_time": "12:00 PM",
+        "location": "Campus Grounds & All School Buildings",
+        "target_grades": "Parents, Teachers, Alumni & Volunteers",
+        "organizer": "Disaster Risk Reduction and Management Committee",
+        "badge_color": "rose",
+        "is_highlighted": False
+    }
+]
+
+def seed_default_events_orm():
+    """Seeds realistic DepEd school events and activities if table is empty."""
+    session = Session()
+    try:
+        count = session.query(SchoolEvent).count()
+        if count >= 3:
+            return
+        for e in DEFAULT_EVENTS:
+            existing = session.query(SchoolEvent).filter_by(title=e["title"]).first()
+            if not existing:
+                ev = SchoolEvent(
+                    title=e["title"],
+                    category=e["category"],
+                    description=e["description"],
+                    event_date=e["event_date"],
+                    start_time=e["start_time"],
+                    end_time=e["end_time"],
+                    location=e["location"],
+                    target_grades=e["target_grades"],
+                    organizer=e["organizer"],
+                    badge_color=e.get("badge_color", "blue"),
+                    is_highlighted=e.get("is_highlighted", False)
+                )
+                session.add(ev)
+        session.commit()
+        print(f"[+] Don Montano CIS School Events seeded ({session.query(SchoolEvent).count()} items).")
+    except Exception as ex:
+        session.rollback()
+        print(f"[!] Error seeding events: {ex}")
+    finally:
+        session.close()
+
+def get_all_events_orm(limit=50, category=None, upcoming_only=False):
+    """Retrieves school events ordered by event date."""
+    session = Session()
+    try:
+        query = session.query(SchoolEvent)
+        if category and category.upper() != "ALL":
+            query = query.filter(SchoolEvent.category == category.upper())
+        if upcoming_only:
+            today_str = date.today().isoformat()
+            query = query.filter(SchoolEvent.event_date >= today_str)
+        items = query.order_by(SchoolEvent.event_date.asc(), SchoolEvent.id.asc()).limit(limit).all()
+        return [i.to_dict() for i in items]
+    finally:
+        session.close()
+
+def save_event_orm(title, category, description, event_date, start_time="08:00 AM", end_time="04:00 PM",
+                   location="School Gymnasium", target_grades="ALL", organizer="School Administration",
+                   badge_color="blue", is_highlighted=False):
+    """Creates a new school event."""
+    session = Session()
+    try:
+        ev = SchoolEvent(
+            title=str(title).strip(),
+            category=str(category).strip().upper(),
+            description=str(description).strip(),
+            event_date=str(event_date).strip(),
+            start_time=str(start_time).strip(),
+            end_time=str(end_time).strip(),
+            location=str(location).strip(),
+            target_grades=str(target_grades).strip(),
+            organizer=str(organizer).strip(),
+            badge_color=str(badge_color).strip(),
+            is_highlighted=bool(is_highlighted)
+        )
+        session.add(ev)
+        session.commit()
+        return ev.to_dict(), "Event created successfully!"
+    except Exception as ex:
+        session.rollback()
+        raise ex
+    finally:
+        session.close()
+
+def delete_event_orm(event_id):
+    """Deletes a school event."""
+    session = Session()
+    try:
+        ev = session.query(SchoolEvent).filter_by(id=int(event_id)).first()
+        if not ev:
+            return False, "Event not found"
+        session.delete(ev)
+        session.commit()
+        return True, "Event deleted successfully"
+    finally:
+        session.close()
+
+# -------------------------------------------------------------
 # User & Role-Based Access Control (RBAC) Functions
 # -------------------------------------------------------------
 
@@ -1798,6 +2022,10 @@ authenticate_user = authenticate_user_orm
 get_all_users = get_all_users_orm
 get_all_pricing_plans = get_all_pricing_plans_orm
 update_pricing_plan = update_pricing_plan_orm
+get_all_events = get_all_events_orm
+save_event = save_event_orm
+delete_event = delete_event_orm
+seed_default_events = seed_default_events_orm
 
 
 
