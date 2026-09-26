@@ -380,6 +380,34 @@ class PaymentTransaction(Base):
             "date_formatted": self.created_at.strftime("%b %d, %Y") if self.created_at else ""
         }
 
+class PushSubscription(Base):
+    """
+    Browser WebPush PushSubscriptions for Lock Screen / Background alerts.
+    Wakes up device when screen is off or mobile is locked.
+    """
+    __tablename__ = 'push_subscriptions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lrn = Column(String(12), nullable=True, index=True) # Linked Student LRN or "ALL"
+    parent_phone = Column(String(50), nullable=True, index=True)
+    endpoint = Column(Text, nullable=False, unique=True)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    user_agent = Column(String(255), default="")
+    created_at = Column(DateTime, default=pht_now)
+    last_notified = Column(DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lrn": self.lrn,
+            "parent_phone": self.parent_phone,
+            "endpoint": self.endpoint,
+            "p256dh": self.p256dh,
+            "auth": self.auth,
+            "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else ""
+        }
+
 # -------------------------------------------------------------
 # Database Engine & Session Management
 # -------------------------------------------------------------
@@ -682,6 +710,12 @@ def init_orm_db(force=False):
                     seed_default_events_orm()
                 except Exception as ex:
                     print(f"[!] school_events creation note: {ex}")
+            if "push_subscriptions" not in existing_tables:
+                try:
+                    PushSubscription.__table__.create(engine, checkfirst=True)
+                    print("[+] Created push_subscriptions table in cloud database.")
+                except Exception as ex:
+                    print(f"[!] push_subscriptions creation note: {ex}")
             return
 
         Base.metadata.create_all(engine)
@@ -1127,7 +1161,24 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
         )
         session.add(log)
         session.commit()
-        return log.id
+        log_id = log.id
+
+        # Dispatch background WebPush (wakes mobile device when locked or screen off)
+        try:
+            import time
+            action_word = "arrived at" if scan_type == "TIME_IN" else "safely exited from"
+            now_pht = pht_now().strftime("%I:%M %p")
+            dispatch_web_push_notification(
+                lrn=str(lrn),
+                title=f"DepEd Gate Alert: {student_name}",
+                body=f"Official Gate Scan Verified: {student_name} has {action_word} Don Montano CIS Gate 1 at {now_pht}.",
+                tag=f"scan-{lrn}-{int(time.time())}",
+                data_url=f"/parent?lrn={lrn}"
+            )
+        except Exception as _p_err:
+            print(f"[Push] Auto-dispatch note: {_p_err}")
+
+        return log_id
     except Exception as e:
         session.rollback()
         raise e
@@ -2013,6 +2064,140 @@ def get_revenue_statistics_orm():
     finally:
         session.close()
 
+# -------------------------------------------------------------
+# W3C WebPush Subscription Management & Background Push Dispatch
+# Wakes mobile device even when locked or screen is off
+# -------------------------------------------------------------
+
+def save_push_subscription_orm(endpoint, p256dh, auth, lrn=None, parent_phone="", user_agent=""):
+    """Saves or updates a WebPush push subscription from a parent's mobile device."""
+    session = Session()
+    try:
+        clean_ep = str(endpoint).strip()
+        sub = session.query(PushSubscription).filter_by(endpoint=clean_ep).first()
+        if not sub:
+            sub = PushSubscription(
+                endpoint=clean_ep,
+                p256dh=str(p256dh).strip(),
+                auth=str(auth).strip()
+            )
+            session.add(sub)
+        else:
+            sub.p256dh = str(p256dh).strip()
+            sub.auth = str(auth).strip()
+
+        if lrn:
+            sub.lrn = str(lrn).strip()
+        if parent_phone:
+            sub.parent_phone = str(parent_phone).strip()
+        if user_agent:
+            sub.user_agent = str(user_agent)[:250]
+        sub.created_at = pht_now()
+        session.commit()
+        return sub.to_dict()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+def get_all_push_subscriptions_orm():
+    """Returns all active WebPush device subscriptions."""
+    session = Session()
+    try:
+        subs = session.query(PushSubscription).all()
+        return [s.to_dict() for s in subs]
+    finally:
+        session.close()
+
+def delete_push_subscription_orm(endpoint):
+    """Removes an expired or unsubscribed push endpoint."""
+    session = Session()
+    try:
+        deleted = session.query(PushSubscription).filter_by(endpoint=str(endpoint).strip()).delete()
+        session.commit()
+        return deleted > 0
+    except Exception:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+def dispatch_web_push_notification(lrn, title, body, tag=None, data_url=None, icon=None, badge=None):
+    """
+    Sends RFC 8291/8292 encrypted Web Push Notification to all registered parent devices.
+    Wakes up device when screen is off or mobile is locked!
+    """
+    from smile_config import VAPID_PRIVATE_KEY, VAPID_CLAIMS
+    import json, time
+
+    session = Session()
+    try:
+        query = session.query(PushSubscription)
+        if lrn and lrn != "ALL":
+            query = query.filter((PushSubscription.lrn == str(lrn)) | (PushSubscription.lrn == "ALL") | (PushSubscription.lrn.is_(None)))
+        subs = query.all()
+        if not subs:
+            return 0
+
+        payload = json.dumps({
+            "title": title,
+            "body": body,
+            "icon": icon or "/static/images/pwa_icon_192.png",
+            "badge": badge or "/static/images/apple_touch_icon.png",
+            "tag": tag or f"gate-{int(time.time())}",
+            "url": data_url or (f"/parent?lrn={lrn}" if lrn else "/parent"),
+            "lrn": str(lrn) if lrn else "",
+            "timestamp": pht_now().strftime("%I:%M %p")
+        })
+
+        success_count = 0
+        dead_endpoints = []
+
+        try:
+            from pywebpush import webpush, WebPushException
+        except ImportError:
+            print("[Push] Note: pywebpush library not present on this runtime.")
+            return 0
+
+        for sub in subs:
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": sub.endpoint,
+                        "keys": {
+                            "p256dh": sub.p256dh,
+                            "auth": sub.auth
+                        }
+                    },
+                    data=payload,
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims=VAPID_CLAIMS,
+                    timeout=5
+                )
+                success_count += 1
+                sub.last_notified = pht_now()
+            except WebPushException as ex:
+                print(f"[Push] WebPush endpoint delivery note: {ex}")
+                # 404 or 410 means subscription expired / app uninstalled
+                if ex.response is not None and ex.response.status_code in (404, 410):
+                    dead_endpoints.append(sub.endpoint)
+            except Exception as e:
+                print(f"[Push] WebPush sending error: {e}")
+
+        # Prune expired subscriptions
+        if dead_endpoints:
+            session.query(PushSubscription).filter(PushSubscription.endpoint.in_(dead_endpoints)).delete(synchronize_session=False)
+
+        session.commit()
+        return success_count
+    except Exception as e:
+        session.rollback()
+        print(f"[Push] dispatch error: {e}")
+        return 0
+    finally:
+        session.close()
+
 try:
     init_orm_db()
 except Exception as _init_err:
@@ -2047,6 +2232,10 @@ get_all_events = get_all_events_orm
 save_event = save_event_orm
 delete_event = delete_event_orm
 seed_default_events = seed_default_events_orm
+save_push_subscription = save_push_subscription_orm
+get_all_push_subscriptions = get_all_push_subscriptions_orm
+delete_push_subscription = delete_push_subscription_orm
+dispatch_web_push = dispatch_web_push_notification
 
 
 

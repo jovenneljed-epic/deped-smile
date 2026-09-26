@@ -1,5 +1,5 @@
 // Project S.M.I.L.E. - DepEd Parent Mobile App Service Worker
-const CACHE_NAME = 'smile-parent-v2';
+const CACHE_NAME = 'smile-parent-v3';
 const STATIC_ASSETS = [
   '/parent',
   '/static/manifest.json',

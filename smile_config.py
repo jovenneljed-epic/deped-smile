@@ -319,3 +319,25 @@ def get_sms_config():
 # Audio Feedback
 ENABLE_AUDIO_CHIME = True
 
+# -------------------------------------------------------------
+# W3C Web Push & VAPID Protocol Configuration
+# Enables background push alerts even when phone is locked or screen is off
+# -------------------------------------------------------------
+VAPID_PUBLIC_KEY = os.environ.get(
+    "VAPID_PUBLIC_KEY",
+    "BAYf8s94I-kyzgkA_YzRuCnOfiG8ZKgJaQYBYuLov9JUxGzA88cZ3sN3bilULTl2TaSZvXF1ZjYPlllllmZjfsw"
+)
+
+VAPID_PRIVATE_KEY = os.environ.get(
+    "VAPID_PRIVATE_KEY",
+    """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg5EhyUVpRWGUwtxYI
+Rb3cnZcbgcr6g1cVLjGAuebfVkKhRANCAAQGH/LPeCPpMs4JAP2M0bgpzn4hvGSo
+CWkGAWLi6L/SVMRswPPHGd7Dd24pVC05dk2kmb1xdWY2D5ZZZZZmY37M
+-----END PRIVATE KEY-----"""
+)
+
+VAPID_CLAIMS = {
+    "sub": os.environ.get("VAPID_CLAIM_EMAIL", "mailto:deped.smile.alerts@gmail.com")
+}
+

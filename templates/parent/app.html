@@ -44,11 +44,27 @@
   </script>
 
   <style>
+    html {
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+    }
     body {
       font-family: 'Inter', sans-serif;
-      background-color: #0f172a;
+      background-color: #0B192C;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overscroll-behavior-x: none;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
+      position: relative;
     }
     .font-heading { font-family: 'Outfit', sans-serif; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -57,12 +73,44 @@
       background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(12px);
     }
+    /* Fixed container from left to right with zero wobble */
+    #appContainer {
+      width: 100%;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
+      touch-action: pan-y;
+    }
+    @media (min-width: 640px) {
+      #appContainer {
+        max-width: 448px;
+      }
+    }
+    /* Fixed bottom navigation bar pinned from left to right */
+    .fixed-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      z-index: 40;
+    }
+    @media (min-width: 640px) {
+      .fixed-bottom-nav {
+        max-width: 448px;
+      }
+    }
   </style>
 </head>
-<body class="min-h-screen flex justify-center text-slate-800">
+<body class="min-h-screen flex justify-center text-slate-800 antialiased">
 
-  <!-- Mobile Phone Viewport Shell (Full screen on phones, smartphone frame on desktop) -->
-  <div class="w-full max-w-md min-h-screen bg-slate-100 flex flex-col shadow-2xl relative pb-24 border-x border-slate-700/20">
+  <!-- Mobile Phone Viewport Shell (Edge-to-edge from left to right on phones, smartphone frame on desktop) -->
+  <div id="appContainer" class="w-full sm:max-w-md min-h-screen bg-slate-100 flex flex-col relative pb-28 sm:border-x sm:border-slate-700/20 overflow-x-hidden shadow-2xl">
 
     <!-- Top Mobile App Header -->
     <header class="bg-deped-darkblue text-white px-5 pt-5 pb-4 sticky top-0 z-40 border-b border-slate-800 shadow-md">
@@ -776,8 +824,8 @@
       </div>
     </main>
 
-    <!-- Bottom Native Mobile App Navigation Bar -->
-    <nav class="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur border-t border-slate-200 py-2 px-2 flex justify-around items-center z-40">
+    <!-- Bottom Native Mobile App Navigation Bar (Immovable & Fixed Left-to-Right) -->
+    <nav class="fixed-bottom-nav bg-white/95 backdrop-blur border-t border-slate-200 py-2.5 px-3 flex justify-around items-center shadow-lg">
       
       <button onclick="switchTab('home')" id="navHome" class="nav-btn flex flex-col items-center text-deped-blue font-bold flex-1 py-1">
         <i class="fa-solid fa-shield-halved text-base"></i>
@@ -1237,6 +1285,59 @@
     }
 
     // -------------------------------------------------------------
+    // W3C WebPush Subscription Handler (Background & Lock-Screen Alerts)
+    // -------------------------------------------------------------
+    const VAPID_PUBLIC_KEY = "{{ vapid_public_key or 'BAYf8s94I-kyzgkA_YzRuCnOfiG8ZKgJaQYBYuLov9JUxGzA88cZ3sN3bilULTl2TaSZvXF1ZjYPlllllmZjfsw' }}";
+
+    function urlB64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+
+    async function registerDevicePushSubscription(reg) {
+      if (!('PushManager' in window) || !reg || !reg.pushManager) {
+        console.log("[Push] PushManager not available in this browser environment.");
+        return null;
+      }
+      try {
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY)
+          });
+        }
+        if (sub) {
+          const res = await fetch('/api/parent/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lrn: studentLrn,
+              parent_phone: parentPhone,
+              subscription: sub.toJSON()
+            })
+          });
+          const result = await res.json();
+          console.log("[Push] Device registered for lock-screen alerts:", result);
+          return sub;
+        }
+      } catch (err) {
+        console.warn("[Push] Subscription registration note:", err);
+      }
+      return null;
+    }
+
+    // -------------------------------------------------------------
     // Push Notifications Permission Request
     // -------------------------------------------------------------
     async function requestPushPermission() {
@@ -1259,16 +1360,22 @@
         updateDiagnostics();
 
         if (perm === "granted") {
+          // Register device with FCM / APNs via ServiceWorker PushManager
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            await registerDevicePushSubscription(reg);
+          }
+
           const card = document.getElementById('pushPromptCard');
           if (card) {
             card.innerHTML = `
               <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
-                  <i class="fa-solid fa-circle-check"></i>
+                  <i class="fa-solid fa-bell-ring"></i>
                 </div>
                 <div>
-                  <h4 class="text-xs font-bold leading-tight">Push Alerts & Sound Active</h4>
-                  <p class="text-[10px] text-blue-200">Instant gate arrival & exit notifications enabled</p>
+                  <h4 class="text-xs font-bold leading-tight">Lock Screen Push Active</h4>
+                  <p class="text-[10px] text-blue-200">Alerts will sound & vibrate even when phone is locked or screen is off</p>
                 </div>
               </div>
               <button onclick="testMobileNotification()" class="px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs shadow transition">
@@ -1279,7 +1386,7 @@
 
           showSystemNotification(
             "Project S.M.I.L.E. Parent App",
-            `Instant gate scan alerts activated for ${studentName}!`,
+            `Lock-screen push alerts activated for ${studentName}!`,
             "welcome-alert",
             { url: `/parent?lrn=${studentLrn}` }
           );
@@ -1302,11 +1409,11 @@
         card.innerHTML = `
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-base flex-shrink-0">
-              <i class="fa-solid fa-circle-check"></i>
+              <i class="fa-solid fa-bell-ring"></i>
             </div>
             <div>
-              <h4 class="text-xs font-bold leading-tight">Push Alerts & Sound Active</h4>
-              <p class="text-[10px] text-blue-200">Connected to Gate 1 Live Stream</p>
+              <h4 class="text-xs font-bold leading-tight">Lock Screen Push Active</h4>
+              <p class="text-[10px] text-blue-200">Phone will alert even when screen is locked or off</p>
             </div>
           </div>
           <button onclick="testMobileNotification()" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] shadow transition">
@@ -1316,9 +1423,13 @@
       }
     }
 
-    // Service Worker Registration for PWA
+    // Service Worker Registration for PWA & Background Push
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js').catch(err => console.log('SW reg error:', err));
+      navigator.serviceWorker.register('/static/sw.js').then(reg => {
+        if (Notification.permission === 'granted') {
+          registerDevicePushSubscription(reg);
+        }
+      }).catch(err => console.log('SW reg error:', err));
     }
 
     // Child Switcher
@@ -1456,6 +1567,14 @@
 
       playChime(true);
       vibratePhone();
+
+      // 2. Ensure lock-screen WebPush subscription is registered with FCM/APNs
+      if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          await registerDevicePushSubscription(reg);
+        } catch(e) {}
+      }
 
       try {
         const res = await fetch('/api/parent/test-notification', {

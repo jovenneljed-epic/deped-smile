@@ -753,6 +753,7 @@ def parent_portal(lrn=None):
             excuse_notes=excuse_notes,
             announcements=announcements,
             events=events,
+            vapid_public_key=smile_config.VAPID_PUBLIC_KEY,
             today_date=pht_now().strftime("%A, %B %d, %Y"),
             today_iso=pht_now().date().isoformat()
         ))
@@ -1149,10 +1150,10 @@ def api_parent_qr_code():
 
 @app.route('/api/parent/test-notification', methods=['POST'])
 def api_parent_test_notification():
-    """Generates a test push & alert payload for the active learner."""
+    """Generates a test push & alert payload for the active learner and dispatches real WebPush."""
     data = request.json or {}
     lrn = data.get('lrn', '').strip()
-    from smile_orm import Student, Session
+    from smile_orm import Student, Session, dispatch_web_push_notification
     session = Session()
     try:
         student = session.query(Student).filter_by(lrn=str(lrn)).first() if lrn else session.query(Student).first()
@@ -1160,13 +1161,31 @@ def api_parent_test_notification():
         student_lrn = student.lrn if student else "152008250007"
         pht_current = pht_now()
         now_time = pht_current.strftime("%I:%M %p")
+
+        notif_title = f"Project S.M.I.L.E. Gate Alert: {student_name}"
+        notif_body = f"Official Gate Scan Verified: {student_name} arrived at Don Montano CIS Gate 1 at {now_time}."
+
+        # Dispatch real background WebPush to all subscribed mobile devices (wakes locked phones)
+        pushed_count = 0
+        try:
+            pushed_count = dispatch_web_push_notification(
+                lrn=student_lrn,
+                title=notif_title,
+                body=notif_body,
+                tag=f"test-scan-{student_lrn}",
+                data_url=f"/parent?lrn={student_lrn}"
+            )
+        except Exception as _pe:
+            print(f"[Push] Test dispatch error: {_pe}")
+
         return jsonify({
             "success": True,
-            "title": f"Project S.M.I.L.E. Gate Alert: {student_name}",
-            "body": f"Official Gate Scan Verified: {student_name} arrived at Don Montano CIS Gate 1 at {now_time}.",
+            "title": notif_title,
+            "body": notif_body,
             "icon": "/static/images/pwa_icon_192.png",
             "badge": "/static/images/apple_touch_icon.png",
             "tag": f"scan-{student_lrn}",
+            "pushed_devices": pushed_count,
             "data": {
                 "url": f"/parent?lrn={student_lrn}",
                 "lrn": student_lrn,
@@ -1178,6 +1197,49 @@ def api_parent_test_notification():
         })
     finally:
         session.close()
+
+@app.route('/api/parent/push/vapid-public-key')
+def api_parent_push_vapid_key():
+    """Returns VAPID public key for browser PushManager subscription."""
+    return jsonify({
+        "success": True,
+        "publicKey": smile_config.VAPID_PUBLIC_KEY
+    })
+
+@app.route('/api/parent/push/subscribe', methods=['POST'])
+def api_parent_push_subscribe():
+    """Saves browser push subscription for background & lock-screen notifications."""
+    data = request.json or {}
+    sub_data = data.get('subscription') or {}
+    endpoint = sub_data.get('endpoint', '').strip()
+    keys = sub_data.get('keys') or {}
+    p256dh = keys.get('p256dh', '').strip()
+    auth = keys.get('auth', '').strip()
+    lrn = data.get('lrn', '').strip()
+    phone = data.get('parent_phone', '').strip()
+
+    if not endpoint or not p256dh or not auth:
+        return jsonify({"success": False, "message": "Invalid push subscription object."}), 400
+
+    from smile_orm import save_push_subscription_orm
+    try:
+        user_agent = request.headers.get('User-Agent', '')
+        saved = save_push_subscription_orm(
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+            lrn=lrn,
+            parent_phone=phone,
+            user_agent=user_agent
+        )
+        return jsonify({
+            "success": True,
+            "message": "Push notification subscription activated for lock screen alerts.",
+            "subscription_id": saved["id"]
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 @app.route('/api/announcements', methods=['GET', 'POST'])
 def api_announcements():
