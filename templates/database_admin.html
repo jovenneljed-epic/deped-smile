@@ -25,24 +25,44 @@
   </div>
 
   <!-- Database Connection Banner -->
-  <div class="glass-card rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+  <div class="glass-card rounded-2xl p-5 border {% if db_stats.is_cloud_prod %}border-emerald-300 bg-emerald-50/20{% else %}border-amber-300 bg-amber-50/20{% endif %} shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div class="flex items-center space-x-4">
-      <div class="w-12 h-12 rounded-xl bg-deped-blue/10 text-deped-blue flex items-center justify-center text-2xl flex-shrink-0">
+      <div class="w-12 h-12 rounded-xl {% if db_stats.is_cloud_prod %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %} flex items-center justify-center text-2xl flex-shrink-0">
         <i class="fa-solid fa-server"></i>
       </div>
       <div>
         <div class="flex items-center space-x-2">
-          <h3 class="font-bold text-slate-900 text-base">Active Database: <span class="font-mono text-deped-blue font-black uppercase">{{ db_stats.database_type }}</span></h3>
-          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 flex items-center">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span> ONLINE
+          <h3 class="font-bold text-slate-900 text-base">
+            Active Engine: <span class="font-mono text-deped-blue font-black uppercase">{{ db_stats.database_type }}</span>
+          </h3>
+          {% if db_stats.is_cloud_prod %}
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center shadow-sm">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-ping"></span> PRODUCTION CLOUD LIVE
           </span>
+          {% else %}
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center shadow-sm">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> LOCAL / EPHEMERAL SQLITE
+          </span>
+          {% endif %}
         </div>
-        <p class="text-xs font-mono text-slate-500 mt-0.5">Target: {{ db_stats.connection_url }}</p>
+        <p class="text-xs font-mono text-slate-500 mt-0.5 truncate max-w-xl">Connection: {{ db_stats.connection_url }}</p>
+        {% if not db_stats.is_cloud_prod %}
+        <p class="text-xs text-amber-800 font-semibold mt-1">
+          <i class="fa-solid fa-circle-info mr-1 text-amber-600"></i>
+          Running on temporary SQLite. To make all data permanent across all devices on Vercel, connect a free Cloud Database (Neon / Supabase / Vercel Postgres).
+          <button onclick="switchTab('networkTab')" class="underline text-deped-blue font-bold ml-1 hover:text-blue-900">View Connection Guide &rarr;</button>
+        </p>
+        {% else %}
+        <p class="text-xs text-emerald-800 font-semibold mt-1">
+          <i class="fa-solid fa-circle-check mr-1 text-emerald-600"></i>
+          Connected to Real Cloud Database. All data from Gate Kiosks, Mobile Apps, Enrolled Students, and Admin Portals is permanently synchronized in real time.
+        </p>
+        {% endif %}
       </div>
     </div>
-    <div class="text-xs text-slate-500 md:text-right">
-      <p>ORM Layer: <strong>SQLAlchemy 2.1</strong> &middot; Multi-Client Safe</p>
-      <p class="text-[11px] text-slate-400 mt-0.5">Supports MySQL, PostgreSQL, MSSQL, SQLite</p>
+    <div class="text-xs text-slate-500 md:text-right shrink-0">
+      <p>ORM Layer: <strong>SQLAlchemy 2.1</strong> &middot; Multi-Worker Safe</p>
+      <p class="text-[11px] text-slate-400 mt-0.5">Supports PostgreSQL (Neon/Supabase), MySQL, SQLite</p>
     </div>
   </div>
 
@@ -90,7 +110,7 @@
         <i class="fa-solid fa-clock-rotate-left mr-2"></i> Attendance Logs Table ({{ attendance_logs|length }})
       </button>
       <button onclick="switchTab('networkTab')" id="btn-networkTab" class="py-3.5 border-b-2 border-transparent hover:text-slate-900 transition flex items-center whitespace-nowrap">
-        <i class="fa-solid fa-network-wired mr-2"></i> Connect to MySQL / XAMPP
+        <i class="fa-solid fa-cloud mr-2 text-cyan-600"></i> Connect Real Cloud Database
       </button>
     </div>
 
@@ -232,26 +252,120 @@
       </table>
     </div>
 
-    <!-- Tab 4: Connect to MySQL / XAMPP Guide -->
-    <div id="networkTab" class="tab-content hidden p-6 space-y-4">
-      <h3 class="text-base font-bold text-slate-900">How to Connect to MySQL / MariaDB (XAMPP or Campus Server)</h3>
-      <p class="text-xs text-slate-600">You can connect multiple computers (Gate, Guardhouse, Principal's Office) to a single central MySQL server:</p>
-
-      <div class="bg-slate-900 text-slate-200 p-4 rounded-xl text-xs font-mono space-y-2">
-        <p class="text-amber-400"># 1. In phpMyAdmin or MySQL, create the school database:</p>
-        <p>CREATE DATABASE deped_smile CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;</p>
-        <p class="text-amber-400 mt-2"># 2. In smile_config.py, set:</p>
-        <p>DATABASE_TYPE = "MYSQL"</p>
-        <p>MYSQL_URL = "mysql+pymysql://root:@localhost:3306/deped_smile"</p>
+    <!-- Tab 4: Connect Real Cloud Database Guide -->
+    <div id="networkTab" class="tab-content hidden p-6 space-y-6">
+      
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-deped-blue uppercase">Production Setup</span>
+          <h3 class="text-lg font-bold text-slate-900 font-heading">Connect a Real Cloud Database</h3>
+        </div>
+        <p class="text-xs text-slate-600 mt-1">
+          When deployed on Vercel Serverless, local SQLite in <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">/tmp</code> is ephemeral. Connecting a real cloud database (PostgreSQL or MySQL) ensures that all enrolled learners, attendance scans, parent accounts, and billing transactions persist permanently in real time across all devices.
+        </p>
       </div>
 
+      <!-- Cloud Provider Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Option 1: Vercel Postgres (1-Click Easiest) -->
+        <div class="p-5 rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-b from-emerald-50/50 to-white space-y-3 relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-sm">1-Click Recommended</span>
+            <i class="fa-solid fa-triangle-circle-square text-emerald-600 text-lg"></i>
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm flex items-center">
+            <i class="fa-solid fa-database mr-2 text-emerald-600"></i> Option A: Vercel Postgres
+          </h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Zero configuration. Vercel provisions a serverless Neon PostgreSQL cluster and links environment variables automatically.
+          </p>
+          <ol class="text-xs text-slate-700 space-y-1.5 list-decimal list-inside bg-white/80 p-3 rounded-xl border border-emerald-200/60 font-medium">
+            <li>Open your <a href="https://vercel.com/dashboard" target="_blank" class="text-deped-blue underline font-bold">Vercel Dashboard</a>.</li>
+            <li>Click project <strong>deped-smile</strong> &rarr; <strong>Storage</strong> tab.</li>
+            <li>Click <strong>Create Database</strong> &rarr; Select <strong>Postgres (Neon)</strong>.</li>
+            <li>Click <strong>Continue</strong> &rarr; Select region (Singapore / AP-Southeast).</li>
+            <li>Click <strong>Connect to Project</strong> &rarr; Done!</li>
+          </ol>
+          <p class="text-[11px] text-emerald-700 font-semibold"><i class="fa-solid fa-bolt mr-1"></i> Auto-links POSTGRES_URL &amp; auto-deploys!</p>
+        </div>
+
+        <!-- Option 2: Neon Serverless PostgreSQL (Free Forever) -->
+        <div class="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm hover:border-cyan-400 transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-cyan-600 text-white">Free Forever</span>
+            <i class="fa-solid fa-bolt text-cyan-600 text-lg"></i>
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm flex items-center">
+            <i class="fa-solid fa-cloud mr-2 text-cyan-600"></i> Option B: Neon PostgreSQL (neon.tech)
+          </h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Generous free tier (0.5 GB, 1 project). Fast serverless cold starts with instant connection pooling.
+          </p>
+          <ol class="text-xs text-slate-700 space-y-1.5 list-decimal list-inside bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium">
+            <li>Create free account at <a href="https://neon.tech" target="_blank" class="text-cyan-700 underline font-bold">neon.tech</a>.</li>
+            <li>Click <strong>New Project</strong> &rarr; Select region Singapore.</li>
+            <li>Copy the <strong>Connection String</strong>:
+              <code class="block text-[11px] font-mono bg-slate-900 text-cyan-300 p-2 rounded-lg mt-1 break-all select-all">postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require</code>
+            </li>
+            <li>In Vercel &rarr; Settings &rarr; Environment Variables: Add <strong class="text-slate-900">DATABASE_URL</strong>.</li>
+          </ol>
+        </div>
+
+        <!-- Option 3: Supabase Cloud PostgreSQL -->
+        <div class="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm hover:border-emerald-400 transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white">500 MB Free</span>
+            <i class="fa-solid fa-shield-cat text-emerald-600 text-lg"></i>
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm flex items-center">
+            <i class="fa-solid fa-fire mr-2 text-emerald-600"></i> Option C: Supabase PostgreSQL
+          </h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Full enterprise PostgreSQL instance with direct URL and automated SSL certificates.
+          </p>
+          <ol class="text-xs text-slate-700 space-y-1.5 list-decimal list-inside bg-slate-50 p-3 rounded-xl border border-slate-200 font-medium">
+            <li>Sign in at <a href="https://supabase.com" target="_blank" class="text-emerald-700 underline font-bold">supabase.com</a>.</li>
+            <li>Click <strong>New Project</strong> &rarr; Set database password.</li>
+            <li>Go to <strong>Project Settings &rarr; Database &rarr; URI</strong>.</li>
+            <li>Copy the URI and set as <strong class="text-slate-900">DATABASE_URL</strong> in Vercel.</li>
+          </ol>
+        </div>
+
+        <!-- Option 4: Campus Local MySQL / MariaDB -->
+        <div class="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-sm hover:border-amber-400 transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-600 text-white">On-Premises</span>
+            <i class="fa-solid fa-server text-amber-600 text-lg"></i>
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm flex items-center">
+            <i class="fa-solid fa-network-wired mr-2 text-amber-600"></i> Option D: MySQL / XAMPP (Local LAN)
+          </h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Ideal for school computer labs or local campus servers without constant internet access.
+          </p>
+          <div class="bg-slate-900 text-slate-200 p-3 rounded-xl text-[11px] font-mono space-y-1">
+            <p class="text-amber-400"># In phpMyAdmin / MySQL CLI:</p>
+            <p>CREATE DATABASE deped_smile;</p>
+            <p class="text-amber-400 mt-1"># In smile_config.py or .env:</p>
+            <p>DATABASE_TYPE = "MYSQL"</p>
+            <p>MYSQL_URL = "mysql+pymysql://root:@localhost:3306/deped_smile"</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Zero Migration Hassle Banner -->
       <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-slate-700 flex items-start space-x-3">
-        <i class="fa-solid fa-circle-check text-deped-blue text-base mt-0.5"></i>
+        <i class="fa-solid fa-wand-magic-sparkles text-deped-blue text-base mt-0.5 shrink-0"></i>
         <div>
-          <p class="font-bold text-deped-blue">Zero Migration Hassle</p>
-          <p>Project S.M.I.L.E.'s SQLAlchemy ORM will automatically create all tables, indexes, and relationships in MySQL the moment you start the server!</p>
+          <p class="font-bold text-deped-blue">Automated Zero-Migration Engine</p>
+          <p class="mt-0.5">
+            You do not need to write SQL migration scripts or create tables manually. Project S.M.I.L.E.'s SQLAlchemy ORM automatically builds all 9 database tables, indexes, relations, default DepEd class sections, and the Super Admin account the very first second the cloud database connects!
+          </p>
         </div>
       </div>
+
     </div>
 
   <!-- Add Section Modal Dialog -->

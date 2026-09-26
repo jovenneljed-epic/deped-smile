@@ -72,18 +72,37 @@ POSTGRES_URL = os.environ.get("POSTGRES_URL", "postgresql://postgres:postgres@lo
 
 def get_database_url():
     """Returns the active SQLAlchemy database URL based on configuration or cloud environment."""
-    # Check for direct DATABASE_URL (Vercel Postgres, Neon, Supabase, Railway)
-    env_url = os.environ.get("DATABASE_URL", "").strip()
+    # Check for direct DATABASE_URL or Vercel's POSTGRES_URL
+    env_url = (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or "").strip()
     if env_url:
+        # Standardize legacy Heroku/Vercel postgres:// protocol to postgresql://
         if env_url.startswith("postgres://"):
             env_url = env_url.replace("postgres://", "postgresql://", 1)
+        
+        # Use pg8000 pure-Python driver for maximum stability across Windows, Linux, and Vercel Serverless
+        if env_url.startswith("postgresql://"):
+            try:
+                import pg8000
+                env_url = env_url.replace("postgresql://", "postgresql+pg8000://", 1)
+            except ImportError:
+                pass
+        elif env_url.startswith("mysql://") and not env_url.startswith("mysql+pymysql://"):
+            env_url = env_url.replace("mysql://", "mysql+pymysql://", 1)
+            
         return env_url
 
     db_choice = DATABASE_TYPE.upper().strip()
     if db_choice == "MYSQL":
         return MYSQL_URL
     elif db_choice == "POSTGRESQL":
-        return POSTGRES_URL
+        url = POSTGRES_URL
+        if url.startswith("postgresql://"):
+            try:
+                import pg8000
+                url = url.replace("postgresql://", "postgresql+pg8000://", 1)
+            except ImportError:
+                pass
+        return url
     else:
         return f"sqlite:///{DB_PATH}"
 

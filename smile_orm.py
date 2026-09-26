@@ -334,7 +334,14 @@ def create_orm_engine():
         connect_args["check_same_thread"] = False
         return create_engine(db_url, connect_args=connect_args)
     else:
-        return create_engine(db_url, pool_size=10, max_overflow=20, pool_pre_ping=True)
+        # Enterprise Cloud Database (PostgreSQL / MySQL) connection pool
+        return create_engine(
+            db_url,
+            pool_size=5,
+            max_overflow=10,
+            pool_recycle=300,
+            pool_pre_ping=True
+        )
 
 engine = create_orm_engine()
 SessionFactory = sessionmaker(bind=engine)
@@ -566,22 +573,23 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
 def init_orm_db():
     Base.metadata.create_all(engine)
     # Check and migrate columns in SQLite if needed
-    try:
-        from sqlalchemy import text
-        with engine.connect() as conn:
-            res = conn.execute(text("PRAGMA table_info(students)"))
-            cols = [row[1] for row in res.fetchall()]
-            if "middle_name" not in cols:
-                conn.execute(text("ALTER TABLE students ADD COLUMN middle_name VARCHAR(60) DEFAULT ''"))
-            if "grade_level" not in cols:
-                conn.execute(text("ALTER TABLE students ADD COLUMN grade_level VARCHAR(30) DEFAULT ''"))
-            if "section_name" not in cols:
-                conn.execute(text("ALTER TABLE students ADD COLUMN section_name VARCHAR(60) DEFAULT ''"))
-            if "class_adviser" not in cols:
-                conn.execute(text("ALTER TABLE students ADD COLUMN class_adviser VARCHAR(100) DEFAULT ''"))
-            conn.commit()
-    except Exception as e:
-        print(f"[!] Migration check note: {e}")
+    if "sqlite" in engine.dialect.name.lower():
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                res = conn.execute(text("PRAGMA table_info(students)"))
+                cols = [row[1] for row in res.fetchall()]
+                if "middle_name" not in cols:
+                    conn.execute(text("ALTER TABLE students ADD COLUMN middle_name VARCHAR(60) DEFAULT ''"))
+                if "grade_level" not in cols:
+                    conn.execute(text("ALTER TABLE students ADD COLUMN grade_level VARCHAR(30) DEFAULT ''"))
+                if "section_name" not in cols:
+                    conn.execute(text("ALTER TABLE students ADD COLUMN section_name VARCHAR(60) DEFAULT ''"))
+                if "class_adviser" not in cols:
+                    conn.execute(text("ALTER TABLE students ADD COLUMN class_adviser VARCHAR(100) DEFAULT ''"))
+                conn.commit()
+        except Exception as e:
+            print(f"[!] Migration check note: {e}")
     # Auto-seed K-12 sections
     seed_default_sections_orm()
     # Auto-seed official announcements & advisories
@@ -1059,9 +1067,22 @@ def get_today_summary_orm():
 def get_database_stats_orm():
     session = Session()
     try:
+        active_url = get_database_url()
+        dialect_name = engine.dialect.name.upper() # 'POSTGRESQL', 'MYSQL', 'SQLITE'
+        is_cloud_prod = dialect_name in ["POSTGRESQL", "MYSQL"]
+        
+        # Mask password in URL for display
+        url_display = active_url
+        if "@" in active_url:
+            parts = active_url.split("@")
+            prefix = parts[0].split("://")[0]
+            host_part = parts[1]
+            url_display = f"{prefix}://*****@{host_part}"
+
         return {
-            "database_type": DATABASE_TYPE,
-            "connection_url": get_database_url().split("@")[-1] if "@" in get_database_url() else get_database_url(),
+            "database_type": dialect_name,
+            "is_cloud_prod": is_cloud_prod,
+            "connection_url": url_display,
             "total_students": session.query(func.count(Student.lrn)).scalar() or 0,
             "total_sections": session.query(func.count(Section.id)).scalar() or 0,
             "total_attendance_records": session.query(func.count(AttendanceLog.id)).scalar() or 0,
