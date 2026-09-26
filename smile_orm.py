@@ -584,35 +584,53 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
     finally:
         session.close()
 
-def init_orm_db():
-    Base.metadata.create_all(engine)
-    # Check and migrate columns in SQLite if needed
-    if "sqlite" in engine.dialect.name.lower():
-        try:
-            from sqlalchemy import text
-            with engine.connect() as conn:
-                res = conn.execute(text("PRAGMA table_info(students)"))
-                cols = [row[1] for row in res.fetchall()]
-                if "middle_name" not in cols:
-                    conn.execute(text("ALTER TABLE students ADD COLUMN middle_name VARCHAR(60) DEFAULT ''"))
-                if "grade_level" not in cols:
-                    conn.execute(text("ALTER TABLE students ADD COLUMN grade_level VARCHAR(30) DEFAULT ''"))
-                if "section_name" not in cols:
-                    conn.execute(text("ALTER TABLE students ADD COLUMN section_name VARCHAR(60) DEFAULT ''"))
-                if "class_adviser" not in cols:
-                    conn.execute(text("ALTER TABLE students ADD COLUMN class_adviser VARCHAR(100) DEFAULT ''"))
-                conn.commit()
-        except Exception as e:
-            print(f"[!] Migration check note: {e}")
-    # Auto-seed K-12 sections
-    seed_default_sections_orm()
-    # Auto-seed official announcements & advisories
-    seed_default_announcements_orm()
-    # Auto-seed default RBAC users
-    seed_default_users_orm()
-    # Auto-seed editable SaaS pricing plans
-    seed_default_pricing_plans_orm()
-    print(f"[+] Non-Biometric Smart ID Relational Database initialized ({DATABASE_TYPE}).")
+def init_orm_db(force=False):
+    """
+    Initializes database schema and seeds default records.
+    Optimized for Serverless / Cloud: Checks if tables already exist and skips redundant
+    DDL and bulk queries to prevent Lambda cold-start timeout.
+    """
+    global engine
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+
+        # If core tables already exist in Supabase / Cloud Postgres, skip heavy re-initialization
+        if "students" in existing_tables and "users" in existing_tables and not force:
+            print(f"[+] Connected to existing database ({engine.dialect.name.upper()}). Skipping cold-start DDL.")
+            return
+
+        Base.metadata.create_all(engine)
+        # Check and migrate columns in SQLite if needed
+        if "sqlite" in engine.dialect.name.lower():
+            try:
+                from sqlalchemy import text
+                with engine.connect() as conn:
+                    res = conn.execute(text("PRAGMA table_info(students)"))
+                    cols = [row[1] for row in res.fetchall()]
+                    if "middle_name" not in cols:
+                        conn.execute(text("ALTER TABLE students ADD COLUMN middle_name VARCHAR(60) DEFAULT ''"))
+                    if "grade_level" not in cols:
+                        conn.execute(text("ALTER TABLE students ADD COLUMN grade_level VARCHAR(30) DEFAULT ''"))
+                    if "section_name" not in cols:
+                        conn.execute(text("ALTER TABLE students ADD COLUMN section_name VARCHAR(60) DEFAULT ''"))
+                    if "class_adviser" not in cols:
+                        conn.execute(text("ALTER TABLE students ADD COLUMN class_adviser VARCHAR(100) DEFAULT ''"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[!] Migration check note: {e}")
+        # Auto-seed K-12 sections
+        seed_default_sections_orm()
+        # Auto-seed official announcements & advisories
+        seed_default_announcements_orm()
+        # Auto-seed default RBAC users
+        seed_default_users_orm()
+        # Auto-seed editable SaaS pricing plans
+        seed_default_pricing_plans_orm()
+        print(f"[+] Non-Biometric Smart ID Relational Database initialized ({engine.dialect.name.upper()}).")
+    except Exception as e:
+        print(f"[!] Warning: init_orm_db deferred or failed ({e}). App running in resilient mode.")
 
 # -------------------------------------------------------------
 # CRUD Operations (Non-Biometric)
@@ -1075,6 +1093,59 @@ def get_today_summary_orm():
             "unique_students": unique_students,
             "recent_scans": [r.to_dict() for r in recent_logs]
         }
+    finally:
+        session.close()
+
+def get_today_attendance_logs_orm(limit=None):
+    """Returns today's attendance logs with student info from the active ORM database."""
+    session = Session()
+    try:
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        query = session.query(AttendanceLog).filter(AttendanceLog.timestamp >= today_start).order_by(desc(AttendanceLog.id))
+        if limit:
+            query = query.limit(limit)
+        logs = query.all()
+        return [l.to_dict() for l in logs]
+    finally:
+        session.close()
+
+def get_today_sms_count_orm():
+    """Returns count of SMS sent today."""
+    session = Session()
+    try:
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        return session.query(func.count(SmsLog.id)).filter(SmsLog.sent_at >= today_start).scalar() or 0
+    finally:
+        session.close()
+
+def get_recent_sms_logs_orm(limit=50):
+    """Returns most recent SMS delivery logs."""
+    session = Session()
+    try:
+        logs = session.query(SmsLog).order_by(desc(SmsLog.id)).limit(limit).all()
+        return [l.to_dict() for l in logs]
+    finally:
+        session.close()
+
+def get_all_attendance_logs_for_export_orm():
+    """Returns all attendance logs formatted for DepEd SF2 CSV export."""
+    session = Session()
+    try:
+        logs = session.query(AttendanceLog).order_by(AttendanceLog.id.asc()).all()
+        res = []
+        for l in logs:
+            st = l.student_rel
+            res.append({
+                "timestamp": l.timestamp.strftime("%Y-%m-%d %H:%M:%S") if l.timestamp else "",
+                "lrn": l.lrn,
+                "student_name": l.student_name,
+                "grade_section": l.grade_section or (st.grade_section if st else "N/A"),
+                "class_adviser": (st.class_adviser if st else "") or "N/A",
+                "scan_type": l.scan_type,
+                "parent_phone": (st.parent_phone if st else "") or "N/A",
+                "sms_status": l.sms_status
+            })
+        return res
     finally:
         session.close()
 
@@ -1697,7 +1768,10 @@ def get_revenue_statistics_orm():
     finally:
         session.close()
 
-init_orm_db()
+try:
+    init_orm_db()
+except Exception as _init_err:
+    print(f"[!] Note: Database initial check deferred: {_init_err}")
 
 # Compatibility Aliases
 init_db = init_orm_db

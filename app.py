@@ -18,7 +18,7 @@ from smile_config import (
 )
 import smile_config
 from smile_db import (
-    get_all_enrolled_students, get_today_summary, get_connection,
+    get_all_enrolled_students, get_today_summary,
     save_student, record_sms, record_attendance
 )
 from smile_orm import (
@@ -27,7 +27,9 @@ from smile_orm import (
     get_all_sections_orm,
     get_all_pricing_plans_orm, get_pricing_plan_by_code_orm,
     update_pricing_plan_orm, record_payment_transaction_orm,
-    get_recent_payment_transactions_orm, get_revenue_statistics_orm
+    get_recent_payment_transactions_orm, get_revenue_statistics_orm,
+    get_today_attendance_logs_orm, get_today_sms_count_orm,
+    get_recent_sms_logs_orm, get_all_attendance_logs_for_export_orm
 )
 from smile_face_engine import SmileFaceEngine
 from smile_sms import (
@@ -77,6 +79,35 @@ def decode_image_payload(req):
         return img
 
     return None
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Cloud Healthcheck & Diagnostics Endpoint."""
+    from smile_orm import engine, Session, Student
+    db_ok = False
+    student_count = 0
+    err_msg = None
+    try:
+        session = Session()
+        student_count = session.query(Student).count()
+        session.close()
+        db_ok = True
+    except Exception as e:
+        err_msg = str(e)
+
+    return jsonify({
+        "status": "healthy" if db_ok else "degraded",
+        "database": {
+            "connected": db_ok,
+            "dialect": engine.dialect.name if engine else "unknown",
+            "enrolled_students": student_count,
+            "error": err_msg
+        },
+        "system": {
+            "school": smile_config.SCHOOL_NAME,
+            "is_serverless": bool(smile_config.IS_VERCEL)
+        }
+    }), (200 if db_ok else 503)
 
 # -------------------------------------------------------------
 # Role-Based Access Control (RBAC) & Authentication Decorators
@@ -509,24 +540,8 @@ def dashboard():
     """Administrative Attendance Dashboard."""
     summary = get_today_summary()
     enrolled = get_all_enrolled_students()
-    
-    # Get all attendance logs for today
-    today_str = date.today().strftime("%Y-%m-%d")
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT a.id, a.lrn, a.student_name, a.scan_type, a.timestamp, a.sms_status,
-                   s.grade_section, s.parent_phone
-            FROM attendance_logs a
-            LEFT JOIN students s ON a.lrn = s.lrn
-            WHERE a.timestamp LIKE ?
-            ORDER BY a.id DESC
-        """, (f"{today_str}%",))
-        logs = [dict(r) for r in cursor.fetchall()]
-
-        # SMS stats today
-        cursor.execute("SELECT COUNT(*) FROM sms_logs WHERE sent_at LIKE ?", (f"{today_str}%",))
-        total_sms_today = cursor.fetchone()[0]
+    logs = get_today_attendance_logs_orm()
+    total_sms_today = get_today_sms_count_orm()
 
     return render_template(
         'dashboard.html',
@@ -582,10 +597,7 @@ def sms_center():
     """SMS Gateway status, outbound logs, and test sender."""
     sms_cfg = smile_config.get_sms_config()
     gateway_status = check_gateway_status()
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM sms_logs ORDER BY id DESC LIMIT 50")
-        sms_logs = [dict(r) for r in cursor.fetchall()]
+    sms_logs = get_recent_sms_logs_orm(50)
     return render_template(
         'sms_center.html',
         school_name=SCHOOL_NAME,
@@ -956,18 +968,7 @@ def api_stats():
 @app.route('/api/recent-scans')
 def api_recent_scans():
     """Returns today's recent attendance logs for live auto-updating tables."""
-    today_str = date.today().strftime("%Y-%m-%d")
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT a.id, a.lrn, a.student_name, a.scan_type, a.timestamp, a.sms_status,
-                   s.grade_section, s.parent_phone
-            FROM attendance_logs a
-            LEFT JOIN students s ON a.lrn = s.lrn
-            WHERE a.timestamp LIKE ?
-            ORDER BY a.id DESC LIMIT 20
-        """, (f"{today_str}%",))
-        logs = [dict(r) for r in cursor.fetchall()]
+    logs = get_today_attendance_logs_orm(limit=20)
     return jsonify(logs)
 
 @app.route('/id-card/<lrn>')
@@ -1435,16 +1436,7 @@ def api_simulate_scan():
 def export_attendance_csv():
     """Generates DepEd SF2 (School Form 2) compliant Daily Attendance CSV."""
     today_str = date.today().strftime("%Y-%m-%d")
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT a.timestamp, a.lrn, a.student_name, s.grade_section, s.class_adviser, a.scan_type,
-                   s.parent_phone, a.sms_status
-            FROM attendance_logs a
-            LEFT JOIN students s ON a.lrn = s.lrn
-            ORDER BY a.id ASC
-        """)
-        rows = cursor.fetchall()
+    rows = get_all_attendance_logs_for_export_orm()
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -1457,7 +1449,7 @@ def export_attendance_csv():
     writer.writerow(["Timestamp", "DepEd LRN", "Student Full Name", "Grade & Section", "Class Adviser", "Entry / Exit Type", "Parent Phone", "SMS Alert Status"])
 
     for r in rows:
-        writer.writerow([r["timestamp"], r["lrn"], r["student_name"], r["grade_section"] or "N/A", r["class_adviser"] or "N/A", r["scan_type"], r["parent_phone"] or "N/A", r["sms_status"]])
+        writer.writerow([r["timestamp"], r["lrn"], r["student_name"], r["grade_section"], r["class_adviser"], r["scan_type"], r["parent_phone"], r["sms_status"]])
 
     output.seek(0)
     return Response(

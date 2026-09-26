@@ -12,6 +12,12 @@ def ensure_model_downloaded(file_path: Path, url: str, model_name: str):
     """Downloads the required ONNX model file from OpenCV Zoo if not already present."""
     if file_path.exists() and file_path.stat().st_size > 10000:
         return
+
+    import smile_config
+    # On Vercel / serverless runtime, filesystem is read-only and functions have strict timeouts
+    if getattr(smile_config, "IS_VERCEL", False):
+        print(f"[!] Serverless runtime: {model_name} not pre-bundled; skipping auto-download to prevent cold-start timeout.")
+        return
     
     file_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"[*] Downloading {model_name} model weights from OpenCV Zoo...")
@@ -52,26 +58,34 @@ class SmileFaceEngine:
         self.current_input_size = (320, 320)
 
         try:
-            # 1. Ensure models exist
-            ensure_model_downloaded(YUNET_PATH, YUNET_MODEL_URL, "YuNet Face Detector")
-            ensure_model_downloaded(SFACE_PATH, SFACE_MODEL_URL, "SFace Face Recognizer")
+            import smile_config
+            is_serverless = getattr(smile_config, "IS_VERCEL", False)
 
-            # 2. Initialize YuNet Detector
-            self.detector = cv2.FaceDetectorYN.create(
-                model=str(YUNET_PATH),
-                config="",
-                input_size=(320, 320),
-                score_threshold=DETECTION_CONFIDENCE,
-                nms_threshold=0.3,
-                top_k=5000
-            )
+            # 1. Ensure models exist (skip download on serverless)
+            if not is_serverless:
+                ensure_model_downloaded(YUNET_PATH, YUNET_MODEL_URL, "YuNet Face Detector")
+                ensure_model_downloaded(SFACE_PATH, SFACE_MODEL_URL, "SFace Face Recognizer")
 
-            # 3. Initialize SFace Recognizer
-            self.recognizer = cv2.FaceRecognizerSF.create(
-                model=str(SFACE_PATH),
-                config=""
-            )
-            self.available = True
+            # 2. Initialize YuNet Detector if available
+            if YUNET_PATH.exists() and YUNET_PATH.stat().st_size > 10000:
+                self.detector = cv2.FaceDetectorYN.create(
+                    model=str(YUNET_PATH),
+                    config="",
+                    input_size=(320, 320),
+                    score_threshold=DETECTION_CONFIDENCE,
+                    nms_threshold=0.3,
+                    top_k=5000
+                )
+
+            # 3. Initialize SFace Recognizer if available
+            if SFACE_PATH.exists() and SFACE_PATH.stat().st_size > 10000:
+                self.recognizer = cv2.FaceRecognizerSF.create(
+                    model=str(SFACE_PATH),
+                    config=""
+                )
+
+            if self.detector is not None:
+                self.available = True
         except Exception as e:
             print(f"[!] Note: SmileFaceEngine running in lightweight mode ({e}). Barcode/QR & Portal operational.")
 

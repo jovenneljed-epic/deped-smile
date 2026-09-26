@@ -6,7 +6,6 @@ qrcode>=7.4
 pillow>=10.0.0
 requests>=2.31.0
 PyMySQL>=1.1.0
-psycopg2-binary>=2.9.0; sys_platform != 'win32'
 pg8000>=1.31.0
 waitress>=3.0.0
 gunicorn>=21.2.0; sys_platform != 'win32'

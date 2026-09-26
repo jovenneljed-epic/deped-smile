@@ -57,7 +57,12 @@ class GateStreamer:
             if self.running:
                 return
             self.running = True
-            
+
+        import smile_config
+        if getattr(smile_config, "IS_VERCEL", False):
+            print("[*] Serverless runtime detected: GateStreamer running in lightweight on-demand mode.")
+            return
+
         print("[*] Initializing GateStreamer AI Face Recognition & Smart ID Engine...")
         try:
             self.face_engine = SmileFaceEngine()
@@ -68,18 +73,17 @@ class GateStreamer:
         except Exception:
             self.qr_detector = None
         self.reload_enrolled_students()
-
-        # Only start hardware camera background capture loop if NOT on Vercel/serverless
-        import smile_config
-        if not getattr(smile_config, "IS_VERCEL", False):
-            self.thread = threading.Thread(target=self._capture_loop, daemon=True)
-            self.thread.start()
+        self.thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self.thread.start()
 
     def reload_enrolled_students(self):
         """Refreshes enrolled students from database."""
-        self.enrolled_students = get_all_enrolled_students_orm()
-        faces_count = sum(1 for s in self.enrolled_students if s.get("embedding") is not None)
-        print(f"[+] GateStreamer loaded {len(self.enrolled_students)} enrolled learners ({faces_count} with 128-d face embeddings).")
+        try:
+            self.enrolled_students = get_all_enrolled_students_orm()
+            faces_count = sum(1 for s in self.enrolled_students if s.get("embedding") is not None)
+            print(f"[+] GateStreamer loaded {len(self.enrolled_students)} enrolled learners ({faces_count} with 128-d face embeddings).")
+        except Exception as e:
+            print(f"[!] Note: Deferred loading enrolled students: {e}")
 
     def trigger_scan_by_student(self, student: dict, method="FACE_RECOGNITION", score=None):
         """

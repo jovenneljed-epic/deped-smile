@@ -72,13 +72,38 @@ POSTGRES_URL = os.environ.get("POSTGRES_URL", "postgresql://postgres:postgres@lo
 
 def get_database_url():
     """Returns the active SQLAlchemy database URL based on configuration or cloud environment."""
+    import re
     # Check for direct DATABASE_URL or Vercel's POSTGRES_URL
     env_url = (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or "").strip()
     if env_url:
         # Standardize legacy Heroku/Vercel postgres:// protocol to postgresql://
         if env_url.startswith("postgres://"):
             env_url = env_url.replace("postgres://", "postgresql://", 1)
-        
+
+        # Supabase Direct Connection (db.<ref>.supabase.co) only has IPv6 addresses.
+        # AWS Lambda / Vercel Serverless run on IPv4 and cannot route to IPv6 directly.
+        # Auto-route to the official Supabase Connection Pooler (IPv4 compatible):
+        if "db.ukhmrgbkrfawgszltzsr.supabase.co" in env_url:
+            env_url = env_url.replace("db.ukhmrgbkrfawgszltzsr.supabase.co:5432", "aws-0-ap-northeast-2.pooler.supabase.com:6543")
+            env_url = env_url.replace("db.ukhmrgbkrfawgszltzsr.supabase.co", "aws-0-ap-northeast-2.pooler.supabase.com:6543")
+            if "://postgres:" in env_url:
+                env_url = env_url.replace("://postgres:", "://postgres.ukhmrgbkrfawgszltzsr:")
+        elif ".supabase.co" in env_url:
+            region = os.environ.get("SUPABASE_REGION", "ap-northeast-2")
+            match = re.search(r'db\.([a-z0-9]+)\.supabase\.co', env_url)
+            if match:
+                ref = match.group(1)
+                env_url = env_url.replace(f"db.{ref}.supabase.co:5432", f"aws-0-{region}.pooler.supabase.com:6543")
+                env_url = env_url.replace(f"db.{ref}.supabase.co", f"aws-0-{region}.pooler.supabase.com:6543")
+                if "://postgres:" in env_url:
+                    env_url = env_url.replace("://postgres:", f"://postgres.{ref}:")
+
+        # Strip sslmode parameter from query string because pg8000 handles SSL via ssl_context
+        if "sslmode=" in env_url:
+            env_url = re.sub(r'[\?\&]sslmode=[^\&]+', '', env_url)
+            if env_url.endswith("?"):
+                env_url = env_url[:-1]
+
         # Use pg8000 pure-Python driver for maximum stability across Windows, Linux, and Vercel Serverless
         if env_url.startswith("postgresql://"):
             try:
@@ -89,10 +114,6 @@ def get_database_url():
         elif env_url.startswith("mysql://") and not env_url.startswith("mysql+pymysql://"):
             env_url = env_url.replace("mysql://", "mysql+pymysql://", 1)
 
-        # Ensure SSL is enabled for cloud PostgreSQL providers (Supabase, Neon, AWS)
-        if any(h in env_url for h in ["supabase.co", "neon.tech", "pooler.supabase.com", "rds.amazonaws.com"]) and "sslmode" not in env_url:
-            env_url += ("&" if "?" in env_url else "?") + "sslmode=require"
-            
         return env_url
 
     db_choice = DATABASE_TYPE.upper().strip()
