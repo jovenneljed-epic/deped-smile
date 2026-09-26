@@ -334,9 +334,23 @@ def create_orm_engine():
         connect_args["check_same_thread"] = False
         return create_engine(db_url, connect_args=connect_args)
     else:
+        # Check if pg8000 is used for PostgreSQL
+        if "pg8000" in db_url:
+            import ssl, re
+            # Strip sslmode from query parameters so pg8000 does not raise TypeError
+            if "sslmode=" in db_url:
+                db_url = re.sub(r'[\?\&]sslmode=[^\&]+', '', db_url)
+                if db_url.endswith("?"):
+                    db_url = db_url[:-1]
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            connect_args["ssl_context"] = ssl_ctx
+
         # Enterprise Cloud Database (PostgreSQL / MySQL) connection pool
         return create_engine(
             db_url,
+            connect_args=connect_args,
             pool_size=5,
             max_overflow=10,
             pool_recycle=300,
