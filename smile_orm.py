@@ -52,19 +52,19 @@ class Student(Base):
     __tablename__ = 'students'
 
     lrn = Column(String(12), primary_key=True, index=True)   # 12-digit DepEd LRN
-    first_name = Column(String(60), nullable=False)
-    middle_name = Column(String(60), default="")            # Learner middle name
-    last_name = Column(String(60), nullable=False)
-    gender = Column(String(10), default="Unspecified")
-    birthdate = Column(String(20), default="")
-    grade_level = Column(String(30), default="")            # Kindergarten, Grade 1 to 12
+    first_name = Column(String(100), nullable=False)
+    middle_name = Column(String(100), default="")            # Learner middle name
+    last_name = Column(String(100), nullable=False)
+    gender = Column(String(50), default="Unspecified")
+    birthdate = Column(String(50), default="")
+    grade_level = Column(String(50), default="")            # Kindergarten, Grade 1 to 12
     section_name = Column(String(60), default="")           # Section (e.g. Rizal, Sampaguita)
     class_adviser = Column(String(100), default="")         # Designated Section Adviser Teacher
-    grade_section = Column(String(100), nullable=False)     # e.g. "Grade 10 - Rizal"
+    grade_section = Column(String(150), nullable=False)     # e.g. "Grade 10 - Rizal"
     section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
-    track_strand = Column(String(50), default="Junior High") # JHS, STEM, ABM, HUMSS, TVL
-    parent_name = Column(String(100), default="")
-    parent_phone = Column(String(20), nullable=False, index=True)
+    track_strand = Column(String(100), default="Junior High") # JHS, STEM, ABM, HUMSS, TVL
+    parent_name = Column(String(150), default="")
+    parent_phone = Column(String(50), nullable=True, default="N/A", index=True)
     parent_relationship = Column(String(30), default="Parent")
     rfid_card_uid = Column(String(50), nullable=True, index=True) # Optional physical RFID tap card
     qr_code_path = Column(String(255), default="")          # URL to student's QR ID badge
@@ -652,6 +652,24 @@ def init_orm_db(force=False):
         inspector = inspect(engine)
         existing_tables = inspector.get_table_names()
 
+        # Auto-migrate PostgreSQL column lengths if running against Postgres
+        if "postgres" in engine.dialect.name.lower():
+            try:
+                from sqlalchemy import text
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN gender TYPE VARCHAR(50);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN birthdate TYPE VARCHAR(50);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN parent_phone TYPE VARCHAR(50);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN parent_phone DROP NOT NULL;"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN first_name TYPE VARCHAR(100);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN middle_name TYPE VARCHAR(100);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN last_name TYPE VARCHAR(100);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN grade_section TYPE VARCHAR(150);"))
+                    conn.execute(text("ALTER TABLE students ALTER COLUMN parent_name TYPE VARCHAR(150);"))
+                    conn.commit()
+            except Exception as ex:
+                print(f"[!] PostgreSQL column auto-migration note: {ex}")
+
         # If core tables already exist in Supabase / Cloud Postgres, skip heavy re-initialization
         if "students" in existing_tables and "users" in existing_tables and not force:
             print(f"[+] Connected to existing database ({engine.dialect.name.upper()}). Skipping cold-start DDL.")
@@ -713,22 +731,22 @@ def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="
             student = Student(lrn=lrn_clean)
             session.add(student)
 
-        student.first_name = first_name.strip()
-        student.middle_name = (middle_name or kwargs.get("middle_name", "")).strip()
-        student.last_name = last_name.strip()
+        student.first_name = (first_name or "").strip()[:100]
+        student.middle_name = (middle_name or kwargs.get("middle_name", "") or "").strip()[:100]
+        student.last_name = (last_name or "").strip()[:100]
         
-        g_level = (grade_level or kwargs.get("grade_level", "")).strip()
-        s_name = (section_name or kwargs.get("section_name", "")).strip()
-        c_adviser = (class_adviser or kwargs.get("class_adviser", "")).strip()
+        g_level = (grade_level or kwargs.get("grade_level", "") or "").strip()[:50]
+        s_name = (section_name or kwargs.get("section_name", "") or "").strip()[:60]
+        c_adviser = (class_adviser or kwargs.get("class_adviser", "") or "").strip()[:100]
         
         student.grade_level = g_level
         student.section_name = s_name
         student.class_adviser = c_adviser
         if birthdate:
-            student.birthdate = str(birthdate).strip()
+            student.birthdate = str(birthdate).strip()[:50]
 
         if g_level and s_name:
-            student.grade_section = f"{g_level} - {s_name}"
+            student.grade_section = f"{g_level} - {s_name}"[:150]
             # Real database connection to Section
             sec = session.query(Section).filter_by(grade_level=g_level, section_name=s_name).first()
             if not sec:
@@ -738,17 +756,17 @@ def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="
                 if not student.class_adviser and sec.adviser_teacher:
                     student.class_adviser = sec.adviser_teacher
         elif grade_section:
-            student.grade_section = grade_section.strip()
+            student.grade_section = grade_section.strip()[:150]
         elif g_level:
-            student.grade_section = g_level
+            student.grade_section = g_level[:150]
         else:
             student.grade_section = "Unassigned"
 
-        student.parent_name = parent_name.strip() if parent_name else ""
-        student.parent_phone = parent_phone.strip()
-        student.rfid_card_uid = str(rfid_card_uid).strip() if rfid_card_uid else ""
-        student.gender = gender
-        student.track_strand = track
+        student.parent_name = (parent_name or "").strip()[:150]
+        student.parent_phone = (parent_phone or "N/A").strip()[:50]
+        student.rfid_card_uid = str(rfid_card_uid or "").strip()[:50]
+        student.gender = (gender or "Unspecified").strip()[:50]
+        student.track_strand = (track or "Junior High").strip()[:100]
         student.is_active = True
         
         if photo_path:

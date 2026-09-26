@@ -1426,6 +1426,7 @@ def api_enroll_student():
         parent_phone = request.form.get('parent_phone', '').strip()
         rfid_card_uid = request.form.get('rfid_card_uid', '').strip()
         gender = request.form.get('gender', 'Unspecified').strip()
+        birthdate = request.form.get('birthdate', '').strip()
         track_strand = request.form.get('track_strand', 'Junior High').strip()
 
         if not lrn or not first_name or not last_name or not parent_phone:
@@ -1468,6 +1469,7 @@ def api_enroll_student():
             parent_phone=parent_phone,
             rfid_card_uid=rfid_card_uid,
             gender=gender,
+            birthdate=birthdate,
             track=track_strand,
             photo_path=photo_rel_path,
             embedding_array=embedding_vector
