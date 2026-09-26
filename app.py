@@ -47,10 +47,20 @@ streamer = GateStreamer.get_instance()
 streamer.start()
 
 # Initialize AI Face Recognition Engine (YuNet + SFace)
+face_engine = None
+def get_face_engine():
+    global face_engine
+    if face_engine is None:
+        try:
+            face_engine = SmileFaceEngine()
+        except Exception as e:
+            print(f"[!] Note: Face engine lazy initialized or disabled: {e}")
+            face_engine = None
+    return face_engine
+
 try:
-    face_engine = SmileFaceEngine()
-except Exception as e:
-    print(f"[!] Note: Face engine lazy initialized or disabled: {e}")
+    face_engine = get_face_engine()
+except Exception:
     face_engine = None
 
 def decode_image_payload(req):
@@ -1159,17 +1169,19 @@ def api_scan_id():
     """Processes an RFID card tap or barcode/QR code scan event."""
     data = request.json or {}
     identifier = data.get('identifier', '').strip()
+    method = data.get('method', 'RFID_TAP').strip()
     if not identifier:
         return jsonify({"success": False, "message": "Card UID or LRN is required."}), 400
 
-    success, msg = streamer.trigger_scan_by_id(identifier, method="RFID_TAP")
+    success, msg = streamer.trigger_scan_by_id(identifier, method=method)
     latest_ev = streamer.get_latest_event() or {}
     return jsonify({
         "success": success,
         "message": msg,
         "scan_type": latest_ev.get("scan_type"),
         "period": latest_ev.get("period"),
-        "voice_text": latest_ev.get("voice_text")
+        "voice_text": latest_ev.get("voice_text"),
+        "event": latest_ev
     })
 
 @app.route('/api/enroll', methods=['POST'])
@@ -1254,6 +1266,101 @@ def api_enroll_student():
     except Exception as e:
         return jsonify({"success": False, "message": f"Server Error: {str(e)}"}), 500
 
+@app.route('/api/kiosk-auto-scan', methods=['POST'])
+def api_kiosk_auto_scan():
+    """
+    High-Performance Unified Live Kiosk Auto-Scanner.
+    1. First checks for an optical DepEd QR Code in the frame (ultra-fast <10ms).
+    2. If no QR code, checks for a human face with YuNet detector.
+    3. If a face is found, extracts SFace 128-d biometric embedding and matches against enrolled students.
+    4. Automatically records attendance (TIME_IN / TIME_OUT), triggers parent SMS, and returns live HUD event.
+    """
+    try:
+        img = decode_image_payload(request)
+        if img is None:
+            return jsonify({"success": False, "detected": False, "message": "No frame received"}), 400
+
+        # Step 1: Optical QR Code Recognition (Fast Check)
+        try:
+            qr_detector = cv2.QRCodeDetector()
+            qr_text, points, _ = qr_detector.detectAndDecode(img)
+            if qr_text and len(qr_text.strip()) >= 6:
+                clean_code = qr_text.strip()
+                success, msg = streamer.trigger_scan_by_id(clean_code, method="QR_CODE")
+                latest_ev = streamer.get_latest_event() or {}
+                return jsonify({
+                    "success": success,
+                    "matched": True,
+                    "detected": True,
+                    "method": "QR_CODE",
+                    "code": clean_code,
+                    "message": msg,
+                    "scan_type": latest_ev.get("scan_type"),
+                    "period": latest_ev.get("period"),
+                    "voice_text": latest_ev.get("voice_text"),
+                    "student": {
+                        "lrn": latest_ev.get("lrn"),
+                        "full_name": latest_ev.get("name"),
+                        "grade_section": latest_ev.get("grade"),
+                        "photo_path": latest_ev.get("photo_path"),
+                        "parent_phone": latest_ev.get("parent_phone")
+                    },
+                    "event": latest_ev
+                })
+        except Exception as qr_err:
+            pass
+
+        # Step 2: AI Face Biometric Recognition
+        fe = get_face_engine()
+        if fe and fe.available:
+            faces = fe.detect_faces(img)
+            if len(faces) > 0:
+                best_face = max(faces, key=lambda f: f[2] * f[3])
+                query_emb = fe.extract_face_embedding(img, best_face)
+                enrolled = streamer.get_enrolled() if hasattr(streamer, 'get_enrolled') else (streamer.enrolled_students if streamer else get_all_enrolled_students_orm())
+                if not enrolled:
+                    enrolled = get_all_enrolled_students_orm()
+
+                match, score = fe.match_against_enrolled(query_emb, enrolled)
+                if match:
+                    success, msg = streamer.trigger_scan_by_student(match, method="FACE_RECOGNITION", score=score)
+                    clean_student = {k: v for k, v in match.items() if k != "embedding"}
+                    latest_ev = streamer.get_latest_event() or {}
+                    return jsonify({
+                        "success": success,
+                        "matched": True,
+                        "detected": True,
+                        "method": "FACE_RECOGNITION",
+                        "score": f"{score * 100:.1f}%",
+                        "student": clean_student,
+                        "message": f"Face Verified: {match['full_name']} ({score * 100:.1f}% Match)",
+                        "gate_message": msg,
+                        "scan_type": latest_ev.get("scan_type"),
+                        "period": latest_ev.get("period"),
+                        "voice_text": latest_ev.get("voice_text"),
+                        "event": latest_ev
+                    })
+                else:
+                    pct = f"{score * 100:.1f}%" if score > 0 else "0.0%"
+                    return jsonify({
+                        "success": False,
+                        "matched": False,
+                        "detected": True,
+                        "score": pct,
+                        "message": f"Unrecognized Face ({pct} Match)"
+                    })
+
+        # No QR and No Face detected
+        return jsonify({
+            "success": False,
+            "detected": False,
+            "matched": False,
+            "message": "Standby (No face or QR code detected in frame)"
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/verify-face', methods=['POST'])
 def api_verify_face():
     """
@@ -1267,14 +1374,22 @@ def api_verify_face():
         if img is None:
             return jsonify({"success": False, "message": "No image payload received."}), 400
 
-        faces = face_engine.detect_faces(img)
+        fe = get_face_engine()
+        if fe is None or not fe.available:
+            return jsonify({"success": False, "message": "Face recognition engine unavailable on server."}), 503
+
+        faces = fe.detect_faces(img)
         if len(faces) == 0:
-            return jsonify({"success": False, "message": "No face detected in camera view. Please position your face directly in front of the lens."}), 400
+            return jsonify({"success": False, "detected": False, "message": "No face detected in camera view. Please position your face directly in front of the lens."}), 200
 
         best_face = max(faces, key=lambda f: f[2] * f[3])
-        query_emb = face_engine.extract_face_embedding(img, best_face)
+        query_emb = fe.extract_face_embedding(img, best_face)
 
-        match, score = face_engine.match_against_enrolled(query_emb, streamer.enrolled_students)
+        enrolled = streamer.get_enrolled() if hasattr(streamer, 'get_enrolled') else (streamer.enrolled_students if streamer else get_all_enrolled_students_orm())
+        if not enrolled:
+            enrolled = get_all_enrolled_students_orm()
+
+        match, score = fe.match_against_enrolled(query_emb, enrolled)
 
         if match:
             success, msg = streamer.trigger_scan_by_student(match, method="FACE_RECOGNITION", score=score)
@@ -1283,19 +1398,22 @@ def api_verify_face():
             return jsonify({
                 "success": success,
                 "matched": True,
+                "detected": True,
                 "student": clean_student,
                 "score": f"{score * 100:.1f}%",
                 "message": f"Face Verified: {match['full_name']} ({score * 100:.1f}% Match)",
                 "gate_message": msg,
                 "scan_type": latest_ev.get("scan_type"),
                 "period": latest_ev.get("period"),
-                "voice_text": latest_ev.get("voice_text")
+                "voice_text": latest_ev.get("voice_text"),
+                "event": latest_ev
             })
         else:
             pct = f"{score * 100:.1f}%" if score > 0 else "0.0%"
             return jsonify({
                 "success": False,
                 "matched": False,
+                "detected": True,
                 "score": pct,
                 "message": f"Face not recognized (Similarity: {pct} - minimum threshold: 36.3%)."
             })

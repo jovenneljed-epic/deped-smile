@@ -76,6 +76,12 @@ class GateStreamer:
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
 
+    def get_enrolled(self):
+        """Returns enrolled students list, reloading from DB if empty."""
+        if not self.enrolled_students:
+            self.reload_enrolled_students()
+        return self.enrolled_students
+
     def reload_enrolled_students(self):
         """Refreshes enrolled students from database."""
         try:
