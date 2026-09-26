@@ -581,14 +581,20 @@ def dashboard():
 @role_required('SUPER_ADMIN', 'GUARD', 'PRINCIPAL')
 def kiosk():
     """Fullscreen DepEd Gate Kiosk Interface with Live AI HUD - High Performance."""
-    from smile_orm import get_enrolled_students_count_orm
-    summary = get_today_summary()
+    from smile_orm import get_enrolled_students_count_orm, Session, AttendanceLog, func
     total_enrolled = get_enrolled_students_count_orm()
+    session = Session()
+    try:
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
+        total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
+    finally:
+        session.close()
+
     return render_template(
         'kiosk.html',
         school_name=SCHOOL_NAME,
         total_enrolled=total_enrolled,
-        total_scans=summary["total_scans"]
+        total_scans=total_scans
     )
 
 @app.route('/enroll')
@@ -725,27 +731,24 @@ def parent_portal(lrn=None):
         if not linked_students:
             linked_students = [student.to_dict()]
 
-        # Today's gate logs (Philippine Standard Time)
-        today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        today_logs = [l.to_dict() for l in orm_session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == str(target_lrn),
-            AttendanceLog.timestamp >= today_start
-        ).order_by(AttendanceLog.id.desc()).all()]
-
-        # Historical logs (last 20 scans)
+        # Single fast query for recent gate scans (last 30 logs)
         all_logs = [l.to_dict() for l in orm_session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(target_lrn)
-        ).order_by(AttendanceLog.id.desc()).limit(20).all()]
+        ).order_by(AttendanceLog.id.desc()).limit(30).all()]
 
-        latest_log = today_logs[0] if today_logs else (all_logs[0] if all_logs else None)
+        # Filter today's gate logs in memory (PHT)
+        today_iso = pht_now().date().isoformat()
+        today_logs = [l for l in all_logs if str(l.get('timestamp', '')).startswith(today_iso)]
 
-        # Excuse notes
-        excuse_notes = get_student_excuse_notes_orm(target_lrn)
+        latest_log = all_logs[0] if all_logs else None
 
-        # Real Database Announcements
+        # Excuse notes (reusing active orm_session)
+        excuse_notes = get_student_excuse_notes_orm(target_lrn, session=orm_session)
+
+        # Real Database Announcements (cached in memory)
         announcements = get_all_announcements_orm()
 
-        # Real Database School Events & Activities
+        # Real Database School Events & Activities (cached in memory)
         events = get_all_events_orm()
 
         resp = Response(render_template(
@@ -1390,18 +1393,16 @@ def api_mobile_home(lrn):
         if not linked_students:
             linked_students = [student.to_dict()]
 
-        # Today's gate scans (Philippine Standard Time)
-        today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        today_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == str(lrn),
-            AttendanceLog.timestamp >= today_start
-        ).order_by(AttendanceLog.id.desc()).all()]
-
+        # Single fast query for recent gate scans (last 20 logs)
         all_logs = [l.to_dict() for l in session.query(AttendanceLog).filter(
             AttendanceLog.lrn == str(lrn)
-        ).order_by(AttendanceLog.id.desc()).limit(15).all()]
+        ).order_by(AttendanceLog.id.desc()).limit(20).all()]
 
-        latest_log = today_logs[0] if today_logs else (all_logs[0] if all_logs else None)
+        # Filter today's gate scans in memory (PHT)
+        today_iso = pht_now().date().isoformat()
+        today_logs = [l for l in all_logs if str(l.get('timestamp', '')).startswith(today_iso)]
+
+        latest_log = all_logs[0] if all_logs else None
 
         status_text = "AWAITING_ARRIVAL"
         if latest_log:
@@ -1410,20 +1411,14 @@ def api_mobile_home(lrn):
             elif latest_log.get("scan_type") == "TIME_OUT":
                 status_text = "SAFELY_EXITED"
 
-        # Events
-        today_str = pht_now().date().isoformat()
-        upcoming_events = [e.to_dict() for e in session.query(SchoolEvent).filter(
-            SchoolEvent.event_date >= today_str
-        ).order_by(SchoolEvent.event_date.asc()).limit(3).all()]
+        # Events and announcements from cached ORM helpers (0ms DB latency)
+        from smile_orm import get_all_events_orm, get_all_announcements_orm
+        all_events = get_all_events_orm(upcoming_only=True)
+        upcoming_events = all_events[:3]
+        featured_event = next((e for e in all_events if e.get("is_highlighted")), (upcoming_events[0] if upcoming_events else None))
 
-        featured_event = session.query(SchoolEvent).filter(
-            SchoolEvent.is_highlighted == True,
-            SchoolEvent.event_date >= today_str
-        ).order_by(SchoolEvent.event_date.asc()).first()
-
-        urgent_announcements = [a.to_dict() for a in session.query(Announcement).filter(
-            Announcement.is_urgent == True
-        ).order_by(Announcement.id.desc()).limit(3).all()]
+        all_ann = get_all_announcements_orm()
+        urgent_announcements = [a for a in all_ann if a.get("is_urgent")][:3]
 
         return jsonify({
             "success": True,

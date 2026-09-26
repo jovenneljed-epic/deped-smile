@@ -1,4 +1,6 @@
 import json
+import os
+import time
 import numpy as np
 from datetime import datetime, date
 from pathlib import Path
@@ -10,10 +12,15 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 from smile_config import (
     get_database_url, DATABASE_TYPE, COOLDOWN_SECONDS, MIDDAY_SPLIT_HOUR,
-    pht_now, PHT
+    pht_now, PHT, IS_VERCEL
 )
+import smile_config
 from smile_qr import generate_student_qr
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# High-Speed In-Memory Caches for Static/Infrequent Records (60s TTL)
+_ANNOUNCEMENTS_CACHE = {"data": None, "ts": 0}
+_EVENTS_CACHE = {"data": None, "ts": 0}
 
 Base = declarative_base()
 
@@ -433,13 +440,14 @@ def create_orm_engine():
             connect_args["ssl_context"] = ssl_ctx
 
         # Enterprise Cloud Database (PostgreSQL / MySQL) connection pool
+        is_serverless = getattr(smile_config, 'IS_VERCEL', False) or os.environ.get('VERCEL') == '1'
         return create_engine(
             db_url,
             connect_args=connect_args,
-            pool_size=5,
-            max_overflow=10,
+            pool_size=5 if not is_serverless else 3,
+            max_overflow=10 if not is_serverless else 5,
             pool_recycle=300,
-            pool_pre_ping=True
+            pool_pre_ping=False if is_serverless else True
         )
 
 engine = create_orm_engine()
@@ -1387,14 +1395,18 @@ def save_excuse_note_orm(lrn, parent_name, parent_phone, date_effective, reason,
     finally:
         session.close()
 
-def get_student_excuse_notes_orm(lrn):
+def get_student_excuse_notes_orm(lrn, session=None):
     """Retrieves all excuse notes submitted for a specific learner."""
-    session = Session()
+    close_session = False
+    if session is None:
+        session = Session()
+        close_session = True
     try:
-        notes = session.query(ExcuseNote).filter_by(lrn=str(lrn)).order_by(desc(ExcuseNote.id)).all()
+        notes = session.query(ExcuseNote).filter_by(lrn=str(lrn)).order_by(desc(ExcuseNote.id)).limit(15).all()
         return [n.to_dict() for n in notes]
     finally:
-        session.close()
+        if close_session:
+            session.close()
 
 def get_students_by_parent_phone_orm(phone):
     """Finds all enrolled learners linked to a guardian's mobile phone number."""
@@ -1478,18 +1490,29 @@ def seed_default_announcements_orm():
         session.close()
 
 def get_all_announcements_orm(limit=30, category=None):
-    """Retrieves school announcements ordered by urgency and date."""
+    """Retrieves school announcements ordered by urgency and date (with 60s memory caching)."""
+    global _ANNOUNCEMENTS_CACHE
+    now = time.time()
+    use_cache = (category in (None, "ALL") and limit == 30)
+    if use_cache and _ANNOUNCEMENTS_CACHE["data"] is not None and (now - _ANNOUNCEMENTS_CACHE["ts"]) < 60:
+        return _ANNOUNCEMENTS_CACHE["data"]
+
     session = Session()
     try:
         query = session.query(Announcement)
         if category and category != "ALL":
             query = query.filter(Announcement.category == category)
         items = query.order_by(Announcement.is_urgent.desc(), Announcement.id.desc()).limit(limit).all()
-        return [item.to_dict() for item in items]
+        res = [item.to_dict() for item in items]
+        if use_cache:
+            _ANNOUNCEMENTS_CACHE["data"] = res
+            _ANNOUNCEMENTS_CACHE["ts"] = now
+        return res
     finally:
         session.close()
 
 def save_announcement_orm(title, category, content, author="School Administration", badge_color="blue", is_urgent=False, target_grade="ALL"):
+    global _ANNOUNCEMENTS_CACHE
     session = Session()
     try:
         ann = Announcement(
@@ -1503,11 +1526,13 @@ def save_announcement_orm(title, category, content, author="School Administratio
         )
         session.add(ann)
         session.commit()
+        _ANNOUNCEMENTS_CACHE["data"] = None  # Cache invalidation
         return ann.to_dict()
     finally:
         session.close()
 
 def delete_announcement_orm(announcement_id):
+    global _ANNOUNCEMENTS_CACHE
     session = Session()
     try:
         ann = session.query(Announcement).filter_by(id=int(announcement_id)).first()
@@ -1515,6 +1540,7 @@ def delete_announcement_orm(announcement_id):
             return False, "Announcement not found"
         session.delete(ann)
         session.commit()
+        _ANNOUNCEMENTS_CACHE["data"] = None  # Cache invalidation
         return True, "Announcement deleted successfully"
     finally:
         session.close()
@@ -1624,7 +1650,13 @@ def seed_default_events_orm():
         session.close()
 
 def get_all_events_orm(limit=50, category=None, upcoming_only=False):
-    """Retrieves school events ordered by event date."""
+    """Retrieves school events ordered by event date (with 60s memory caching)."""
+    global _EVENTS_CACHE
+    now = time.time()
+    use_cache = (category in (None, "ALL") and limit == 50 and not upcoming_only)
+    if use_cache and _EVENTS_CACHE["data"] is not None and (now - _EVENTS_CACHE["ts"]) < 60:
+        return _EVENTS_CACHE["data"]
+
     session = Session()
     try:
         query = session.query(SchoolEvent)
@@ -1634,7 +1666,11 @@ def get_all_events_orm(limit=50, category=None, upcoming_only=False):
             today_str = pht_now().date().isoformat()
             query = query.filter(SchoolEvent.event_date >= today_str)
         items = query.order_by(SchoolEvent.event_date.asc(), SchoolEvent.id.asc()).limit(limit).all()
-        return [i.to_dict() for i in items]
+        res = [i.to_dict() for i in items]
+        if use_cache:
+            _EVENTS_CACHE["data"] = res
+            _EVENTS_CACHE["ts"] = now
+        return res
     finally:
         session.close()
 
@@ -1642,6 +1678,7 @@ def save_event_orm(title, category, description, event_date, start_time="08:00 A
                    location="School Gymnasium", target_grades="ALL", organizer="School Administration",
                    badge_color="blue", is_highlighted=False):
     """Creates a new school event."""
+    global _EVENTS_CACHE
     session = Session()
     try:
         ev = SchoolEvent(
@@ -1659,6 +1696,7 @@ def save_event_orm(title, category, description, event_date, start_time="08:00 A
         )
         session.add(ev)
         session.commit()
+        _EVENTS_CACHE["data"] = None  # Cache invalidation
         return ev.to_dict(), "Event created successfully!"
     except Exception as ex:
         session.rollback()
@@ -1668,6 +1706,7 @@ def save_event_orm(title, category, description, event_date, start_time="08:00 A
 
 def delete_event_orm(event_id):
     """Deletes a school event."""
+    global _EVENTS_CACHE
     session = Session()
     try:
         ev = session.query(SchoolEvent).filter_by(id=int(event_id)).first()
@@ -1675,6 +1714,7 @@ def delete_event_orm(event_id):
             return False, "Event not found"
         session.delete(ev)
         session.commit()
+        _EVENTS_CACHE["data"] = None  # Cache invalidation
         return True, "Event deleted successfully"
     finally:
         session.close()
