@@ -3,6 +3,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -243,12 +244,21 @@ export default function App() {
       {/* Top Header */}
       <View style={styles.header}>
         <View style={styles.headerBrand}>
-          <View style={styles.depedBadge}>
-            <Text style={styles.depedBadgeText}>DepEd</Text>
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>PROJECT S.M.I.L.E.</Text>
-            <Text style={styles.headerSubtitle}>Parent Safety Mobile Companion</Text>
+          <Image
+            source={require('./assets/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.headerTitle}>PROJECT S.M.I.L.E.</Text>
+              <View style={styles.depedBadge}>
+                <Text style={styles.depedBadgeText}>DepEd</Text>
+              </View>
+            </View>
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              Security Monitoring, Incident Logging, and E-notification
+            </Text>
           </View>
         </View>
         <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsModalVisible(true)}>
@@ -634,7 +644,13 @@ const styles = StyleSheet.create({
   headerBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
+    flex: 1,
+  },
+  headerLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
   },
   depedBadge: {
     backgroundColor: '#FCD116',

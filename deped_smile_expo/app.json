@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B192C"
+      "backgroundColor": "#16181b"
     },
     "ios": {
       "supportsTablet": true,
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0B192C"
+        "backgroundColor": "#16181b"
       },
       "package": "com.deped.smile.parent",
       "permissions": [
