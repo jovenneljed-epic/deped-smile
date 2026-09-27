@@ -1432,6 +1432,23 @@ def api_mobile_home(lrn):
         all_ann = get_all_announcements_orm()
         urgent_announcements = [a for a in all_ann if a.get("is_urgent")][:3]
 
+        # Incident Logs
+        incidents = []
+        try:
+            import sqlite3
+            conn = sqlite3.connect(smile_config.DB_PATH)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("""
+                SELECT * FROM incidents 
+                WHERE lrn = ? OR lrn = '' OR lrn IS NULL 
+                ORDER BY id DESC LIMIT 10
+            """, (str(lrn),))
+            incidents = [dict(r) for r in c.fetchall()]
+            conn.close()
+        except Exception:
+            incidents = []
+
         return jsonify({
             "success": True,
             "student": student.to_dict(),
@@ -1439,13 +1456,87 @@ def api_mobile_home(lrn):
             "status": status_text,
             "latest_log": latest_log,
             "today_logs": today_logs,
+            "all_logs": all_logs,
             "upcoming_events": upcoming_events,
+            "all_events": all_events,
             "featured_event": featured_event,
             "urgent_announcements": urgent_announcements,
+            "all_announcements": all_ann,
+            "incidents": incidents,
             "today_date": pht_now().strftime("%A, %B %d, %Y")
         })
     finally:
         session.close()
+
+@app.route('/api/incidents', methods=['GET', 'POST'])
+def api_incidents():
+    """Returns safety and security incident logs or files a new incident."""
+    import sqlite3
+    if request.method == 'GET':
+        lrn = request.args.get('lrn', '')
+        try:
+            conn = sqlite3.connect(smile_config.DB_PATH)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            if lrn:
+                c.execute("SELECT * FROM incidents WHERE lrn = ? OR lrn = '' OR lrn IS NULL ORDER BY id DESC LIMIT 20", (str(lrn),))
+            else:
+                c.execute("SELECT * FROM incidents ORDER BY id DESC LIMIT 20")
+            items = [dict(r) for r in c.fetchall()]
+            conn.close()
+            return jsonify({"success": True, "incidents": items})
+        except Exception as e:
+            return jsonify({"success": True, "incidents": []})
+
+    # POST (Parent or Security filing an incident/concern)
+    data = request.json or {}
+    title = data.get('title', '').strip()
+    desc = data.get('description', '').strip()
+    lrn = data.get('lrn', '').strip()
+    student_name = data.get('student_name', 'Student').strip()
+    incident_type = data.get('incident_type', 'PARENT_SAFETY_CONCERN').strip()
+    location = data.get('location', 'Campus Grounds').strip()
+    reported_by = data.get('reported_by', 'Parent Guardian').strip()
+
+    if not title or not desc:
+        return jsonify({"success": False, "message": "Title and description are required."}), 400
+
+    try:
+        conn = sqlite3.connect(smile_config.DB_PATH)
+        c = conn.cursor()
+        inc_code = f"INC-{pht_now().strftime('%Y')}-{pht_now().strftime('%m%d%H%M%S')[-4:]}"
+        now_str = pht_now().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("""
+            INSERT INTO incidents 
+            (incident_code, lrn, student_name, incident_type, title, description, location, severity, status, reported_by, reported_at, resolution_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'MODERATE', 'OPEN', ?, ?, 'Under review by School Security Office')
+        """, (inc_code, lrn, student_name, incident_type, title, desc, location, reported_by, now_str))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": f"Incident report #{inc_code} submitted successfully to School Security.", "incident_code": inc_code})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/security/login', methods=['POST'])
+def api_security_login():
+    """Security staff and guard PIN/credentials authentication."""
+    data = request.json or {}
+    pin = str(data.get('pin', '')).strip()
+    badge = str(data.get('badge', '')).strip().upper()
+
+    # Valid default guard demo PINs: 1234 or 2026 or 0000
+    if pin in ["1234", "2026", "0000"] or badge in ["SEC-01", "GUARD-01", "ADMIN"]:
+        return jsonify({
+            "success": True,
+            "message": "Security Officer authenticated successfully.",
+            "officer": {
+                "name": "Chief Security Officer D. Ramos",
+                "badge_id": badge or "SEC-DEPED-09",
+                "station": "Main Campus Gate 1 & Perimeter Command",
+                "role": "CAMPUS_SECURITY_MARSHAL"
+            }
+        })
+    return jsonify({"success": False, "message": "Invalid Security PIN or Badge ID. Default demo PIN: 1234"}), 401
 
 @app.route('/api/mobile/notifications/<lrn>')
 def api_mobile_notifications(lrn):
