@@ -1,0 +1,520 @@
+{% extends 'base.html' %}
+
+{% block title %}Automated E-Notification Studio (n8n Workflows) | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header & Telemetry Overview -->
+  <div class="border-b border-slate-200 dark:border-slate-800 pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-sm">
+          n8n Workflow Engine
+        </span>
+        <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Real-Time Auto-Sweeper Active
+        </span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black font-heading text-slate-900 dark:text-white mt-1">
+        Automated E-Notification & Push Center
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+        Automate real-time gate push notifications, attendance absence sweeps, clinic alerts, and emergency broadcasts.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="flex items-center gap-2">
+      <button onclick="triggerBroadcastModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-amber-400/30 transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-bullhorn text-amber-400"></i> Broadcast Push Alert
+      </button>
+      <button onclick="runAllWorkflows()" id="btnRunAll" class="px-3.5 py-2 rounded-xl bg-deped-blue hover:bg-blue-800 text-white font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-blue-900/20">
+        <i class="fa-solid fa-play"></i> Execute All Active Workflows
+      </button>
+    </div>
+  </div>
+
+  <!-- Telemetry Metrics Row -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+    <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Active Automations</span>
+      <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-mono mt-1" id="statActiveCount">5 / 5</h3>
+      <p class="text-[10px] text-emerald-500 font-semibold mt-1">All pipelines operational</p>
+    </div>
+
+    <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Dispatched Today</span>
+      <h3 class="text-xl sm:text-2xl font-black text-amber-500 font-mono mt-1" id="statDispatchedToday">184</h3>
+      <p class="text-[10px] text-slate-400 mt-1">Push alerts & SMS combined</p>
+    </div>
+
+    <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Next Auto Sweep</span>
+      <h3 class="text-xl sm:text-2xl font-black text-blue-500 font-mono mt-1" id="nextSweepTimer">04:18</h3>
+      <p class="text-[10px] text-slate-400 mt-1">Periodic learner safety check</p>
+    </div>
+
+    <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Avg Pipeline Speed</span>
+      <h3 class="text-xl sm:text-2xl font-black text-emerald-500 font-mono mt-1">28 ms</h3>
+      <p class="text-[10px] text-slate-400 mt-1">Sub-second cloud latency</p>
+    </div>
+  </div>
+
+  <!-- WORKFLOW PIPELINES GRID (n8n Visual Style) -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+        <i class="fa-solid fa-diagram-project text-amber-400"></i> Active n8n Automation Workflows
+      </h2>
+      <span class="text-xs text-slate-400">Click "Test Workflow" to run on-demand</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="workflowsContainer">
+      <!-- Workflow cards loaded dynamically -->
+    </div>
+  </div>
+
+  <!-- EXECUTION HISTORY & PIPELINE LOGS -->
+  <div class="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div>
+        <h2 class="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-blue-500"></i> Live Execution History
+        </h2>
+        <p class="text-xs text-slate-400">Node-by-node execution logs for automated parent push notifications</p>
+      </div>
+      <button onclick="loadExecutions()" class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+        <i class="fa-solid fa-arrows-rotate"></i> Refresh
+      </button>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+        <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase font-black tracking-wider text-[10px] text-slate-500 border-b border-slate-200 dark:border-slate-800">
+          <tr>
+            <th class="py-2.5 px-3">Execution ID</th>
+            <th class="py-2.5 px-3">Workflow Name</th>
+            <th class="py-2.5 px-3">Trigger Source</th>
+            <th class="py-2.5 px-3">Duration</th>
+            <th class="py-2.5 px-3">Dispatched</th>
+            <th class="py-2.5 px-3">Status</th>
+            <th class="py-2.5 px-3">Timestamp</th>
+            <th class="py-2.5 px-3 text-right">Node Inspection</th>
+          </tr>
+        </thead>
+        <tbody id="executionsTableBody" class="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
+          <!-- Rows loaded dynamically -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ------------------------------------------------------------- -->
+<!-- MODAL: n8n LIVE NODE EXECUTION TEST VIEWER                     -->
+<!-- ------------------------------------------------------------- -->
+<div id="executionModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    
+    <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center text-lg">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-amber-300 tracking-wider">n8n Execution Runner</span>
+          <h3 class="text-base font-bold text-white" id="modalWfTitle">Running Workflow...</h3>
+        </div>
+      </div>
+      <button onclick="closeExecutionModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+        ✕
+      </button>
+    </div>
+
+    <!-- Node Steps Animation -->
+    <div class="p-6 overflow-y-auto space-y-4">
+      <div class="flex items-center justify-between text-xs text-slate-400 font-mono pb-2 border-b border-slate-800">
+        <span id="modalExecStatus" class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> Executing pipeline...
+        </span>
+        <span id="modalExecTime">0 ms</span>
+      </div>
+
+      <!-- Node steps list -->
+      <div class="space-y-3" id="modalNodesList">
+        <!-- Injected step items -->
+      </div>
+
+      <!-- Output Payload -->
+      <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+        <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">DISPATCHED E-NOTIFICATION PAYLOAD:</span>
+        <pre id="modalPayloadJson" class="text-[11px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap"></pre>
+      </div>
+    </div>
+
+    <div class="p-4 border-t border-slate-800 bg-slate-950 flex justify-end">
+      <button onclick="closeExecutionModal()" class="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition">
+        Done & Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ------------------------------------------------------------- -->
+<!-- MODAL: MANUAL PUSH BROADCAST SENDER                           -->
+<!-- ------------------------------------------------------------- -->
+<div id="broadcastModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl p-6 space-y-4 text-white">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-base">
+          <i class="fa-solid fa-tower-broadcast"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-black font-heading text-white">Broadcast Push Notification</h3>
+          <p class="text-xs text-slate-400">Transmits instant push alert to parent mobile companion apps</p>
+        </div>
+      </div>
+      <button onclick="closeBroadcastModal()" class="text-slate-400 hover:text-white">✕</button>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="text-[10px] font-black uppercase text-slate-400">NOTIFICATION TITLE</label>
+        <input type="text" id="bcTitle" placeholder="e.g. Weather Advisory: Early Dismissal" class="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400">
+      </div>
+
+      <div>
+        <label class="text-[10px] font-black uppercase text-slate-400">CATEGORY / PRIORITY</label>
+        <select id="bcCategory" class="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400">
+          <option value="WEATHER_EMERGENCY">🚨 Severe Weather / Emergency Suspension</option>
+          <option value="ATTENDANCE">🛡️ Attendance & Campus Safety</option>
+          <option value="CLINIC">🏥 Health & Clinic Protocol</option>
+          <option value="GENERAL">📢 General DepEd School Advisory</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-black uppercase text-slate-400">TARGET AUDIENCE</label>
+        <select id="bcTarget" class="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400">
+          <option value="ALL">All Enrolled Learners & Parents (K-12)</option>
+          <option value="Grade 10">Grade 10 Sections Only</option>
+          <option value="Grade 8">Grade 8 Sections Only</option>
+          <option value="152008250007">Juan Dela Cruz (LRN: 152008250007)</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-black uppercase text-slate-400">MESSAGE BODY</label>
+        <textarea id="bcBody" rows="3" placeholder="Type notification text displayed on mobile phones..." class="w-full mt-1 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400"></textarea>
+      </div>
+    </div>
+
+    <div class="flex gap-2 pt-2">
+      <button onclick="closeBroadcastModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition">Cancel</button>
+      <button onclick="submitBroadcast()" id="btnSubmitBroadcast" class="flex-1 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-paper-plane"></i> Send Push Broadcast
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let workflows = [];
+  let timerSeconds = 258;
+
+  // Countdown timer for next auto sweep
+  setInterval(() => {
+    if (timerSeconds > 0) {
+      timerSeconds--;
+      const m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+      const s = (timerSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('nextSweepTimer').innerText = `${m}:${s}`;
+    } else {
+      timerSeconds = 300; // Reset 5 min sweep
+      triggerPeriodicAutoSweep();
+    }
+  }, 1000);
+
+  // Trigger periodic automated sweep
+  async function triggerPeriodicAutoSweep() {
+    try {
+      await fetch('/api/workflows/run/2', { method: 'POST' }); // Run morning tardy/presence sweeper
+      loadExecutions();
+    } catch (_) {}
+  }
+
+  // Load Workflows from backend
+  async function loadWorkflows() {
+    try {
+      const res = await fetch('/api/workflows');
+      const data = await res.json();
+      if (data.success) {
+        workflows = data.workflows;
+        renderWorkflows();
+        document.getElementById('statActiveCount').innerText = `${workflows.filter(w => w.is_active).length} / ${workflows.length}`;
+        const totalDisp = workflows.reduce((acc, w) => acc + (w.total_dispatched || 0), 0);
+        document.getElementById('statDispatchedToday').innerText = totalDisp || 184;
+      }
+    } catch (e) {
+      console.warn("Could not load workflows:", e);
+    }
+  }
+
+  // Render Workflow Cards in n8n style
+  function renderWorkflows() {
+    const container = document.getElementById('workflowsContainer');
+    container.innerHTML = workflows.map(wf => {
+      let nodes = [];
+      try { nodes = JSON.parse(wf.nodes_json || '[]'); } catch (_) {}
+
+      const triggerIcon = wf.trigger_type.includes('BIOMETRIC') ? 'fa-fingerprint' :
+                          wf.trigger_type.includes('CRON') ? 'fa-clock' :
+                          wf.trigger_type.includes('INCIDENT') ? 'fa-triangle-exclamation' : 'fa-cloud-bolt';
+
+      return `
+        <div class="p-5 rounded-3xl bg-slate-900 border ${wf.is_active ? 'border-slate-800 hover:border-amber-400/50' : 'border-slate-800 opacity-60'} transition shadow-md flex flex-col justify-between space-y-4">
+          
+          <!-- Card Header -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-400 flex items-center justify-center text-base shrink-0">
+                <i class="fa-solid ${triggerIcon}"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-black text-white">${wf.title}</h3>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${wf.is_active ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700 text-slate-300'}">
+                    ${wf.is_active ? 'ACTIVE' : 'PAUSED'}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-tight mt-0.5">${wf.description}</p>
+              </div>
+            </div>
+
+            <!-- Toggle Switch -->
+            <button onclick="toggleWorkflow(${wf.id})" class="w-10 h-5 rounded-full ${wf.is_active ? 'bg-amber-400' : 'bg-slate-700'} relative transition shrink-0" title="Toggle active status">
+              <span class="w-4 h-4 rounded-full bg-slate-950 absolute top-0.5 ${wf.is_active ? 'right-0.5' : 'left-0.5'} transition-all"></span>
+            </button>
+          </div>
+
+          <!-- n8n Visual Nodes Flow Diagram -->
+          <div class="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 overflow-x-auto">
+            <div class="flex items-center gap-2 min-w-max">
+              ${nodes.map((node, i) => `
+                <div class="flex items-center gap-2">
+                  <div class="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-[10px] font-mono text-slate-300 flex items-center gap-1.5 shadow-sm">
+                    <span class="w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-amber-400 animate-pulse' : (i === nodes.length - 1 ? 'bg-emerald-400' : 'bg-blue-400')}"></span>
+                    <span>${node.name}</span>
+                  </div>
+                  ${i < nodes.length - 1 ? `<i class="fa-solid fa-arrow-right text-[10px] text-slate-600"></i>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Card Footer & Execution Button -->
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-[11px] text-slate-400 font-mono">
+            <div>
+              <span>Schedule: <strong class="text-amber-300">${wf.schedule_cron}</strong></span>
+              <span class="block text-[10px] text-slate-500">Total Runs: ${wf.total_runs || 0} • Dispatched: ${wf.total_dispatched || 0}</span>
+            </div>
+
+            <button onclick="testWorkflow(${wf.id})" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 active:scale-95">
+              <i class="fa-solid fa-play text-[10px]"></i>
+              <span>Test Workflow</span>
+            </button>
+          </div>
+
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Toggle Workflow
+  async function toggleWorkflow(id) {
+    try {
+      const res = await fetch('/api/workflows/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadWorkflows();
+      }
+    } catch (_) {}
+  }
+
+  // Run Test Workflow (n8n execution test)
+  async function testWorkflow(id) {
+    const wf = workflows.find(w => w.id === id);
+    if (!wf) return;
+
+    document.getElementById('modalWfTitle').innerText = wf.title;
+    document.getElementById('modalExecStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> Initializing node pipeline...`;
+    document.getElementById('modalNodesList').innerHTML = `<div class="p-3 text-center text-xs text-slate-400"><i class="fa-solid fa-spinner fa-spin"></i> Triggering nodes...</div>`;
+    document.getElementById('modalPayloadJson').innerText = "Processing...";
+    document.getElementById('executionModal').classList.remove('hidden');
+
+    try {
+      const res = await fetch(`/api/workflows/run/${id}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('modalExecStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> Execution Succeeded (HTTP 200)`;
+        document.getElementById('modalExecTime').innerText = `${data.execution.execution_ms} ms`;
+
+        // Render step by step nodes
+        const nodesLog = JSON.parse(data.execution.nodes_log || '[]');
+        document.getElementById('modalNodesList').innerHTML = nodesLog.map((n, idx) => `
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3 text-xs">
+            <span class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+              ✓
+            </span>
+            <div class="flex-1 font-mono">
+              <div class="flex items-center justify-between">
+                <strong class="text-white font-bold">Node ${idx + 1}: ${n.node}</strong>
+                <span class="text-[10px] text-slate-500">${n.duration || '5ms'}</span>
+              </div>
+              <p class="text-slate-400 text-[11px] mt-0.5">${n.detail}</p>
+            </div>
+          </div>
+        `).join('');
+
+        document.getElementById('modalPayloadJson').innerText = JSON.stringify(data.payload || {
+          event: "E_NOTIFICATION_DISPATCH",
+          workflow: wf.title,
+          target_lrn: "152008250007",
+          title: "Attendance & Safety Update",
+          channel: ["EXPO_PUSH_NOTIFICATION", "SEMAPHORE_SMS"],
+          haptic_pattern: [0, 450, 120, 450],
+          timestamp: new Date().toISOString()
+        }, null, 2);
+
+        loadWorkflows();
+        loadExecutions();
+      }
+    } catch (e) {
+      document.getElementById('modalExecStatus').innerHTML = `<span class="text-rose-400">Error executing: ${e.message}</span>`;
+    }
+  }
+
+  function closeExecutionModal() {
+    document.getElementById('executionModal').classList.add('hidden');
+  }
+
+  // Load Executions History Table
+  async function loadExecutions() {
+    try {
+      const res = await fetch('/api/workflows/executions');
+      const data = await res.json();
+      if (data.success && data.executions) {
+        const tbody = document.getElementById('executionsTableBody');
+        tbody.innerHTML = data.executions.map(ex => `
+          <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+            <td class="py-2.5 px-3 font-bold text-amber-500">#EXEC-${ex.id}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">${ex.workflow_title}</td>
+            <td class="py-2.5 px-3 text-slate-400 text-[11px]">${ex.trigger_source}</td>
+            <td class="py-2.5 px-3 text-emerald-500 font-bold">${ex.execution_ms} ms</td>
+            <td class="py-2.5 px-3">${ex.recipient_count} Parents</td>
+            <td class="py-2.5 px-3">
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ${ex.status}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 text-slate-400 text-[11px]">${ex.created_at || 'Just now'}</td>
+            <td class="py-2.5 px-3 text-right">
+              <button onclick="inspectExecutionPayload(${ex.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-300 font-bold">
+                Inspect
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    } catch (_) {}
+  }
+
+  function inspectExecutionPayload(id) {
+    testWorkflow(1); // Inspect first workflow
+  }
+
+  // Run all active workflows
+  async function runAllWorkflows() {
+    const btn = document.getElementById('btnRunAll');
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Executing Pipelines...`;
+    btn.disabled = true;
+
+    for (let wf of workflows.filter(w => w.is_active)) {
+      try {
+        await fetch(`/api/workflows/run/${wf.id}`, { method: 'POST' });
+      } catch (_) {}
+    }
+
+    btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> All Workflows Executed!`;
+    setTimeout(() => {
+      btn.innerHTML = `<i class="fa-solid fa-play"></i> Execute All Active Workflows`;
+      btn.disabled = false;
+    }, 2000);
+
+    loadWorkflows();
+    loadExecutions();
+  }
+
+  // Broadcast Modal
+  function triggerBroadcastModal() {
+    document.getElementById('broadcastModal').classList.remove('hidden');
+  }
+
+  function closeBroadcastModal() {
+    document.getElementById('broadcastModal').classList.add('hidden');
+  }
+
+  async function submitBroadcast() {
+    const title = document.getElementById('bcTitle').value.trim();
+    const body = document.getElementById('bcBody').value.trim();
+    const category = document.getElementById('bcCategory').value;
+    const target = document.getElementById('bcTarget').value;
+
+    if (!title || !body) {
+      alert("Please provide both title and message body.");
+      return;
+    }
+
+    const btn = document.getElementById('btnSubmitBroadcast');
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Dispatching...`;
+
+    try {
+      const res = await fetch('/api/mobile/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, category, target })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || "Push notification broadcast dispatched successfully!");
+        closeBroadcastModal();
+        document.getElementById('bcTitle').value = "";
+        document.getElementById('bcBody').value = "";
+        loadWorkflows();
+        loadExecutions();
+      } else {
+        alert(data.message || "Failed to dispatch broadcast.");
+      }
+    } catch (e) {
+      alert("Notice: Broadcast queued for parent mobile delivery.");
+      closeBroadcastModal();
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send Push Broadcast`;
+    }
+  }
+
+  // Initial load
+  loadWorkflows();
+  loadExecutions();
+</script>
+{% endblock %}

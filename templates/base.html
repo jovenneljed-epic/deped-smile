@@ -92,6 +92,9 @@
           <a href="/parent" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
             <i class="fa-solid fa-mobile-screen mr-1 text-[11px] text-amber-300"></i> Parent App
           </a>
+          <a href="/automations" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/automations' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+            <i class="fa-solid fa-network-wired mr-1 text-[11px] text-amber-400"></i> Automations
+          </a>
           <a href="/database" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/database' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
             <i class="fa-solid fa-database mr-1 text-[11px]"></i> Database
           </a>
@@ -195,6 +198,10 @@
         <a href="/parent" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
           <i class="fa-solid fa-mobile-screen text-amber-400 text-sm w-4 text-center"></i>
           <span>Parent App</span>
+        </a>
+        <a href="/automations" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/automations' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
+          <i class="fa-solid fa-network-wired text-amber-400 text-sm w-4 text-center"></i>
+          <span>Automations</span>
         </a>
         <a href="/database" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/database' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
           <i class="fa-solid fa-database text-cyan-400 text-sm w-4 text-center"></i>

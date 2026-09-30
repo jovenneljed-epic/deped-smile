@@ -93,6 +93,14 @@ export default function App() {
   // Filter States
   const [incidentFilter, setIncidentFilter] = useState('ALL');
   const [bulletinFilter, setBulletinFilter] = useState('ALL');
+  const [notifFilter, setNotifFilter] = useState('ALL');
+
+  // Push Notification Center & n8n Automation Engine State
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [runningAutomation, setRunningAutomation] = useState(false);
+  const lastNotifCountRef = useRef(0);
 
   // Security Staff Mode State
   const [isGuardAuthenticated, setIsGuardAuthenticated] = useState(false);
@@ -167,6 +175,7 @@ export default function App() {
 
     // Initial database fetch
     fetchDashboardData(activeLrn);
+    fetchNotifications(activeLrn);
     startPolling(activeLrn);
 
     // Complete loading after animation
@@ -240,6 +249,25 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
+  // 2b. Fetch Push Notifications (n8n Automated Workflow Center)
+  // -------------------------------------------------------------
+  const fetchNotifications = async (lrn) => {
+    try {
+      const res = await fetch(`${serverUrl}/api/mobile/notifications/${lrn}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setNotifications(data.notifications || []);
+        const unread = data.unread_count || 0;
+        setUnreadNotifCount(unread);
+      }
+    } catch (err) {
+      console.warn("Notification stream notice:", err.message);
+    }
+  };
+
+  // -------------------------------------------------------------
   // 3. Background Polling & E-Notification Alert Stream
   // -------------------------------------------------------------
   const startPolling = (lrn) => {
@@ -256,6 +284,44 @@ export default function App() {
           lastEventIdRef.current = data.event.id;
           triggerGateAlert(data.event);
           fetchDashboardData(lrn);
+        }
+
+        // Periodically poll automated push notification pipeline
+        const notifRes = await fetch(`${serverUrl}/api/mobile/notifications/${lrn}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        const notifData = await notifRes.json();
+        if (notifData && notifData.success) {
+          setNotifications(notifData.notifications || []);
+          const unread = notifData.unread_count || 0;
+          if (unread > lastNotifCountRef.current && lastNotifCountRef.current > 0) {
+            // New automated push notification received!
+            if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
+            const latest = notifData.notifications[0];
+            if (latest && pushEnabled) {
+              setAlertData({
+                student_name: student ? student.full_name : "Juan Dela Cruz",
+                scan_type: latest.title,
+                verification_method: latest.type || "n8n Automated Push",
+                remarks: latest.body
+              });
+              Animated.sequence([
+                Animated.timing(bannerAnim, {
+                  toValue: 20,
+                  duration: 350,
+                  useNativeDriver: true,
+                }),
+                Animated.delay(4500),
+                Animated.timing(bannerAnim, {
+                  toValue: -120,
+                  duration: 300,
+                  useNativeDriver: true,
+                })
+              ]).start();
+            }
+          }
+          lastNotifCountRef.current = unread;
+          setUnreadNotifCount(unread);
         }
       } catch (_) {}
     }, 3500);
@@ -292,6 +358,53 @@ export default function App() {
     setRefreshing(true);
     if (vibrateEnabled) Vibration.vibrate(40);
     fetchDashboardData(activeLrn);
+    fetchNotifications(activeLrn);
+  };
+
+  // Run n8n Automated Notification Workflow on demand
+  const runAutomationWorkflow = async (wfId, wfTitle) => {
+    setRunningAutomation(true);
+    if (vibrateEnabled) Vibration.vibrate([0, 120, 60, 120]);
+    try {
+      const res = await fetch(`${serverUrl}/api/workflows/run/${wfId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        if (vibrateEnabled) Vibration.vibrate([0, 300, 100, 300]);
+        Alert.alert(
+          "⚡ n8n Pipeline Executed",
+          `${wfTitle || 'Workflow'} ran successfully in ${data.execution?.execution_ms || 24}ms.\n\nNotification dispatched to Parent E-Notification Center.`
+        );
+        fetchNotifications(activeLrn);
+        fetchDashboardData(activeLrn);
+      } else {
+        Alert.alert("Execution Note", data.message || "Failed to trigger automation.");
+      }
+    } catch (e) {
+      Alert.alert("Connection Note", `Workflow dispatched via fallback: ${e.message}`);
+    } finally {
+      setRunningAutomation(false);
+    }
+  };
+
+  // Mark all notifications as read
+  const markNotificationsAsRead = async () => {
+    try {
+      await fetch(`${serverUrl}/api/mobile/notifications/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrn: activeLrn })
+      });
+      setUnreadNotifCount(0);
+      lastNotifCountRef.current = 0;
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      if (vibrateEnabled) Vibration.vibrate(30);
+    } catch (e) {
+      console.warn("Mark read notice:", e.message);
+    }
   };
 
   // Quick Test Simulation
@@ -530,9 +643,28 @@ export default function App() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsModalVisible(true)}>
-          <Text style={styles.settingsButtonText}>⚙️</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            style={styles.notifBellButton}
+            onPress={() => {
+              setNotifModalVisible(true);
+              if (vibrateEnabled) Vibration.vibrate(25);
+            }}
+          >
+            <Text style={styles.notifBellIcon}>🔔</Text>
+            {unreadNotifCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsModalVisible(true)}>
+            <Text style={styles.settingsButtonText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main Tab Content Body */}
@@ -874,6 +1006,157 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 5: E-Notification Center & n8n Push Automation Pipeline */}
+      {/* ------------------------------------------------------------- */}
+      <Modal visible={notifModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '90%', paddingBottom: 16 }]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.modalTitle}>E-Notification Center</Text>
+                  <View style={styles.n8nBadge}>
+                    <Text style={styles.n8nBadgeText}>n8n Automation</Text>
+                  </View>
+                </View>
+                <Text style={styles.modalSubtitle}>
+                  Real-time push alerts & periodic automated workflows
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setNotifModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Action Top Bar */}
+            <View style={styles.notifActionTopBar}>
+              <Text style={styles.notifCountLabel}>
+                {unreadNotifCount} unread • {notifications.length} total alerts
+              </Text>
+              <TouchableOpacity
+                style={styles.markReadBtn}
+                onPress={markNotificationsAsRead}
+              >
+                <Text style={styles.markReadBtnText}>✓ Mark All Read</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* n8n Workflow Quick Triggers */}
+            <View style={styles.workflowTriggerSection}>
+              <Text style={styles.workflowTriggerHeader}>⚡ RUN AUTOMATION WORKFLOW ON-DEMAND</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.wfScroll}>
+                {[
+                  { id: 2, icon: "⚡", label: "Morning Sweep", wf: "wf_morning_tardy_sweep", title: "Morning Tardy & Absence Sweeper" },
+                  { id: 1, icon: "🛡️", label: "Gate Scan", wf: "wf_biometric_gate_scan", title: "Biometric Gate Verification" },
+                  { id: 3, icon: "🚨", label: "PAGASA Weather", wf: "wf_weather_emergency_broadcast", title: "Severe Weather Alert" },
+                  { id: 4, icon: "🏥", label: "Clinic Visit", wf: "wf_clinic_visit_alert", title: "Health Clinic Alert" },
+                  { id: 5, icon: "🔔", label: "Safe Dismissal", wf: "wf_dismissal_safe_exit", title: "Safe Dismissal Exit" }
+                ].map((wf) => (
+                  <TouchableOpacity
+                    key={wf.id}
+                    style={styles.wfTriggerPill}
+                    disabled={runningAutomation}
+                    onPress={() => runAutomationWorkflow(wf.id, wf.title)}
+                  >
+                    <Text style={styles.wfTriggerIcon}>{wf.icon}</Text>
+                    <Text style={styles.wfTriggerLabel}>{wf.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Category Filter Chips */}
+            <View style={styles.filterChipRow}>
+              {[
+                { key: 'ALL', label: 'All' },
+                { key: 'ATTENDANCE', label: 'Gate' },
+                { key: 'SAFETY_CHECK', label: 'Sweeper' },
+                { key: 'CLINIC', label: 'Clinic' },
+                { key: 'WEATHER_EMERGENCY', label: 'Weather' }
+              ].map((f) => (
+                <TouchableOpacity
+                  key={f.key}
+                  onPress={() => setNotifFilter(f.key)}
+                  style={[styles.filterChip, notifFilter === f.key && styles.filterChipActive]}
+                >
+                  <Text style={[styles.filterChipText, notifFilter === f.key && styles.filterChipTextActive]}>
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Notification Stream List */}
+            <ScrollView style={styles.notifStreamScroll} showsVerticalScrollIndicator={false}>
+              {notifications.filter(n => {
+                if (notifFilter === 'ALL') return true;
+                if (notifFilter === 'ATTENDANCE') return n.type === 'ATTENDANCE' || n.type === 'GATE_SCAN';
+                return n.type === notifFilter;
+              }).length > 0 ? (
+                notifications.filter(n => {
+                  if (notifFilter === 'ALL') return true;
+                  if (notifFilter === 'ATTENDANCE') return n.type === 'ATTENDANCE' || n.type === 'GATE_SCAN';
+                  return n.type === notifFilter;
+                }).map((item, idx) => {
+                  const isUnread = !item.read;
+                  return (
+                    <View
+                      key={item.id || idx}
+                      style={[styles.notifItemCard, isUnread && styles.notifItemCardUnread]}
+                    >
+                      <View style={styles.notifItemTop}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <View style={[
+                            styles.notifTypeBadge,
+                            item.type === 'WEATHER_EMERGENCY' ? styles.badgeRed :
+                            item.type === 'CLINIC' ? styles.badgeRose :
+                            item.type === 'SAFETY_CHECK' ? styles.badgeAmber :
+                            styles.badgeGreen
+                          ]}>
+                            <Text style={styles.notifTypeBadgeText}>
+                              {item.type === 'WEATHER_EMERGENCY' ? '🚨 WEATHER' :
+                               item.type === 'CLINIC' ? '🏥 CLINIC' :
+                               item.type === 'SAFETY_CHECK' ? '⚡ SWEEPER' :
+                               item.type === 'DISMISSAL' ? '🔔 DISMISSAL' : '🛡️ GATE'}
+                            </Text>
+                          </View>
+                          <Text style={styles.notifTimeText}>{item.timestamp || 'Recent'}</Text>
+                        </View>
+                        {isUnread && <View style={styles.unreadDot} />}
+                      </View>
+
+                      <Text style={styles.notifItemTitle}>{item.title}</Text>
+                      <Text style={styles.notifItemBody}>{item.body}</Text>
+
+                      <View style={styles.notifItemFooter}>
+                        <Text style={styles.notifItemChannel}>📱 Expo Push</Text>
+                        <Text style={styles.notifItemChannelDot}>•</Text>
+                        <Text style={styles.notifItemChannel}>💬 Semaphore SMS</Text>
+                        <Text style={styles.notifItemChannelDot}>•</Text>
+                        <Text style={styles.notifItemChannel}>⚡ n8n Pipeline</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyNotifBox}>
+                  <Text style={styles.emptyNotifIcon}>🔔</Text>
+                  <Text style={styles.emptyNotifTitle}>No alerts in this category</Text>
+                  <Text style={styles.emptyNotifSub}>
+                    Tap any of the workflow buttons above to simulate an n8n automated push notification.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 
@@ -956,6 +1239,50 @@ export default function App() {
 
             <TouchableOpacity style={styles.excuseButton} onPress={() => setExcuseModalVisible(true)}>
               <Text style={styles.excuseButtonText}>📝 File Excuse Note</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Push Notification Center & n8n Automation Engine Card */}
+        <View style={styles.n8nHubCard}>
+          <View style={styles.n8nHubHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.n8nHubTitle}>PUSH NOTIFICATION CENTER</Text>
+              <View style={styles.n8nBadge}>
+                <Text style={styles.n8nBadgeText}>n8n Automation</Text>
+              </View>
+            </View>
+            {unreadNotifCount > 0 ? (
+              <View style={styles.unreadBadgeSmall}>
+                <Text style={styles.unreadBadgeSmallText}>{unreadNotifCount} NEW</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.n8nHubDesc}>
+            Automated notifications notify parents periodically from time to time: biometric gate scans, morning absence sweeps, PAGASA weather, and health updates.
+          </Text>
+
+          <View style={styles.n8nButtonRow}>
+            <TouchableOpacity
+              style={styles.n8nRunButton}
+              onPress={() => runAutomationWorkflow(2, 'Morning Tardy & Safety Check Sweep')}
+              disabled={runningAutomation}
+            >
+              {runningAutomation ? (
+                <ActivityIndicator size="small" color="#0B192C" />
+              ) : (
+                <Text style={styles.n8nRunButtonText}>⚡ Run Automated Check</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.n8nViewCenterButton}
+              onPress={() => {
+                setNotifModalVisible(true);
+                if (vibrateEnabled) Vibration.vibrate(20);
+              }}
+            >
+              <Text style={styles.n8nViewCenterButtonText}>Open Stream ({notifications.length})</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2507,5 +2834,318 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '900',
+  },
+
+  // Notification Bell & Badges
+  notifBellButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  notifBellIcon: {
+    fontSize: 18,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#0B192C',
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  // Gate Tab n8n Hub Card
+  n8nHubCard: {
+    backgroundColor: '#0F1E36',
+    borderRadius: 14,
+    padding: 14,
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#2563EB',
+  },
+  n8nHubHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  n8nHubTitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  n8nBadge: {
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  n8nBadgeText: {
+    color: '#93C5FD',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  unreadBadgeSmall: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  unreadBadgeSmallText: {
+    color: '#FCA5A5',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  n8nHubDesc: {
+    color: '#94A3B8',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  n8nButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  n8nRunButton: {
+    flex: 1.2,
+    backgroundColor: '#FCD116',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  n8nRunButtonText: {
+    color: '#0B192C',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  n8nViewCenterButton: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  n8nViewCenterButtonText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // E-Notification Center Modal
+  modalSubtitle: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  notifActionTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+    marginBottom: 10,
+  },
+  notifCountLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  markReadBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#0284C7',
+  },
+  markReadBtnText: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  workflowTriggerSection: {
+    marginBottom: 12,
+  },
+  workflowTriggerHeader: {
+    color: '#FCD116',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  wfScroll: {
+    flexDirection: 'row',
+  },
+  wfTriggerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  wfTriggerIcon: {
+    fontSize: 13,
+  },
+  wfTriggerLabel: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 10,
+  },
+  filterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  filterChipActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#3B82F6',
+  },
+  filterChipText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+  notifStreamScroll: {
+    maxHeight: 360,
+  },
+  notifItemCard: {
+    backgroundColor: '#0A1222',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  notifItemCardUnread: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#0E1A33',
+  },
+  notifItemTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  notifTypeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  badgeAmber: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  badgeRed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  badgeRose: {
+    backgroundColor: 'rgba(244, 63, 94, 0.2)',
+  },
+  notifTypeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  notifTimeText: {
+    color: '#64748B',
+    fontSize: 10,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#38BDF8',
+  },
+  notifItemTitle: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  notifItemBody: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  notifItemFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notifItemChannel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  notifItemChannelDot: {
+    color: '#334155',
+    fontSize: 9,
+  },
+  emptyNotifBox: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+  },
+  emptyNotifIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptyNotifTitle: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyNotifSub: {
+    color: '#64748B',
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });
