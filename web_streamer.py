@@ -101,6 +101,7 @@ class GateStreamer:
         """
         lrn = str(student.get("lrn", "")).strip()
         now_time = time.time()
+        score_str = f"{score * 100:.1f}%" if (isinstance(score, (int, float)) and score > 0) else (str(score) if score else None)
 
         # Check per-student event throttle for continuous camera face recognition
         # Prevents re-firing the exact same announcement dozens of times per second!
@@ -113,11 +114,20 @@ class GateStreamer:
         eval_res = evaluate_daily_scan_rule_orm(
             lrn=student["lrn"],
             student_name=student["full_name"],
-            cooldown_seconds=10,
+            cooldown_seconds=COOLDOWN_SECONDS,
             gate_mode=self.current_gate_mode
         )
         now_dt = pht_now()
         timestamp_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        photo_name = ""
+        if student.get("photo_path"):
+            photo_str = str(student["photo_path"])
+            if not photo_str.startswith("data:") and len(photo_str) < 255:
+                try:
+                    photo_name = Path(photo_str).name
+                except Exception:
+                    photo_name = ""
 
         if eval_res["can_scan"]:
             scan_type = eval_res["scan_type"]
@@ -140,15 +150,6 @@ class GateStreamer:
                 timestamp_str=timestamp_str,
                 attendance_log_id=log_id
             )
-
-            photo_name = ""
-            if student.get("photo_path"):
-                photo_str = str(student["photo_path"])
-                if not photo_str.startswith("data:") and len(photo_str) < 255:
-                    try:
-                        photo_name = Path(photo_str).name
-                    except Exception:
-                        photo_name = ""
 
             with self.lock:
                 self.event_counter += 1
