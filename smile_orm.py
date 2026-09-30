@@ -734,7 +734,10 @@ def init_orm_db(force=False):
             _db_initialized = True
             return
 
-        # Auto-migrate PostgreSQL column lengths ONLY on initial creation / forced migration
+        # 1. Create all tables first
+        Base.metadata.create_all(engine)
+
+        # 2. Auto-migrate PostgreSQL column lengths if needed
         if "postgres" in engine.dialect.name.lower():
             try:
                 from sqlalchemy import text
@@ -753,8 +756,6 @@ def init_orm_db(force=False):
                     conn.commit()
             except Exception as ex:
                 print(f"[!] PostgreSQL column auto-migration note: {ex}")
-
-        Base.metadata.create_all(engine)
         # Check and migrate columns in SQLite if needed
         if "sqlite" in engine.dialect.name.lower():
             try:
