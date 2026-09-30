@@ -111,11 +111,9 @@ def get_database_url():
                 if "://postgres:" in env_url:
                     env_url = env_url.replace("://postgres:", f"://postgres.{ref}:")
 
-        # Strip sslmode parameter from query string because pg8000 handles SSL via ssl_context
-        if "sslmode=" in env_url:
-            env_url = re.sub(r'[\?\&]sslmode=[^\&]+', '', env_url)
-            if env_url.endswith("?"):
-                env_url = env_url[:-1]
+        # Strip all query parameters (sslmode, channel_binding, etc.) because pg8000 handles SSL via ssl_context
+        if "?" in env_url:
+            env_url = env_url.split("?")[0]
 
         # Use pg8000 pure-Python driver for maximum stability across Windows, Linux, and Vercel Serverless
         if env_url.startswith("postgresql://"):

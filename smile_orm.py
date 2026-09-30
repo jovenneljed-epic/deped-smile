@@ -450,12 +450,10 @@ def create_orm_engine():
     else:
         # Check if pg8000 is used for PostgreSQL
         if "pg8000" in db_url:
-            import ssl, re
-            # Strip sslmode from query parameters so pg8000 does not raise TypeError
-            if "sslmode=" in db_url:
-                db_url = re.sub(r'[\?\&]sslmode=[^\&]+', '', db_url)
-                if db_url.endswith("?"):
-                    db_url = db_url[:-1]
+            import ssl
+            # Strip query parameters so pg8000 does not receive unexpected keyword arguments (e.g. channel_binding)
+            if "?" in db_url:
+                db_url = db_url.split("?")[0]
             ssl_ctx = ssl.create_default_context()
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
