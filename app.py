@@ -557,6 +557,7 @@ def add_performance_headers(response):
     return response
 
 @app.route('/')
+@app.route('/dashboard')
 @login_required
 def dashboard():
     """Administrative Attendance Dashboard - High Performance."""
