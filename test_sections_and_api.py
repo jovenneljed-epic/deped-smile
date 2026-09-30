@@ -90,6 +90,11 @@ class TestSectionsAndAPI(unittest.TestCase):
         self.assertTrue(del_res.get_json().get("success"))
 
     def test_pages_load_cleanly(self):
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+
         # Base dashboard
         r = self.client.get('/')
         self.assertEqual(r.status_code, 200)

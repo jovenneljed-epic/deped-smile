@@ -149,6 +149,23 @@
     </div>
   </header>
 
+  <!-- DepEd Strict 4-Session Schedule Bar -->
+  <div class="bg-slate-900/90 border-b border-cyan-800/40 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between text-[11px] sm:text-xs">
+    <div class="flex items-center space-x-2 text-cyan-300 font-hud">
+      <i class="fa-solid fa-clock text-cyan-400"></i>
+      <span class="font-bold">ATTENDANCE SCHEDULE:</span>
+      <span id="activeSessionBadge" class="px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+        CHECKING...
+      </span>
+    </div>
+    <div class="flex items-center space-x-1.5 sm:space-x-2 text-[10px] sm:text-[11px] font-mono mt-1 sm:mt-0 text-slate-300 flex-wrap">
+      <span id="schedAmIn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">1. AM In: 5:00-10:59 AM</span>
+      <span id="schedAmOut" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">2. AM Out: 11:00-12:00 PM</span>
+      <span id="schedPmIn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">3. PM In: 12:01-12:59 PM</span>
+      <span id="schedPmOut" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">4. PM Out: 4:00 PM+</span>
+    </div>
+  </div>
+
   <!-- Main Kiosk Body -->
   <main class="flex-grow p-3 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start lg:items-center max-w-[1700px] mx-auto w-full max-w-full overflow-hidden">
 
@@ -290,6 +307,20 @@
             </div>
           </div>
 
+          <!-- 4-Session Progress Matrix -->
+          <div class="pt-2 border-t border-slate-800/80">
+            <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span>DAILY 4 SESSIONS</span>
+              <span id="sessionProgressText" class="text-cyan-400 font-bold">Progress</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1 text-[10px] font-mono text-center">
+              <div id="pillAmIn" class="py-1 px-1 rounded bg-slate-900 border border-slate-800 text-slate-500">AM IN</div>
+              <div id="pillAmOut" class="py-1 px-1 rounded bg-slate-900 border border-slate-800 text-slate-500">AM OUT</div>
+              <div id="pillPmIn" class="py-1 px-1 rounded bg-slate-900 border border-slate-800 text-slate-500">PM IN</div>
+              <div id="pillPmOut" class="py-1 px-1 rounded bg-slate-900 border border-slate-800 text-slate-500">PM OUT</div>
+            </div>
+          </div>
+
           <!-- SMS Notification Confirmation Ribbon -->
           <div id="smsSection" class="bg-indigo-950/70 border border-indigo-500/40 rounded-xl p-3 flex items-start space-x-2.5 sm:space-x-3 text-xs min-w-0">
             <i id="smsIcon" class="fa-solid fa-paper-plane text-indigo-400 text-base mt-0.5 animate-bounce shrink-0"></i>
@@ -337,8 +368,60 @@
   <!-- Scripts: Live Camera, Dual-Scan Engine, Audio Chime, Voice-Over -->
   <script>
     // -------------------------------------------------------------
-    // 1. Live Digital Clock
+    // 1. Live Digital Clock & DepEd 4-Session Schedule Tracker
     // -------------------------------------------------------------
+    function updateScheduleDisplay() {
+      const now = new Date();
+      const currMin = now.getHours() * 60 + now.getMinutes();
+
+      const badge = document.getElementById('activeSessionBadge');
+      const sAmIn = document.getElementById('schedAmIn');
+      const sAmOut = document.getElementById('schedAmOut');
+      const sPmIn = document.getElementById('schedPmIn');
+      const sPmOut = document.getElementById('schedPmOut');
+
+      // Reset inactive styles
+      [sAmIn, sAmOut, sPmIn, sPmOut].forEach(el => {
+        if (el) el.className = 'px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 transition';
+      });
+
+      if (currMin < 300) { // < 05:00 AM
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40';
+          badge.innerHTML = '<i class="fa-solid fa-lock mr-1"></i> GATE CLOSED (OPENS 5:00 AM)';
+        }
+      } else if (currMin <= 659) { // 05:00 AM - 10:59 AM
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse';
+          badge.innerHTML = '<i class="fa-solid fa-door-open mr-1"></i> 1. MORNING TIME-IN (5:00-10:59 AM)';
+        }
+        if (sAmIn) sAmIn.className = 'px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold';
+      } else if (currMin <= 720) { // 11:00 AM - 12:00 PM
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse';
+          badge.innerHTML = '<i class="fa-solid fa-utensils mr-1"></i> 2. MORNING DISMISSAL / LUNCH (11:00-12:00 PM)';
+        }
+        if (sAmOut) sAmOut.className = 'px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold';
+      } else if (currMin <= 779) { // 12:01 PM - 12:59 PM
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse';
+          badge.innerHTML = '<i class="fa-solid fa-door-open mr-1"></i> 3. AFTERNOON TIME-IN (12:01-12:59 PM)';
+        }
+        if (sPmIn) sPmIn.className = 'px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold';
+      } else if (currMin < 960) { // 01:00 PM - 03:59 PM
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-blue-500/20 text-blue-300 border border-blue-500/40';
+          badge.innerHTML = '<i class="fa-solid fa-book-open mr-1"></i> CLASSES IN SESSION (OUT AT 4:00 PM)';
+        }
+      } else { // 04:00 PM onwards
+        if (badge) {
+          badge.className = 'px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse';
+          badge.innerHTML = '<i class="fa-solid fa-house mr-1"></i> 4. AFTERNOON TIME-OUT / DISMISSAL (4:00 PM+)';
+        }
+        if (sPmOut) sPmOut.className = 'px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold';
+      }
+    }
+
     function updateClock() {
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -351,6 +434,7 @@
       if (mobileClockEl) {
         mobileClockEl.innerText = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       }
+      updateScheduleDisplay();
     }
     setInterval(updateClock, 1000);
     updateClock();
@@ -649,6 +733,7 @@
         const data = await res.json();
         if (data.event) {
           handleMatchedStudent({
+            success: data.success,
             student: {
               lrn: data.event.lrn,
               full_name: data.event.name,
@@ -660,6 +745,11 @@
             scan_type: data.scan_type,
             period: data.period,
             voice_text: data.voice_text,
+            am_in: data.am_in,
+            am_out: data.am_out,
+            pm_in: data.pm_in,
+            pm_out: data.pm_out,
+            total_scans: data.total_scans,
             event: data.event
           });
         }
@@ -838,6 +928,40 @@
         scoreBadge.classList.add('hidden');
       }
 
+      // 4-Session Daily Attendance Progress
+      const amIn = (data.am_in !== undefined) ? data.am_in : (ev.am_in || 0);
+      const amOut = (data.am_out !== undefined) ? data.am_out : (ev.am_out || 0);
+      const pmIn = (data.pm_in !== undefined) ? data.pm_in : (ev.pm_in || 0);
+      const pmOut = (data.pm_out !== undefined) ? data.pm_out : (ev.pm_out || 0);
+      const totalScans = (data.total_scans !== undefined) ? data.total_scans : (ev.total_scans || (amIn + amOut + pmIn + pmOut));
+
+      const progressEl = document.getElementById('sessionProgressText');
+      if (progressEl) {
+        progressEl.innerText = `${Math.min(4, totalScans)}/4 Recorded`;
+      }
+
+      function updatePill(id, isRecorded, isTimeIn, label) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (isRecorded) {
+          if (isTimeIn) {
+            el.className = 'py-1 px-1 rounded bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 font-bold';
+            el.innerHTML = `<i class="fa-solid fa-check text-[9px] mr-0.5"></i> ${label}`;
+          } else {
+            el.className = 'py-1 px-1 rounded bg-amber-950/80 border border-amber-500/60 text-amber-300 font-bold';
+            el.innerHTML = `<i class="fa-solid fa-right-from-bracket text-[9px] mr-0.5"></i> ${label}`;
+          }
+        } else {
+          el.className = 'py-1 px-1 rounded bg-slate-900 border border-slate-800 text-slate-500';
+          el.innerText = label;
+        }
+      }
+
+      updatePill('pillAmIn', amIn > 0, true, 'AM IN');
+      updatePill('pillAmOut', amOut > 0, false, 'AM OUT');
+      updatePill('pillPmIn', pmIn > 0, true, 'PM IN');
+      updatePill('pillPmOut', pmOut > 0, false, 'PM OUT');
+
       // SMS section
       const smsPhone = document.getElementById('smsPhone');
       const phone = st.parent_phone || ev.parent_phone;
@@ -875,6 +999,7 @@
         const data = await res.json();
         if (data.event) {
           handleMatchedStudent({
+            success: data.success,
             student: {
               lrn: data.event.lrn,
               full_name: data.event.name,
@@ -886,6 +1011,11 @@
             scan_type: data.scan_type,
             period: data.period,
             voice_text: data.voice_text,
+            am_in: data.am_in,
+            am_out: data.am_out,
+            pm_in: data.pm_in,
+            pm_out: data.pm_out,
+            total_scans: data.total_scans,
             event: data.event
           });
         }

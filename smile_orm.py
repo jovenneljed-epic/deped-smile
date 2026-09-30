@@ -12,7 +12,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 from smile_config import (
     get_database_url, DATABASE_TYPE, COOLDOWN_SECONDS, MIDDAY_SPLIT_HOUR,
-    pht_now, PHT, IS_VERCEL
+    pht_now, PHT, IS_VERCEL,
+    SCHEDULE_AM_IN_START_MIN, SCHEDULE_AM_IN_END_MIN,
+    SCHEDULE_AM_OUT_START_MIN, SCHEDULE_AM_OUT_END_MIN,
+    SCHEDULE_PM_IN_START_MIN, SCHEDULE_PM_IN_END_MIN,
+    SCHEDULE_PM_OUT_START_MIN, MAX_DAILY_SCANS_PER_PERSON
 )
 import smile_config
 from smile_qr import generate_student_qr
@@ -990,23 +994,13 @@ def get_student_by_lrn_or_rfid_orm(identifier: str):
 
 def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldown_seconds=COOLDOWN_SECONDS, gate_mode="AUTO", min_dwell_minutes=0):
     """
-    Evaluates DepEd School Daily Attendance Quota & State Machine Rule:
-    Rule:
-      - Rapid Debounce (Default 25 seconds):
-          * If student stays in camera frame immediately after a scan, their active status is retained silently.
-          * No loud duplicate entry warnings or repeated scan rejections!
-      - Morning Session (before 12:00 PM):
-          * 1st Scan: Morning TIME-IN
-          * 2nd Scan (after cooldown): Morning TIME-OUT (Dismissal / Lunch)
-          * Subsequent Scans: Re-Entry / Re-Departure based on presence.
-      - Afternoon Session (12:00 PM onwards):
-          * 1st Scan: Afternoon TIME-IN (Arrival / Return from Lunch)
-          * 2nd Scan (after cooldown): Afternoon TIME-OUT (Dismissal)
-          * Subsequent Scans: Re-Entry / Final Departure.
-      - Gate Mode Override:
-          * "AUTO": Automatically handles arrival vs dismissal in sequence with responsive debounce.
-          * "ENTRY": Enforces Time-In only; already-entered students maintain Active Time-In status.
-          * "EXIT": Enforces Time-Out only; already-exited students maintain Active Time-Out status.
+    Evaluates DepEd School Daily Attendance Quota & State Machine Rule (Strict 4-Scan Schedule):
+    Strict Sessions:
+      1. Morning Time-In:   05:00 AM – 10:59 AM (Quota: 1 scan)
+      2. Morning Time-Out:  11:00 AM – 12:00 PM (Quota: 1 scan)
+      3. Afternoon Time-In: 12:01 PM – 12:59 PM (Quota: 1 scan)
+      4. Afternoon Time-Out: 04:00 PM onwards   (Quota: 1 scan)
+    Max Daily Quota: Exactly 4 scans per student or teacher per day.
     """
     session = Session()
     now = current_time or pht_now()
@@ -1039,11 +1033,11 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
         am_out_count = sum(1 for l in am_logs if l.scan_type == "TIME_OUT")
         pm_in_count = sum(1 for l in pm_logs if l.scan_type == "TIME_IN")
         pm_out_count = sum(1 for l in pm_logs if l.scan_type == "TIME_OUT")
+        total_scans_today = len(today_logs)
 
         # -------------------------------------------------------------
-        # Continuous Presence Debounce (Grace Period)
-        # If student just scanned within cooldown_seconds (< 25s), do not re-insert into DB
-        # or play duplicate error tones. Silently keep their active badge!
+        # 1. Check Anti-Spam Continuous Presence Debounce (< 25s)
+        # If student stays in front of lens, silently retain active badge
         # -------------------------------------------------------------
         if last_log and last_log.timestamp:
             elapsed = (now - last_log.timestamp).total_seconds()
@@ -1059,204 +1053,214 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
                     "message": f"{student_name} attendance active ({rem}s debounce).",
                     "cooldown_remaining": rem,
                     "am_in": am_in_count, "am_out": am_out_count,
-                    "pm_in": pm_in_count, "pm_out": pm_out_count
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today
                 }
 
-        is_morning = now.hour < MIDDAY_SPLIT_HOUR
+        # -------------------------------------------------------------
+        # 2. Strict Daily 4-Scan Quota Cap
+        # Each student or teacher is strictly limited to 4 scan sessions
+        # -------------------------------------------------------------
+        if total_scans_today >= MAX_DAILY_SCANS_PER_PERSON:
+            return {
+                "can_scan": False,
+                "scan_type": "COMPLETED",
+                "period": "Daily Attendance Completed",
+                "voice_text": f"Daily attendance completed. {student_name} has completed all 4 sessions today.",
+                "message": f"Daily attendance limit reached: {student_name} has completed all 4 daily sessions.",
+                "am_in": am_in_count, "am_out": am_out_count,
+                "pm_in": pm_in_count, "pm_out": pm_out_count,
+                "total_scans": total_scans_today,
+                "cooldown_remaining": 0
+            }
+
+        curr_min = now.hour * 60 + now.minute
 
         # -------------------------------------------------------------
-        # 1. MORNING SESSION (Before 12:00 PM)
+        # 3. Schedule Window Enforcement
         # -------------------------------------------------------------
-        if is_morning:
-            # Case 1: Student has NOT timed in this morning
+
+        # Window A: Before 05:00 AM (Early Dawn / Gate Closed)
+        if curr_min < SCHEDULE_AM_IN_START_MIN:
+            return {
+                "can_scan": False,
+                "scan_type": "NOT_STARTED",
+                "period": "Gate Closed (Opens 5:00 AM)",
+                "voice_text": f"Morning Time In opens at 5:00 AM, {student_name}.",
+                "message": f"Gate closed: Morning Time-In window is from 5:00 AM to 10:59 AM. (Current: {now.strftime('%I:%M %p')})",
+                "am_in": am_in_count, "am_out": am_out_count,
+                "pm_in": pm_in_count, "pm_out": pm_out_count,
+                "total_scans": total_scans_today,
+                "cooldown_remaining": 0
+            }
+
+        # Window B: Morning Time-In (05:00 AM – 10:59 AM)
+        elif SCHEDULE_AM_IN_START_MIN <= curr_min <= SCHEDULE_AM_IN_END_MIN:
             if am_in_count == 0:
-                if norm_gate_mode == "EXIT":
-                    return {
-                        "can_scan": False,
-                        "scan_type": "NOT_ENTERED",
-                        "period": "No Time-In Recorded",
-                        "voice_text": f"Cannot time out. {student_name} has no morning time in record.",
-                        "message": f"Exit scan rejected: {student_name} has not timed in yet this morning.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Morning Time-In",
-                        "voice_text": f"Good morning, {student_name}! Time In recorded. Welcome to Don Montano Central Integrated School.",
-                        "message": f"Morning Time-In recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-
-            # Case 2: Student has timed in this morning, but not timed out
-            elif am_in_count >= 1 and am_out_count == 0:
-                if norm_gate_mode in ("AUTO", "EXIT"):
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_OUT",
-                        "period": "Morning Time-Out",
-                        "voice_text": f"Goodbye, {student_name}! Morning Time Out recorded. Have a safe lunch break.",
-                        "message": f"Morning Time-Out recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    # ENTRY-only gate: confirm student is inside
-                    return {
-                        "can_scan": False,
-                        "is_active_dwell": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Time-In Active",
-                        "voice_text": "",
-                        "message": f"{student_name} is currently timed in for morning.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-
-            # Case 3: Student already completed Morning In and Morning Out
+                return {
+                    "can_scan": True,
+                    "scan_type": "TIME_IN",
+                    "period": "Morning Time-In",
+                    "voice_text": f"Good morning, {student_name}! Morning Time In recorded. Welcome to Don Montano Central Integrated School.",
+                    "message": f"Morning Time-In recorded for {student_name}.",
+                    "am_in": am_in_count + 1, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today + 1,
+                    "cooldown_remaining": 0
+                }
             else:
-                if last_log and last_log.scan_type == "TIME_OUT" and norm_gate_mode in ("AUTO", "ENTRY"):
-                    # Re-Entry allowed
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Morning Re-Entry",
-                        "voice_text": f"Welcome back, {student_name}! Morning Re-Entry recorded.",
-                        "message": f"Morning Re-Entry recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                elif last_log and last_log.scan_type == "TIME_IN" and norm_gate_mode in ("AUTO", "EXIT"):
-                    # Re-Exit allowed
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_OUT",
-                        "period": "Morning Time-Out",
-                        "voice_text": f"Goodbye, {student_name}! Morning Time Out recorded.",
-                        "message": f"Morning Time-Out recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    return {
-                        "can_scan": False,
-                        "is_active_dwell": True,
-                        "scan_type": last_log.scan_type if last_log else "TIME_OUT",
-                        "period": "Morning Attendance Active",
-                        "voice_text": "",
-                        "message": f"{student_name} morning attendance is active.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
+                # Already timed in for morning session!
+                return {
+                    "can_scan": False,
+                    "scan_type": "TIME_IN",
+                    "period": "Morning Time-In (Active)",
+                    "voice_text": f"{student_name} is already timed in for the morning session.",
+                    "message": f"Morning Time-In already recorded for {student_name}. Morning dismissal opens at 11:00 AM.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
 
-        # -------------------------------------------------------------
-        # 2. AFTERNOON SESSION (12:00 PM Onwards)
-        # -------------------------------------------------------------
-        else:
-            # Case 1: Student has NOT timed in this afternoon
+        # Window C: Morning Time-Out (11:00 AM – 12:00 PM)
+        elif SCHEDULE_AM_OUT_START_MIN <= curr_min <= SCHEDULE_AM_OUT_END_MIN:
+            if am_in_count == 0:
+                return {
+                    "can_scan": False,
+                    "scan_type": "NOT_ENTERED",
+                    "period": "No Morning Time-In",
+                    "voice_text": f"Cannot time out. {student_name} has no morning time in record.",
+                    "message": f"Exit scan rejected: {student_name} has no morning time in record.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+            elif am_out_count == 0:
+                return {
+                    "can_scan": True,
+                    "scan_type": "TIME_OUT",
+                    "period": "Morning Time-Out",
+                    "voice_text": f"Goodbye, {student_name}! Morning Time Out recorded. Have a safe lunch break.",
+                    "message": f"Morning Time-Out (Lunch Dismissal) recorded for {student_name}.",
+                    "am_in": am_in_count, "am_out": am_out_count + 1,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today + 1,
+                    "cooldown_remaining": 0
+                }
+            else:
+                return {
+                    "can_scan": False,
+                    "scan_type": "TIME_OUT",
+                    "period": "Morning Time-Out (Active)",
+                    "voice_text": f"{student_name} has already timed out for lunch. Afternoon Time-In opens at 12:01 PM.",
+                    "message": f"Morning Time-Out already recorded for {student_name}. Afternoon session opens at 12:01 PM.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+
+        # Window D: Afternoon Time-In (12:01 PM – 12:59 PM)
+        elif SCHEDULE_PM_IN_START_MIN <= curr_min <= SCHEDULE_PM_IN_END_MIN:
             if pm_in_count == 0:
-                if norm_gate_mode == "EXIT" and am_in_count == 0:
-                    return {
-                        "can_scan": False,
-                        "scan_type": "NOT_ENTERED",
-                        "period": "No Afternoon Time-In",
-                        "voice_text": f"Cannot time out. {student_name} has no time in record today.",
-                        "message": f"Exit scan rejected: {student_name} has not timed in today.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Afternoon Time-In",
-                        "voice_text": f"Good afternoon, {student_name}! Afternoon Time In recorded. Welcome back to Don Montano Central Integrated School.",
-                        "message": f"Afternoon Time-In recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-
-            # Case 2: Student has timed in this afternoon, but not timed out
-            elif pm_in_count >= 1 and pm_out_count == 0:
-                if norm_gate_mode in ("AUTO", "EXIT"):
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_OUT",
-                        "period": "Afternoon Time-Out",
-                        "voice_text": f"Goodbye, {student_name}! Afternoon Time Out recorded. Have a safe trip home.",
-                        "message": f"Afternoon Time-Out recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    return {
-                        "can_scan": False,
-                        "is_active_dwell": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Afternoon Time-In (Active)",
-                        "voice_text": "",
-                        "message": f"{student_name} is currently timed in for afternoon.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-
-            # Case 3: Student already timed in and timed out in afternoon
+                return {
+                    "can_scan": True,
+                    "scan_type": "TIME_IN",
+                    "period": "Afternoon Time-In",
+                    "voice_text": f"Good afternoon, {student_name}! Afternoon Time In recorded. Welcome back to Don Montano Central Integrated School.",
+                    "message": f"Afternoon Time-In recorded for {student_name}.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count + 1, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today + 1,
+                    "cooldown_remaining": 0
+                }
             else:
-                if last_log and last_log.scan_type == "TIME_OUT" and norm_gate_mode in ("AUTO", "ENTRY"):
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_IN",
-                        "period": "Afternoon Re-Entry",
-                        "voice_text": f"Welcome back, {student_name}! Afternoon Re-Entry recorded.",
-                        "message": f"Afternoon Re-Entry recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                elif last_log and last_log.scan_type == "TIME_IN" and norm_gate_mode in ("AUTO", "EXIT"):
-                    return {
-                        "can_scan": True,
-                        "scan_type": "TIME_OUT",
-                        "period": "Afternoon Time-Out (Final Departure)",
-                        "voice_text": f"Goodbye, {student_name}! Final Departure Time Out recorded. Take care and see you tomorrow!",
-                        "message": f"Final Afternoon Time-Out recorded for {student_name}.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
-                else:
-                    return {
-                        "can_scan": False,
-                        "is_active_dwell": True,
-                        "scan_type": last_log.scan_type if last_log else "TIME_OUT",
-                        "period": "Attendance Active",
-                        "voice_text": "",
-                        "message": f"{student_name} attendance active for today.",
-                        "am_in": am_in_count, "am_out": am_out_count,
-                        "pm_in": pm_in_count, "pm_out": pm_out_count,
-                        "cooldown_remaining": 0
-                    }
+                return {
+                    "can_scan": False,
+                    "scan_type": "TIME_IN",
+                    "period": "Afternoon Time-In (Active)",
+                    "voice_text": f"{student_name} is already timed in for the afternoon session.",
+                    "message": f"Afternoon Time-In already recorded for {student_name}. Dismissal opens at 4:00 PM.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+
+        # Window E: Afternoon Class Hours (01:00 PM – 03:59 PM)
+        elif SCHEDULE_PM_IN_END_MIN < curr_min < SCHEDULE_PM_OUT_START_MIN:
+            if pm_in_count >= 1:
+                return {
+                    "can_scan": False,
+                    "scan_type": "TIME_IN",
+                    "period": "Classes in Session (Dismissal 4:00 PM)",
+                    "voice_text": f"Afternoon classes are in session, {student_name}. Dismissal opens at 4:00 PM.",
+                    "message": f"Classes in session: {student_name} is inside campus. Afternoon dismissal opens at 4:00 PM.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+            else:
+                # Student missed the 12:01-12:59 PM window
+                return {
+                    "can_scan": False,
+                    "scan_type": "CLOSED",
+                    "period": "Afternoon Entry Closed",
+                    "voice_text": f"Afternoon Time In closed at 12:59 PM, {student_name}. Please consult the gate guard.",
+                    "message": f"Afternoon Time-In window closed at 12:59 PM. Please consult gate guard or adviser.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+
+        # Window F: Afternoon Time-Out (04:00 PM onwards)
+        else:
+            if am_in_count == 0 and pm_in_count == 0:
+                return {
+                    "can_scan": False,
+                    "scan_type": "NOT_ENTERED",
+                    "period": "No Time-In Recorded Today",
+                    "voice_text": f"Cannot time out. {student_name} has no time in record today.",
+                    "message": f"Exit scan rejected: {student_name} has no time-in record today.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
+            elif pm_out_count == 0:
+                return {
+                    "can_scan": True,
+                    "scan_type": "TIME_OUT",
+                    "period": "Afternoon Time-Out (Final Departure)",
+                    "voice_text": f"Goodbye, {student_name}! Final Departure Time Out recorded. Take care and see you tomorrow!",
+                    "message": f"Afternoon Time-Out (Final Departure) recorded for {student_name}.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count + 1,
+                    "total_scans": total_scans_today + 1,
+                    "cooldown_remaining": 0
+                }
+            else:
+                return {
+                    "can_scan": False,
+                    "scan_type": "COMPLETED",
+                    "period": "Daily Attendance Completed",
+                    "voice_text": f"Daily attendance completed. {student_name} has already timed out for today.",
+                    "message": f"Daily attendance completed: {student_name} has completed all 4 daily sessions.",
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count,
+                    "total_scans": total_scans_today,
+                    "cooldown_remaining": 0
+                }
 
     finally:
         session.close()
 
-def check_can_scan_orm(lrn, cooldown_seconds=COOLDOWN_SECONDS):
+def check_can_scan_orm(lrn, cooldown_seconds=COOLDOWN_SECONDS, current_time=None):
     """Bridge for legacy callers; returns (can_scan, elapsed_or_cooldown, scan_type)."""
-    eval_res = evaluate_daily_scan_rule_orm(lrn, cooldown_seconds=cooldown_seconds)
+    eval_res = evaluate_daily_scan_rule_orm(lrn, cooldown_seconds=cooldown_seconds, current_time=current_time)
     return eval_res["can_scan"], eval_res.get("cooldown_remaining"), eval_res.get("scan_type")
 
 def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method="QR_CODE", sms_status="PENDING"):
@@ -2499,6 +2503,24 @@ delete_push_subscription = delete_push_subscription_orm
 dispatch_web_push = dispatch_web_push_notification
 get_enrolled_students_count = get_enrolled_students_count_orm
 get_students_directory = get_students_directory_orm
+
+def clear_today_attendance_logs_orm():
+    """Clears all attendance logs recorded today for test resets."""
+    session = Session()
+    now = pht_now()
+    today_start = datetime.combine(now.date(), datetime.min.time())
+    try:
+        deleted = session.query(AttendanceLog).filter(AttendanceLog.timestamp >= today_start).delete()
+        session.commit()
+        return deleted
+    except Exception as e:
+        session.rollback()
+        print(f"[!] Error clearing today logs: {e}")
+        return 0
+    finally:
+        session.close()
+
+clear_today_attendance_logs = clear_today_attendance_logs_orm
 
 
 

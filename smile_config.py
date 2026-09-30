@@ -232,6 +232,20 @@ FRAME_HEIGHT = 720
 COOLDOWN_SECONDS = 25     # Responsive 25-second cooldown between arrival (Time-In) and departure (Time-Out)
 MIDDAY_SPLIT_HOUR = 12
 
+# DepEd Scheduled Attendance Windows (Strict 4-Session Quota: exactly 4 scans/person/day)
+# 1. Morning Time-In:   05:00 AM - 10:59 AM (300 to 659 mins)
+# 2. Morning Time-Out:  11:00 AM - 12:00 PM (660 to 720 mins)
+# 3. Afternoon Time-In: 12:01 PM - 12:59 PM (721 to 779 mins)
+# 4. Afternoon Time-Out: 04:00 PM onwards   (>= 960 mins)
+SCHEDULE_AM_IN_START_MIN = 5 * 60          # 05:00 AM (300)
+SCHEDULE_AM_IN_END_MIN = 10 * 60 + 59      # 10:59 AM (659)
+SCHEDULE_AM_OUT_START_MIN = 11 * 60        # 11:00 AM (660)
+SCHEDULE_AM_OUT_END_MIN = 12 * 60          # 12:00 PM (720)
+SCHEDULE_PM_IN_START_MIN = 12 * 60 + 1     # 12:01 PM (721)
+SCHEDULE_PM_IN_END_MIN = 12 * 60 + 59      # 12:59 PM (779)
+SCHEDULE_PM_OUT_START_MIN = 16 * 60        # 04:00 PM (960)
+MAX_DAILY_SCANS_PER_PERSON = 4
+
 # SMS Settings Persistence File
 SMS_SETTINGS_PATH = DATA_DIR / "sms_settings.json"
 

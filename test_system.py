@@ -49,9 +49,11 @@ try:
     found_by_rfid = get_student_by_identifier(test_rfid)
     assert found_by_rfid is not None and found_by_rfid["lrn"] == test_lrn, "RFID lookup failed"
     
-    # Test attendance logging
-    can_scan, _, _ = check_can_scan(test_lrn, cooldown_seconds=5)
-    assert can_scan is True, "First scan should be permitted"
+    # Test attendance logging (evaluated in morning schedule window)
+    from datetime import time as dt_time
+    morning_test_time = datetime.combine(datetime.now().date(), dt_time(7, 30))
+    can_scan, _, _ = check_can_scan(test_lrn, cooldown_seconds=5, current_time=morning_test_time)
+    assert can_scan is True, "First scan during morning session should be permitted"
     
     log_id = record_attendance(test_lrn, "Juan Dela Cruz", "TIME_IN", method="FACE_RECOGNITION", sms_status="CONFIRMED")
     assert log_id > 0, "Attendance record ID should be positive"

@@ -170,7 +170,12 @@ class GateStreamer:
                     "date": now_dt.strftime("%b %d, %Y"),
                     "photo_name": photo_name,
                     "photo_path": student.get("photo_path") or "",
-                    "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
+                    "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png",
+                    "am_in": eval_res.get("am_in", 0),
+                    "am_out": eval_res.get("am_out", 0),
+                    "pm_in": eval_res.get("pm_in", 0),
+                    "pm_out": eval_res.get("pm_out", 0),
+                    "total_scans": eval_res.get("total_scans", 0)
                 }
                 self.last_scanned_student = student
                 self.simulation_qr_active = True
@@ -209,7 +214,12 @@ class GateStreamer:
                         "date": now_dt.strftime("%b %d, %Y"),
                         "photo_name": photo_name,
                         "photo_path": student.get("photo_path") or "",
-                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
+                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png",
+                        "am_in": eval_res.get("am_in", 0),
+                        "am_out": eval_res.get("am_out", 0),
+                        "pm_in": eval_res.get("pm_in", 0),
+                        "pm_out": eval_res.get("pm_out", 0),
+                        "total_scans": eval_res.get("total_scans", 0)
                     }
                 return False, eval_res["message"]
             else:
@@ -234,7 +244,12 @@ class GateStreamer:
                         "date": now_dt.strftime("%b %d, %Y"),
                         "photo_name": photo_name,
                         "photo_path": student.get("photo_path") or "",
-                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
+                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png",
+                        "am_in": eval_res.get("am_in", 0),
+                        "am_out": eval_res.get("am_out", 0),
+                        "pm_in": eval_res.get("pm_in", 0),
+                        "pm_out": eval_res.get("pm_out", 0),
+                        "total_scans": eval_res.get("total_scans", 0)
                     }
 
                 self.student_debounce_cache[lrn] = {

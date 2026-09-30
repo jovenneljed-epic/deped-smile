@@ -6,6 +6,10 @@ class TestSmileWebApp(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
         self.client.testing = True
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
 
     def test_dashboard_route(self):
         response = self.client.get('/')

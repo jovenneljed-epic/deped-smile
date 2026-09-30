@@ -1928,6 +1928,11 @@ def api_scan_id():
             "scan_type": latest_ev.get("scan_type"),
             "period": latest_ev.get("period"),
             "voice_text": latest_ev.get("voice_text"),
+            "am_in": latest_ev.get("am_in", 0),
+            "am_out": latest_ev.get("am_out", 0),
+            "pm_in": latest_ev.get("pm_in", 0),
+            "pm_out": latest_ev.get("pm_out", 0),
+            "total_scans": latest_ev.get("total_scans", 0),
             "event": latest_ev
         })
     except Exception as e:
@@ -2038,6 +2043,17 @@ def api_enroll_student():
     except Exception as e:
         return jsonify({"success": False, "message": f"Server Error: {str(e)}"}), 500
 
+@app.route('/api/admin/clear-today-logs', methods=['POST', 'GET'])
+def api_clear_today_logs():
+    """Clears all attendance logs recorded today for test resets."""
+    from smile_orm import clear_today_attendance_logs_orm
+    deleted_count = clear_today_attendance_logs_orm()
+    return jsonify({
+        "success": True,
+        "message": f"Cleared {deleted_count} logs recorded today.",
+        "deleted_count": deleted_count
+    })
+
 @app.route('/api/kiosk-auto-scan', methods=['POST'])
 def api_kiosk_auto_scan():
     """
@@ -2070,6 +2086,11 @@ def api_kiosk_auto_scan():
                     "scan_type": latest_ev.get("scan_type"),
                     "period": latest_ev.get("period"),
                     "voice_text": latest_ev.get("voice_text"),
+                    "am_in": latest_ev.get("am_in", 0),
+                    "am_out": latest_ev.get("am_out", 0),
+                    "pm_in": latest_ev.get("pm_in", 0),
+                    "pm_out": latest_ev.get("pm_out", 0),
+                    "total_scans": latest_ev.get("total_scans", 0),
                     "student": {
                         "lrn": latest_ev.get("lrn"),
                         "full_name": latest_ev.get("name"),
@@ -2110,6 +2131,11 @@ def api_kiosk_auto_scan():
                         "scan_type": latest_ev.get("scan_type"),
                         "period": latest_ev.get("period"),
                         "voice_text": latest_ev.get("voice_text"),
+                        "am_in": latest_ev.get("am_in", 0),
+                        "am_out": latest_ev.get("am_out", 0),
+                        "pm_in": latest_ev.get("pm_in", 0),
+                        "pm_out": latest_ev.get("pm_out", 0),
+                        "total_scans": latest_ev.get("total_scans", 0),
                         "event": latest_ev
                     })
                 else:
@@ -2178,6 +2204,11 @@ def api_verify_face():
                 "scan_type": latest_ev.get("scan_type"),
                 "period": latest_ev.get("period"),
                 "voice_text": latest_ev.get("voice_text"),
+                "am_in": latest_ev.get("am_in", 0),
+                "am_out": latest_ev.get("am_out", 0),
+                "pm_in": latest_ev.get("pm_in", 0),
+                "pm_out": latest_ev.get("pm_out", 0),
+                "total_scans": latest_ev.get("total_scans", 0),
                 "event": latest_ev
             })
         else:
