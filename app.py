@@ -561,22 +561,27 @@ def add_performance_headers(response):
 @login_required
 def dashboard():
     """Administrative Attendance Dashboard - High Performance."""
-    from smile_orm import get_enrolled_students_count_orm
-    summary = get_today_summary()
-    total_enrolled = get_enrolled_students_count_orm()
-    logs = get_today_attendance_logs_orm(30)
-    total_sms_today = get_today_sms_count_orm()
+    try:
+        from smile_orm import get_enrolled_students_count_orm
+        summary = get_today_summary()
+        total_enrolled = get_enrolled_students_count_orm()
+        logs = get_today_attendance_logs_orm(30)
+        total_sms_today = get_today_sms_count_orm()
 
-    return render_template(
-        'dashboard.html',
-        school_name=SCHOOL_NAME,
-        total_enrolled=total_enrolled,
-        total_scans_today=summary["total_scans"],
-        unique_students_today=summary["unique_students"],
-        total_sms_today=total_sms_today,
-        logs=logs,
-        today_date=pht_now().strftime("%A, %B %d, %Y")
-    )
+        return render_template(
+            'dashboard.html',
+            school_name=SCHOOL_NAME,
+            total_enrolled=total_enrolled,
+            total_scans_today=summary["total_scans"],
+            unique_students_today=summary["unique_students"],
+            total_sms_today=total_sms_today,
+            logs=logs,
+            today_date=pht_now().strftime("%A, %B %d, %Y")
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"dashboard_error": str(e), "traceback": traceback.format_exc()}), 500
 
 @app.route('/kiosk')
 @login_required
