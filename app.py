@@ -544,6 +544,30 @@ def api_get_pricing_plans():
     plans = get_all_pricing_plans_orm(category=category)
     return jsonify({"success": True, "plans": plans, "total": len(plans)})
 
+@app.route('/debug-db')
+def debug_db():
+    import traceback
+    try:
+        from smile_orm import Session, Student, User
+        s = Session()
+        uc = s.query(User).count()
+        sc = s.query(Student).count()
+        s.close()
+        db_url = smile_config.get_database_url()
+        safe_url = db_url.split('@')[-1] if '@' in db_url else db_url[:20]
+        return jsonify({
+            "status": "ok",
+            "host": safe_url,
+            "users": uc,
+            "students": sc
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "exception": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 # -------------------------------------------------------------
 # Web Page Routes
 # -------------------------------------------------------------
