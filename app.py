@@ -1139,28 +1139,7 @@ def api_parent_poll(lrn):
 
     session = Session()
     try:
-        # Check gate scan events
-        new_log = None
-        if last_id is not None:
-            new_log = session.query(AttendanceLog).filter(
-                AttendanceLog.lrn == clean_lrn,
-                AttendanceLog.id > last_id
-            ).order_by(AttendanceLog.id.asc()).first()
-        elif request.args.get('initial') == '1':
-            new_log = session.query(AttendanceLog).filter(
-                AttendanceLog.lrn == clean_lrn
-            ).order_by(AttendanceLog.id.desc()).first()
-
-        # Check announcements published since last_ann_id
-        new_ann = None
-        if last_ann_id is not None:
-            new_ann = session.query(Announcement).filter(
-                Announcement.id > last_ann_id
-            ).order_by(Announcement.id.asc()).first()
-        elif request.args.get('initial') == '1':
-            new_ann = session.query(Announcement).order_by(Announcement.id.desc()).first()
-
-        # Current child status
+        # Current child status & latest log
         latest_overall_log = session.query(AttendanceLog).filter(
             AttendanceLog.lrn == clean_lrn
         ).order_by(AttendanceLog.id.desc()).first()
@@ -1173,8 +1152,33 @@ def api_parent_poll(lrn):
                 status_text = "SAFELY_EXITED"
 
         latest_id_val = latest_overall_log.id if latest_overall_log else 0
+
+        # Check gate scan events
+        new_log = None
+        if last_id is not None:
+            # Backward-compatibility for legacy APK builds where lastEventIdRef was initialized to 101:
+            if last_id >= 100 and latest_overall_log and latest_overall_log.id < 100:
+                # Deliver latest scan to break deadlock and immediately align mobile app's ref
+                new_log = latest_overall_log
+            else:
+                new_log = session.query(AttendanceLog).filter(
+                    AttendanceLog.lrn == clean_lrn,
+                    AttendanceLog.id > last_id
+                ).order_by(AttendanceLog.id.asc()).first()
+        elif request.args.get('initial') == '1':
+            new_log = latest_overall_log
+
+        # Check announcements published since last_ann_id
         latest_ann_val = session.query(Announcement).order_by(Announcement.id.desc()).first()
         latest_ann_id_val = latest_ann_val.id if latest_ann_val else 0
+
+        new_ann = None
+        if last_ann_id is not None:
+            new_ann = session.query(Announcement).filter(
+                Announcement.id > last_ann_id
+            ).order_by(Announcement.id.asc()).first()
+        elif request.args.get('initial') == '1':
+            new_ann = latest_ann_val
 
         res_data = {
             "has_new": (new_log is not None),
