@@ -93,7 +93,7 @@ class Student(Base):
     def to_dict(self):
         adviser = self.class_adviser or ""
         if not adviser and self.section_id:
-            from sqlalchemy.orm import inspect as sa_inspect
+            from sqlalchemy import inspect as sa_inspect
             try:
                 insp = sa_inspect(self)
                 if 'section_rel' in insp.dict and self.section_rel:
@@ -145,7 +145,7 @@ class AttendanceLog(Base):
     def to_dict(self, parent_phone=None):
         phone = parent_phone
         if phone is None:
-            from sqlalchemy.orm import inspect as sa_inspect
+            from sqlalchemy import inspect as sa_inspect
             try:
                 insp = sa_inspect(self)
                 if 'student_rel' in insp.dict and self.student_rel:
