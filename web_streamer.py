@@ -77,9 +77,11 @@ class GateStreamer:
         self.thread.start()
 
     def get_enrolled(self):
-        """Returns enrolled students list, reloading from DB if empty."""
-        if not self.enrolled_students:
+        """Returns enrolled students list, reloading from DB if empty or if cache is older than 60s."""
+        now = time.time()
+        if not self.enrolled_students or (now - getattr(self, '_last_enrolled_reload', 0)) > 60:
             self.reload_enrolled_students()
+            self._last_enrolled_reload = now
         return self.enrolled_students
 
     def reload_enrolled_students(self):
@@ -181,35 +183,65 @@ class GateStreamer:
             print(f"[GATE SUCCESS] {method}: {student['full_name']} (LRN: {student['lrn']}) -> {scan_type} ({eval_res['period']})")
             return True, eval_res["message"]
         else:
-            # Blocked / Duplicate scan!
-            # Emit voice error and visual notice, BUT record in student_debounce_cache
-            # so subsequent frames in the next 12 seconds do NOT re-fire!
-            print(f"[GATE REJECTED] {method}: {student['full_name']} -> {eval_res['message']}")
-            with self.lock:
-                self.event_counter += 1
-                self.latest_event = {
-                    "event_id": self.event_counter,
-                    "type": "BLOCKED",
-                    "lrn": student["lrn"],
-                    "name": student["full_name"],
-                    "grade": student["grade_section"],
-                    "scan_type": "BLOCKED",
-                    "period": eval_res.get("period", "Duplicate Entry"),
-                    "voice_text": eval_res.get("voice_text", ""),
-                    "message": eval_res.get("message", "Duplicate or repeated entry rejected."),
-                    "method": method,
-                    "timestamp": now_dt.strftime("%I:%M %p"),
-                    "date": now_dt.strftime("%b %d, %Y"),
-                    "photo_path": student.get("photo_path") or "",
-                    "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
-                }
+            # Active dwell or Gate Restriction
+            is_active_dwell = eval_res.get("is_active_dwell", False) or "Active" in eval_res.get("period", "")
+            current_scan_type = eval_res.get("scan_type", "TIME_IN")
+            current_period = eval_res.get("period", "Time-In Active")
 
-            self.student_debounce_cache[lrn] = {
-                "time": now_time,
-                "success": False,
-                "scan_type": "BLOCKED"
-            }
-            return False, eval_res["message"]
+            if is_active_dwell:
+                print(f"[GATE DWELL] {method}: {student['full_name']} -> {current_period}")
+                with self.lock:
+                    self.latest_event = {
+                        "event_id": self.event_counter,
+                        "type": "ACTIVE",
+                        "lrn": student["lrn"],
+                        "name": student["full_name"],
+                        "grade": student["grade_section"],
+                        "parent_phone": student.get("parent_phone", ""),
+                        "scan_type": current_scan_type,
+                        "period": current_period,
+                        "voice_text": "",  # Silent
+                        "message": eval_res.get("message", f"{student['full_name']} attendance active."),
+                        "method": method,
+                        "score": score_str,
+                        "timestamp": now_dt.strftime("%I:%M %p"),
+                        "date": now_dt.strftime("%b %d, %Y"),
+                        "photo_name": photo_name,
+                        "photo_path": student.get("photo_path") or "",
+                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
+                    }
+                return False, eval_res["message"]
+            else:
+                # Real gate notice (e.g. NOT_ENTERED on exit gate)
+                print(f"[GATE NOTICE] {method}: {student['full_name']} -> {eval_res['message']}")
+                with self.lock:
+                    self.event_counter += 1
+                    self.latest_event = {
+                        "event_id": self.event_counter,
+                        "type": "NOTICE",
+                        "lrn": student["lrn"],
+                        "name": student["full_name"],
+                        "grade": student["grade_section"],
+                        "parent_phone": student.get("parent_phone", ""),
+                        "scan_type": current_scan_type,
+                        "period": eval_res.get("period", "Gate Notice"),
+                        "voice_text": eval_res.get("voice_text", ""),
+                        "message": eval_res.get("message", ""),
+                        "method": method,
+                        "score": score_str,
+                        "timestamp": now_dt.strftime("%I:%M %p"),
+                        "date": now_dt.strftime("%b %d, %Y"),
+                        "photo_name": photo_name,
+                        "photo_path": student.get("photo_path") or "",
+                        "qr_path": student.get("qr_code_path") or f"/static/qrcodes/{student['lrn']}.png"
+                    }
+
+                self.student_debounce_cache[lrn] = {
+                    "time": now_time,
+                    "success": False,
+                    "scan_type": current_scan_type
+                }
+                return False, eval_res["message"]
 
     def trigger_scan_by_id(self, identifier: str, method="RFID_TAP"):
         """Processes scan by RFID Card UID or 12-digit LRN."""

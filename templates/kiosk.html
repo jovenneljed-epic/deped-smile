@@ -551,7 +551,7 @@
     let isScanInProgress = false;
     let lastScannedLrn = null;
     let lastScannedTimestamp = 0;
-    const SCAN_DEBOUNCE_WINDOW_MS = 12000; // 12-second grace period for same student
+    const SCAN_DEBOUNCE_WINDOW_MS = 25000; // 25-second grace period for same student
 
     // Native Browser BarcodeDetector (Zero Latency Optical Scanning)
     let nativeBarcodeDetector = null;
@@ -565,13 +565,19 @@
 
     function startAutoScanLoop() {
       if (autoScanTimer) clearInterval(autoScanTimer);
-      // Run continuous scan tick every 650ms for responsive, snappy recognition
-      autoScanTimer = setInterval(scanTick, 650);
+      // Run continuous scan tick every 500ms for ultra-responsive, snappy face locking
+      autoScanTimer = setInterval(scanTick, 500);
     }
 
     async function scanTick() {
       if (isScanInProgress) return;
       if (!videoEl || videoEl.paused || videoEl.ended || !videoEl.videoWidth) return;
+
+      // Client-side debounce: If student was just successfully scanned < 6 seconds ago,
+      // skip sending auto-scan frames to avoid flooding serverless API with duplicate frames
+      if (lastScannedLrn && (Date.now() - lastScannedTimestamp) < 6000) {
+        return;
+      }
 
       isScanInProgress = true;
       try {
@@ -592,16 +598,18 @@
           }
         }
 
-        // Step B: Send Compressed Frame to Server Auto-Scanner (QR + YuNet Face Biometrics)
-        // Draw into smaller 400x300 canvas for fast JPEG encoding & minimum bandwidth
-        const w = 400;
-        const h = Math.round(videoEl.videoHeight * (w / videoEl.videoWidth)) || 300;
+        // Step B: Send High-Resolution Frame to Server Auto-Scanner (QR + YuNet Face Biometrics)
+        // Render 640px wide canvas with high smoothing for accurate landmark detection
+        const w = 640;
+        const h = Math.round(videoEl.videoHeight * (w / videoEl.videoWidth)) || 480;
         canvasEl.width = w;
         canvasEl.height = h;
         const ctx = canvasEl.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(videoEl, 0, 0, w, h);
 
-        const dataUrl = canvasEl.toDataURL('image/jpeg', 0.68);
+        const dataUrl = canvasEl.toDataURL('image/jpeg', 0.82);
 
         const res = await fetch('/api/kiosk-auto-scan', {
           method: 'POST',
@@ -731,26 +739,39 @@
       const lrn = st.lrn || (data.event ? data.event.lrn : '');
       const now = Date.now();
 
-      // Check client-side cooldown for the same student
-      if (lrn && lrn === lastScannedLrn && (now - lastScannedTimestamp) < SCAN_DEBOUNCE_WINDOW_MS) {
-        // Same student is still standing in front of the lens; keep badge active without repeating sound
-        return;
+      // If data is NOT a fresh successful scan (i.e. active dwell or debounce grace period)
+      if (!data.success) {
+        // If this same student was already scanned recently, silently ignore dwell frames
+        if (lrn && lrn === lastScannedLrn && (now - lastScannedTimestamp) < SCAN_DEBOUNCE_WINDOW_MS) {
+          return;
+        }
       }
 
-      lastScannedLrn = lrn;
-      lastScannedTimestamp = now;
+      // If it IS a fresh successful scan:
+      if (data.success) {
+        lastScannedLrn = lrn;
+        lastScannedTimestamp = now;
 
-      // Visual Laser Flash Animation
-      targetBracket.classList.add('scan-flash-green');
-      setTimeout(() => targetBracket.classList.remove('scan-flash-green'), 1200);
+        // Visual Laser Flash Animation
+        targetBracket.classList.add('scan-flash-green');
+        setTimeout(() => targetBracket.classList.remove('scan-flash-green'), 1200);
 
-      // Play Audio Chime
-      const isEntry = (data.scan_type || (data.event ? data.event.scan_type : 'TIME_IN')) === 'TIME_IN';
-      playKioskChime(isEntry);
+        // Play Audio Chime
+        const isEntry = (data.scan_type || (data.event ? data.event.scan_type : 'TIME_IN')) === 'TIME_IN';
+        playKioskChime(isEntry);
 
-      // Speak Student Name
-      const voiceText = data.voice_text || (data.event ? data.event.voice_text : `Welcome, ${st.full_name || 'Student'}`);
-      speakVoiceOver(voiceText);
+        // Speak Student Name / Announcement
+        const voiceText = data.voice_text || (data.event ? data.event.voice_text : '');
+        if (voiceText) {
+          speakVoiceOver(voiceText);
+        }
+
+        // Increment Today's Scans ONLY on genuine attendance event!
+        const scansEl = document.getElementById('kioskScans');
+        if (scansEl) {
+          scansEl.innerText = parseInt(scansEl.innerText || 0) + 1;
+        }
+      }
 
       // Display Badge HUD
       displayBadgeHUD(data);
@@ -783,9 +804,12 @@
       if (scanType === 'TIME_IN') {
         typeBadge.className = 'px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-hud font-extrabold bg-emerald-500 text-slate-950 shadow-sm flex items-center';
         typeBadge.innerHTML = `<i class="fa-solid fa-check mr-1.5"></i> ${period ? period.toUpperCase() : 'TIME-IN CONFIRMED'}`;
-      } else {
+      } else if (scanType === 'TIME_OUT') {
         typeBadge.className = 'px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-hud font-extrabold bg-amber-500 text-slate-950 shadow-sm flex items-center';
         typeBadge.innerHTML = `<i class="fa-solid fa-right-from-bracket mr-1.5"></i> ${period ? period.toUpperCase() : 'TIME-OUT CONFIRMED'}`;
+      } else {
+        typeBadge.className = 'px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-hud font-extrabold bg-emerald-600 text-white shadow-sm flex items-center';
+        typeBadge.innerHTML = `<i class="fa-solid fa-id-badge mr-1.5"></i> ${period ? period.toUpperCase() : 'ATTENDANCE ACTIVE'}`;
       }
 
       // Photos / QR Image
@@ -821,12 +845,6 @@
         smsPhone.innerText = `SMS alert dispatched to parent (${phone}).`;
       } else {
         smsPhone.innerText = `Parent SMS alert dispatched.`;
-      }
-
-      // Increment Today's Scans
-      const scansEl = document.getElementById('kioskScans');
-      if (scansEl) {
-        scansEl.innerText = parseInt(scansEl.innerText || 0) + 1;
       }
 
       // Auto revert to standby after 5.5s

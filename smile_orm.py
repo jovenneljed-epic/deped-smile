@@ -988,24 +988,25 @@ def get_student_by_lrn_or_rfid_orm(identifier: str):
     finally:
         session.close()
 
-def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldown_seconds=10, gate_mode="AUTO", min_dwell_minutes=15):
+def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldown_seconds=COOLDOWN_SECONDS, gate_mode="AUTO", min_dwell_minutes=0):
     """
     Evaluates DepEd School Daily Attendance Quota & State Machine Rule:
     Rule:
+      - Rapid Debounce (Default 25 seconds):
+          * If student stays in camera frame immediately after a scan, their active status is retained silently.
+          * No loud duplicate entry warnings or repeated scan rejections!
       - Morning Session (before 12:00 PM):
-          * 1x TIME-IN (Morning Arrival)
-          * 1x TIME-OUT (Morning Dismissal / Lunch Break)
-          * If student already timed in and tries to scan again before dismissal -> DUPLICATE ENTRY ERROR
-          * Scan 3+: BLOCKED (Morning quota completed, duplicate entry rejected)
+          * 1st Scan: Morning TIME-IN
+          * 2nd Scan (after cooldown): Morning TIME-OUT (Dismissal / Lunch)
+          * Subsequent Scans: Re-Entry / Re-Departure based on presence.
       - Afternoon Session (12:00 PM onwards):
-          * 1x TIME-IN (Afternoon Arrival / Return from Lunch)
-          * Up to 2x TIME-OUT (1st Dismissal & 2nd Final Departure)
-          * If student already timed in and tries to scan again before dismissal -> DUPLICATE ENTRY ERROR
-          * Scan 4+: BLOCKED (Daily attendance quota completed, duplicate entry rejected)
+          * 1st Scan: Afternoon TIME-IN (Arrival / Return from Lunch)
+          * 2nd Scan (after cooldown): Afternoon TIME-OUT (Dismissal)
+          * Subsequent Scans: Re-Entry / Final Departure.
       - Gate Mode Override:
-          * "ENTRY": Enforces Time-In only; already-entered students are rejected as DUPLICATE ENTRY.
-          * "EXIT": Enforces Time-Out only; already-exited students are rejected as DUPLICATE ENTRY.
-          * "AUTO": Automatically handles arrival vs dismissal based on dwell time and school schedule.
+          * "AUTO": Automatically handles arrival vs dismissal in sequence with responsive debounce.
+          * "ENTRY": Enforces Time-In only; already-entered students maintain Active Time-In status.
+          * "EXIT": Enforces Time-Out only; already-exited students maintain Active Time-Out status.
     """
     session = Session()
     now = current_time or pht_now()
@@ -1030,21 +1031,6 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
 
         last_log = today_logs[-1] if today_logs else None
 
-        # Check anti-spam rapid debounce cooldown (e.g. 10 seconds between physical taps)
-        if last_log and last_log.timestamp:
-            elapsed = (now - last_log.timestamp).total_seconds()
-            if 0 <= elapsed < cooldown_seconds:
-                rem = max(1, int(cooldown_seconds - elapsed))
-                return {
-                    "can_scan": False,
-                    "scan_type": "DUPLICATE_ENTRY",
-                    "period": "Repeated Scan Debounce",
-                    "voice_text": f"Repeated entry. Please step forward, {student_name}.",
-                    "message": f"Repeated scan debounce for {student_name}. Please wait {rem}s.",
-                    "cooldown_remaining": rem,
-                    "am_in": 0, "am_out": 0, "pm_in": 0, "pm_out": 0
-                }
-
         # Segregate today's logs into AM (hour < 12) and PM (hour >= 12)
         am_logs = [l for l in today_logs if l.timestamp and l.timestamp.hour < MIDDAY_SPLIT_HOUR]
         pm_logs = [l for l in today_logs if l.timestamp and l.timestamp.hour >= MIDDAY_SPLIT_HOUR]
@@ -1054,14 +1040,35 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
         pm_in_count = sum(1 for l in pm_logs if l.scan_type == "TIME_IN")
         pm_out_count = sum(1 for l in pm_logs if l.scan_type == "TIME_OUT")
 
+        # -------------------------------------------------------------
+        # Continuous Presence Debounce (Grace Period)
+        # If student just scanned within cooldown_seconds (< 25s), do not re-insert into DB
+        # or play duplicate error tones. Silently keep their active badge!
+        # -------------------------------------------------------------
+        if last_log and last_log.timestamp:
+            elapsed = (now - last_log.timestamp).total_seconds()
+            if 0 <= elapsed < cooldown_seconds:
+                rem = max(1, int(cooldown_seconds - elapsed))
+                active_label = "Morning Time-In" if last_log.scan_type == "TIME_IN" else "Time-Out"
+                return {
+                    "can_scan": False,
+                    "is_active_dwell": True,
+                    "scan_type": last_log.scan_type,
+                    "period": f"{active_label} (Active)",
+                    "voice_text": "",  # Silent: do NOT shout duplicate rejection
+                    "message": f"{student_name} attendance active ({rem}s debounce).",
+                    "cooldown_remaining": rem,
+                    "am_in": am_in_count, "am_out": am_out_count,
+                    "pm_in": pm_in_count, "pm_out": pm_out_count
+                }
+
         is_morning = now.hour < MIDDAY_SPLIT_HOUR
 
         # -------------------------------------------------------------
         # 1. MORNING SESSION (Before 12:00 PM)
-        # Quota: 1 Time-In, 1 Time-Out
         # -------------------------------------------------------------
         if is_morning:
-            # A. Student has NOT timed in this morning
+            # Case 1: Student has NOT timed in this morning
             if am_in_count == 0:
                 if norm_gate_mode == "EXIT":
                     return {
@@ -1086,12 +1093,9 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
                         "cooldown_remaining": 0
                     }
 
-            # B. Student has ALREADY timed in this morning, but NOT timed out
+            # Case 2: Student has timed in this morning, but not timed out
             elif am_in_count >= 1 and am_out_count == 0:
-                dwell_sec = (now - last_log.timestamp).total_seconds() if last_log and last_log.timestamp else 0
-                can_time_out = (norm_gate_mode == "EXIT") or (norm_gate_mode == "AUTO" and (now.hour >= 11 or dwell_sec >= min_dwell_minutes * 60))
-
-                if can_time_out:
+                if norm_gate_mode in ("AUTO", "EXIT"):
                     return {
                         "can_scan": True,
                         "scan_type": "TIME_OUT",
@@ -1103,45 +1107,71 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
                         "cooldown_remaining": 0
                     }
                 else:
-                    # Student is ALREADY ENTERED! Scanning again is a DUPLICATE / REPEATED ENTRY
+                    # ENTRY-only gate: confirm student is inside
                     return {
                         "can_scan": False,
-                        "scan_type": "DUPLICATE_ENTRY",
-                        "period": "Already Entered (Duplicate)",
-                        "voice_text": f"Duplicate entry. {student_name} has already timed in. Repeated scan rejected.",
-                        "message": f"Duplicate entry: {student_name} has already timed in for the morning session. Repeated scan rejected.",
+                        "is_active_dwell": True,
+                        "scan_type": "TIME_IN",
+                        "period": "Time-In Active",
+                        "voice_text": "",
+                        "message": f"{student_name} is currently timed in for morning.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
                     }
 
-            # C. Student has already completed Morning In and Morning Out
+            # Case 3: Student already completed Morning In and Morning Out
             else:
-                return {
-                    "can_scan": False,
-                    "scan_type": "DUPLICATE_ENTRY",
-                    "period": "Morning Attendance Completed",
-                    "voice_text": f"Duplicate entry. {student_name} has already completed morning attendance. Repeated scan rejected.",
-                    "message": f"Duplicate entry: {student_name} already completed morning Time-In and Time-Out. Afternoon session opens at 12:00 PM.",
-                    "am_in": am_in_count, "am_out": am_out_count,
-                    "pm_in": pm_in_count, "pm_out": pm_out_count,
-                    "cooldown_remaining": 0
-                }
+                if last_log and last_log.scan_type == "TIME_OUT" and norm_gate_mode in ("AUTO", "ENTRY"):
+                    # Re-Entry allowed
+                    return {
+                        "can_scan": True,
+                        "scan_type": "TIME_IN",
+                        "period": "Morning Re-Entry",
+                        "voice_text": f"Welcome back, {student_name}! Morning Re-Entry recorded.",
+                        "message": f"Morning Re-Entry recorded for {student_name}.",
+                        "am_in": am_in_count, "am_out": am_out_count,
+                        "pm_in": pm_in_count, "pm_out": pm_out_count,
+                        "cooldown_remaining": 0
+                    }
+                elif last_log and last_log.scan_type == "TIME_IN" and norm_gate_mode in ("AUTO", "EXIT"):
+                    # Re-Exit allowed
+                    return {
+                        "can_scan": True,
+                        "scan_type": "TIME_OUT",
+                        "period": "Morning Time-Out",
+                        "voice_text": f"Goodbye, {student_name}! Morning Time Out recorded.",
+                        "message": f"Morning Time-Out recorded for {student_name}.",
+                        "am_in": am_in_count, "am_out": am_out_count,
+                        "pm_in": pm_in_count, "pm_out": pm_out_count,
+                        "cooldown_remaining": 0
+                    }
+                else:
+                    return {
+                        "can_scan": False,
+                        "is_active_dwell": True,
+                        "scan_type": last_log.scan_type if last_log else "TIME_OUT",
+                        "period": "Morning Attendance Active",
+                        "voice_text": "",
+                        "message": f"{student_name} morning attendance is active.",
+                        "am_in": am_in_count, "am_out": am_out_count,
+                        "pm_in": pm_in_count, "pm_out": pm_out_count,
+                        "cooldown_remaining": 0
+                    }
 
         # -------------------------------------------------------------
         # 2. AFTERNOON SESSION (12:00 PM Onwards)
-        # Quota: 1 Time-In, Up to 2 Time-Outs
         # -------------------------------------------------------------
         else:
-            # A. Student has NOT timed in this afternoon
+            # Case 1: Student has NOT timed in this afternoon
             if pm_in_count == 0:
-                if norm_gate_mode == "EXIT":
+                if norm_gate_mode == "EXIT" and am_in_count == 0:
                     return {
                         "can_scan": False,
                         "scan_type": "NOT_ENTERED",
                         "period": "No Afternoon Time-In",
-                        "voice_text": f"Cannot time out. {student_name} has no afternoon time in record.",
-                        "message": f"Exit scan rejected: {student_name} has not timed in for the afternoon session.",
+                        "voice_text": f"Cannot time out. {student_name} has no time in record today.",
+                        "message": f"Exit scan rejected: {student_name} has not timed in today.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
@@ -1158,48 +1188,52 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
                         "cooldown_remaining": 0
                     }
 
-            # B. Student has timed in this afternoon, but has NOT timed out yet
+            # Case 2: Student has timed in this afternoon, but not timed out
             elif pm_in_count >= 1 and pm_out_count == 0:
-                dwell_sec = (now - last_log.timestamp).total_seconds() if last_log and last_log.timestamp else 0
-                can_time_out = (norm_gate_mode == "EXIT") or (norm_gate_mode == "AUTO" and (now.hour >= 15 or dwell_sec >= min_dwell_minutes * 60))
-
-                if can_time_out:
+                if norm_gate_mode in ("AUTO", "EXIT"):
                     return {
                         "can_scan": True,
                         "scan_type": "TIME_OUT",
-                        "period": "Afternoon Time-Out (1st Dismissal)",
+                        "period": "Afternoon Time-Out",
                         "voice_text": f"Goodbye, {student_name}! Afternoon Time Out recorded. Have a safe trip home.",
-                        "message": f"Afternoon Time-Out (1st Dismissal) recorded for {student_name}.",
+                        "message": f"Afternoon Time-Out recorded for {student_name}.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
                     }
                 else:
-                    # Student is ALREADY ENTERED! Scanning again is a DUPLICATE / REPEATED ENTRY
                     return {
                         "can_scan": False,
-                        "scan_type": "DUPLICATE_ENTRY",
-                        "period": "Already Entered (Duplicate)",
-                        "voice_text": f"Duplicate entry. {student_name} has already timed in for the afternoon session. Repeated scan rejected.",
-                        "message": f"Duplicate entry: {student_name} is already entered. Dwell period active before dismissal.",
+                        "is_active_dwell": True,
+                        "scan_type": "TIME_IN",
+                        "period": "Afternoon Time-In (Active)",
+                        "voice_text": "",
+                        "message": f"{student_name} is currently timed in for afternoon.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
                     }
 
-            # C. Student has 1 afternoon dismissal, checking for 2nd final departure
-            elif pm_in_count >= 1 and pm_out_count == 1:
-                dwell_sec = (now - last_log.timestamp).total_seconds() if last_log and last_log.timestamp else 0
-                # Must be at least 3 minutes after 1st dismissal to record 2nd final departure
-                can_final_out = (norm_gate_mode == "EXIT") or (dwell_sec >= 180)
-
-                if can_final_out:
+            # Case 3: Student already timed in and timed out in afternoon
+            else:
+                if last_log and last_log.scan_type == "TIME_OUT" and norm_gate_mode in ("AUTO", "ENTRY"):
+                    return {
+                        "can_scan": True,
+                        "scan_type": "TIME_IN",
+                        "period": "Afternoon Re-Entry",
+                        "voice_text": f"Welcome back, {student_name}! Afternoon Re-Entry recorded.",
+                        "message": f"Afternoon Re-Entry recorded for {student_name}.",
+                        "am_in": am_in_count, "am_out": am_out_count,
+                        "pm_in": pm_in_count, "pm_out": pm_out_count,
+                        "cooldown_remaining": 0
+                    }
+                elif last_log and last_log.scan_type == "TIME_IN" and norm_gate_mode in ("AUTO", "EXIT"):
                     return {
                         "can_scan": True,
                         "scan_type": "TIME_OUT",
                         "period": "Afternoon Time-Out (Final Departure)",
                         "voice_text": f"Goodbye, {student_name}! Final Departure Time Out recorded. Take care and see you tomorrow!",
-                        "message": f"Final Afternoon Time-Out (2nd Dismissal) recorded for {student_name}.",
+                        "message": f"Final Afternoon Time-Out recorded for {student_name}.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
@@ -1207,27 +1241,15 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
                 else:
                     return {
                         "can_scan": False,
-                        "scan_type": "DUPLICATE_ENTRY",
-                        "period": "Already Timed Out (Duplicate)",
-                        "voice_text": f"Duplicate entry. {student_name} has already recorded afternoon dismissal. Repeated scan rejected.",
-                        "message": f"Duplicate entry: {student_name} already recorded 1st dismissal.",
+                        "is_active_dwell": True,
+                        "scan_type": last_log.scan_type if last_log else "TIME_OUT",
+                        "period": "Attendance Active",
+                        "voice_text": "",
+                        "message": f"{student_name} attendance active for today.",
                         "am_in": am_in_count, "am_out": am_out_count,
                         "pm_in": pm_in_count, "pm_out": pm_out_count,
                         "cooldown_remaining": 0
                     }
-
-            # D. Student already completed 2 afternoon Time-Outs (Max daily quota reached)
-            else:
-                return {
-                    "can_scan": False,
-                    "scan_type": "DUPLICATE_ENTRY",
-                    "period": "Daily Attendance Completed",
-                    "voice_text": f"Duplicate entry. {student_name} has already completed all attendance scans today. Repeated scan rejected.",
-                    "message": f"Duplicate entry: {student_name} has completed all daily attendance scans (1 PM Time-In, 2 PM Time-Outs reached).",
-                    "am_in": am_in_count, "am_out": am_out_count,
-                    "pm_in": pm_in_count, "pm_out": pm_out_count,
-                    "cooldown_remaining": 0
-                }
 
     finally:
         session.close()

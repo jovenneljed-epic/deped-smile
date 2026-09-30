@@ -141,9 +141,25 @@ class SmileFaceEngine:
             self.current_input_size = (w, h)
 
         _, faces = self.detector.detect(frame)
-        if faces is None:
-            return []
-        return faces
+        if faces is not None and len(faces) > 0:
+            return faces
+
+        # CLAHE (Contrast Limited Adaptive Histogram Equalization) Fallback:
+        # Handles low-light, shadows, or strong backlighting from school gates/windows
+        try:
+            lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+            cl = clahe.apply(l)
+            enhanced_lab = cv2.merge((cl, a, b))
+            enhanced_frame = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+            _, faces_enhanced = self.detector.detect(enhanced_frame)
+            if faces_enhanced is not None and len(faces_enhanced) > 0:
+                return faces_enhanced
+        except Exception:
+            pass
+
+        return []
 
     def extract_face_embedding(self, frame, face_box):
         """

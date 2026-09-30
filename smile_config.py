@@ -221,7 +221,7 @@ SFACE_PATH = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
 
 # Recognition Thresholds
 COSINE_SIMILARITY_THRESHOLD = 0.363
-DETECTION_CONFIDENCE = 0.80
+DETECTION_CONFIDENCE = 0.55  # Optimized for high sensitivity & fast face-locking in school lighting
 
 # Camera Settings
 CAMERA_INDEX = 0          # 0 is usually default webcam, 1 for external USB camera
@@ -229,7 +229,7 @@ FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 
 # Attendance & Debounce Rules
-COOLDOWN_SECONDS = 60     # Anti-spam rapid double-tap debounce (60 seconds)
+COOLDOWN_SECONDS = 25     # Responsive 25-second cooldown between arrival (Time-In) and departure (Time-Out)
 MIDDAY_SPLIT_HOUR = 12
 
 # SMS Settings Persistence File
