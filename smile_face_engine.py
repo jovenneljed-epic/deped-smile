@@ -61,15 +61,52 @@ class SmileFaceEngine:
             import smile_config
             is_serverless = getattr(smile_config, "IS_VERCEL", False)
 
-            # 1. Ensure models exist (skip download on serverless)
+            # 1. Resolve YuNet Detector path (with /tmp download fallback)
+            yunet_file = YUNET_PATH
+            if not (yunet_file.exists() and yunet_file.stat().st_size > 10000):
+                candidates = [
+                    Path("models/face_detection_yunet_2023mar.onnx"),
+                    Path(__file__).parent / "models" / "face_detection_yunet_2023mar.onnx",
+                    Path("/tmp") / "face_detection_yunet_2023mar.onnx",
+                    Path("/var/task/models/face_detection_yunet_2023mar.onnx")
+                ]
+                for c in candidates:
+                    if c.exists() and c.stat().st_size > 10000:
+                        yunet_file = c
+                        break
+                else:
+                    try:
+                        import requests
+                        tmp_target = Path("/tmp") / "face_detection_yunet_2023mar.onnx"
+                        resp = requests.get(YUNET_MODEL_URL, timeout=8)
+                        if resp.status_code == 200 and len(resp.content) > 10000:
+                            tmp_target.write_bytes(resp.content)
+                            yunet_file = tmp_target
+                    except Exception as _dl_e:
+                        print(f"[!] YuNet auto-download note: {_dl_e}")
+
+            # 2. Resolve SFace Recognizer path
+            sface_file = SFACE_PATH
+            if not (sface_file.exists() and sface_file.stat().st_size > 10000):
+                candidates = [
+                    Path("models/face_recognition_sface_2021dec.onnx"),
+                    Path(__file__).parent / "models" / "face_recognition_sface_2021dec.onnx",
+                    Path("/tmp") / "face_recognition_sface_2021dec.onnx",
+                    Path("/var/task/models/face_recognition_sface_2021dec.onnx")
+                ]
+                for c in candidates:
+                    if c.exists() and c.stat().st_size > 10000:
+                        sface_file = c
+                        break
+
             if not is_serverless:
                 ensure_model_downloaded(YUNET_PATH, YUNET_MODEL_URL, "YuNet Face Detector")
                 ensure_model_downloaded(SFACE_PATH, SFACE_MODEL_URL, "SFace Face Recognizer")
 
-            # 2. Initialize YuNet Detector if available
-            if YUNET_PATH.exists() and YUNET_PATH.stat().st_size > 10000:
+            # 3. Initialize YuNet Detector if available
+            if yunet_file.exists() and yunet_file.stat().st_size > 10000:
                 self.detector = cv2.FaceDetectorYN.create(
-                    model=str(YUNET_PATH),
+                    model=str(yunet_file),
                     config="",
                     input_size=(320, 320),
                     score_threshold=DETECTION_CONFIDENCE,
@@ -77,10 +114,10 @@ class SmileFaceEngine:
                     top_k=5000
                 )
 
-            # 3. Initialize SFace Recognizer if available
-            if SFACE_PATH.exists() and SFACE_PATH.stat().st_size > 10000:
+            # 4. Initialize SFace Recognizer if available
+            if sface_file.exists() and sface_file.stat().st_size > 10000:
                 self.recognizer = cv2.FaceRecognizerSF.create(
-                    model=str(SFACE_PATH),
+                    model=str(sface_file),
                     config=""
                 )
 
