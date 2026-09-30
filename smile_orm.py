@@ -733,15 +733,6 @@ def init_orm_db(force=False):
                 except Exception as ex:
                     print(f"[!] push_subscriptions creation note: {ex}")
 
-            # Ensure essential institutional records exist (sections, plans, announcements, users)
-            try:
-                seed_default_sections_orm()
-                seed_default_pricing_plans_orm()
-                seed_default_announcements_orm()
-                seed_default_events_orm()
-                seed_default_users_orm()
-            except Exception as ex:
-                print(f"[!] Seed check note: {ex}")
 
             _db_initialized = True
             return
