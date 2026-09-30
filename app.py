@@ -717,18 +717,10 @@ def parent_portal(lrn=None):
         if not target_lrn:
             first_student = orm_session.query(Student).first()
             if not first_student:
-                from smile_orm import seed_default_students_orm
-                seed_default_students_orm()
-                first_student = orm_session.query(Student).first()
-            if not first_student:
                 return redirect(url_for('parent_login'))
             target_lrn = first_student.lrn
 
         student = orm_session.query(Student).filter_by(lrn=str(target_lrn)).first()
-        if not student:
-            from smile_orm import seed_default_students_orm
-            seed_default_students_orm()
-            student = orm_session.query(Student).filter_by(lrn=str(target_lrn)).first()
         if not student:
             return redirect(url_for('parent_login'))
 
@@ -1391,10 +1383,6 @@ def api_mobile_home(lrn):
     session = Session()
     try:
         student = session.query(Student).filter_by(lrn=str(lrn)).first()
-        if not student:
-            from smile_orm import seed_default_students_orm
-            seed_default_students_orm()
-            student = session.query(Student).filter_by(lrn=str(lrn)).first()
         if not student:
             return jsonify({"success": False, "message": "Student not found"}), 404
 

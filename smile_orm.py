@@ -893,6 +893,10 @@ def delete_student_orm(lrn):
 
         session.delete(student)
         session.commit()
+        try:
+            (smile_config.DATA_DIR / ".students_seeded").touch(exist_ok=True)
+        except Exception:
+            pass
         return True, f"Student {lrn} removed successfully"
     except Exception as e:
         session.rollback()
@@ -1969,11 +1973,23 @@ DEFAULT_STUDENTS = [
     }
 ]
 
-def seed_default_students_orm():
-    """Seeds default DepEd student records if the students table is empty."""
+def seed_default_students_orm(force=False):
+    """Seeds default DepEd student records only during initial bootstrap. Never resurrects deleted students."""
+    try:
+        marker_file = smile_config.DATA_DIR / ".students_seeded"
+        if marker_file.exists() and not force:
+            return
+    except Exception:
+        marker_file = None
+
     session = Session()
     try:
-        if session.query(Student).count() > 0:
+        if session.query(Student).count() > 0 and not force:
+            if marker_file:
+                try:
+                    marker_file.touch(exist_ok=True)
+                except Exception:
+                    pass
             return
         for s in DEFAULT_STUDENTS:
             st = Student(
@@ -1993,6 +2009,11 @@ def seed_default_students_orm():
             )
             session.add(st)
         session.commit()
+        if marker_file:
+            try:
+                marker_file.touch(exist_ok=True)
+            except Exception:
+                pass
     except Exception as e:
         session.rollback()
         print(f"[!] Error seeding students: {e}")
