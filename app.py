@@ -1913,22 +1913,28 @@ def download_apk_page():
 @app.route('/api/scan-id', methods=['POST'])
 def api_scan_id():
     """Processes an RFID card tap or barcode/QR code scan event."""
-    data = request.json or {}
-    identifier = data.get('identifier', '').strip()
-    method = data.get('method', 'RFID_TAP').strip()
-    if not identifier:
-        return jsonify({"success": False, "message": "Card UID or LRN is required."}), 400
+    try:
+        data = request.json or {}
+        identifier = data.get('identifier', '').strip()
+        method = data.get('method', 'RFID_TAP').strip()
+        if not identifier:
+            return jsonify({"success": False, "message": "Card UID or LRN is required."}), 400
 
-    success, msg = streamer.trigger_scan_by_id(identifier, method=method)
-    latest_ev = streamer.get_latest_event() or {}
-    return jsonify({
-        "success": success,
-        "message": msg,
-        "scan_type": latest_ev.get("scan_type"),
-        "period": latest_ev.get("period"),
-        "voice_text": latest_ev.get("voice_text"),
-        "event": latest_ev
-    })
+        success, msg = streamer.trigger_scan_by_id(identifier, method=method)
+        latest_ev = streamer.get_latest_event() or {}
+        return jsonify({
+            "success": success,
+            "message": msg,
+            "scan_type": latest_ev.get("scan_type"),
+            "period": latest_ev.get("period"),
+            "voice_text": latest_ev.get("voice_text"),
+            "event": latest_ev
+        })
+    except Exception as e:
+        import traceback
+        trace = traceback.format_exc()
+        print(f"[!] /api/scan-id error: {trace}")
+        return jsonify({"success": False, "message": str(e), "traceback": trace}), 500
 
 @app.route('/api/enroll', methods=['POST'])
 def api_enroll_student():
