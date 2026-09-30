@@ -1079,24 +1079,114 @@ def view_id_card(lrn):
     finally:
         session.close()
 
+@app.route('/api/mobile/bootstrap', methods=['GET'])
+def api_mobile_bootstrap():
+    """
+    Initial Handshake & Device Synchronization for DepEd S.M.I.L.E. Mobile App.
+    Returns real school info, enrolled student directory for child selector,
+    current system announcement baseline ID, and active student profile with ZERO fake data.
+    """
+    from smile_orm import Session, Student, AttendanceLog, Announcement
+    requested_lrn = str(request.args.get('lrn', '')).strip()
+    session = Session()
+    try:
+        enrolled_students = [s.to_dict() for s in session.query(Student).filter_by(is_active=True).order_by(Student.last_name.asc()).all()]
+        
+        # Determine active student from real enrolled students
+        active_student = None
+        if requested_lrn:
+            active_student = next((s for s in enrolled_students if s["lrn"] == requested_lrn), None)
+            if not active_student:
+                db_st = session.query(Student).filter_by(lrn=requested_lrn).first()
+                if db_st:
+                    active_student = db_st.to_dict()
+
+        if not active_student and enrolled_students:
+            active_student = enrolled_students[0]
+
+        latest_log = session.query(AttendanceLog).order_by(AttendanceLog.id.desc()).first()
+        latest_ann = session.query(Announcement).order_by(Announcement.id.desc()).first()
+
+        return jsonify({
+            "success": True,
+            "school_name": SCHOOL_NAME,
+            "active_student": active_student,
+            "enrolled_students": enrolled_students,
+            "total_enrolled": len(enrolled_students),
+            "latest_log_id": latest_log.id if latest_log else 0,
+            "latest_announcement_id": latest_ann.id if latest_ann else 0,
+            "server_time": pht_now().strftime("%I:%M %p"),
+            "server_date": pht_now().strftime("%A, %B %d, %Y")
+        })
+    finally:
+        session.close()
+
 @app.route('/api/parent/poll/<lrn>')
 def api_parent_poll(lrn):
     """
-    Real-Time Background Poller for Parent Mobile App.
-    Checks if a new gate attendance transaction has been recorded for this learner since last_id.
+    Real-Time Background Telemetry Stream for Parent Mobile App.
+    Synchronously monitors:
+    1. New gate attendance transactions recorded since last_id
+    2. New DepEd school announcements & advisories published since last_ann_id
+    3. Child's real-time campus status (INSIDE_CAMPUS / SAFELY_EXITED / AWAITING_ARRIVAL)
     """
-    from smile_orm import AttendanceLog, Session
-    last_id = request.args.get('last_id', 0, type=int)
+    from smile_orm import AttendanceLog, Announcement, Session, Student
+    last_id_param = request.args.get('last_id')
+    last_ann_id_param = request.args.get('last_ann_id')
+    last_id = int(last_id_param) if last_id_param is not None else None
+    last_ann_id = int(last_ann_id_param) if last_ann_id_param is not None else None
+    clean_lrn = str(lrn).strip()
+
     session = Session()
     try:
-        new_log = session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == str(lrn),
-            AttendanceLog.id > last_id
-        ).order_by(AttendanceLog.id.desc()).first()
+        # Check gate scan events
+        new_log = None
+        if last_id is not None:
+            new_log = session.query(AttendanceLog).filter(
+                AttendanceLog.lrn == clean_lrn,
+                AttendanceLog.id > last_id
+            ).order_by(AttendanceLog.id.asc()).first()
+        elif request.args.get('initial') == '1':
+            new_log = session.query(AttendanceLog).filter(
+                AttendanceLog.lrn == clean_lrn
+            ).order_by(AttendanceLog.id.desc()).first()
 
-        if new_log:
-            return jsonify({"has_new": True, "event": new_log.to_dict()})
-        return jsonify({"has_new": False})
+        # Check announcements published since last_ann_id
+        new_ann = None
+        if last_ann_id is not None:
+            new_ann = session.query(Announcement).filter(
+                Announcement.id > last_ann_id
+            ).order_by(Announcement.id.asc()).first()
+        elif request.args.get('initial') == '1':
+            new_ann = session.query(Announcement).order_by(Announcement.id.desc()).first()
+
+        # Current child status
+        latest_overall_log = session.query(AttendanceLog).filter(
+            AttendanceLog.lrn == clean_lrn
+        ).order_by(AttendanceLog.id.desc()).first()
+        
+        status_text = "AWAITING_ARRIVAL"
+        if latest_overall_log:
+            if latest_overall_log.scan_type == "TIME_IN":
+                status_text = "INSIDE_CAMPUS"
+            elif latest_overall_log.scan_type == "TIME_OUT":
+                status_text = "SAFELY_EXITED"
+
+        latest_id_val = latest_overall_log.id if latest_overall_log else 0
+        latest_ann_val = session.query(Announcement).order_by(Announcement.id.desc()).first()
+        latest_ann_id_val = latest_ann_val.id if latest_ann_val else 0
+
+        res_data = {
+            "has_new": (new_log is not None),
+            "event": new_log.to_dict() if new_log else None,
+            "status": status_text,
+            "latest_log_id": latest_id_val,
+            "has_new_announcement": (new_ann is not None),
+            "announcement": new_ann.to_dict() if new_ann else None,
+            "latest_announcement_id": latest_ann_id_val,
+            "server_time": pht_now().strftime("%I:%M %p")
+        }
+        return jsonify(res_data)
     finally:
         session.close()
 
@@ -1318,6 +1408,21 @@ def api_announcements():
             is_urgent=is_urgent,
             target_grade=target_grade
         )
+
+        # Broadcast instant notification to all parent mobile devices
+        try:
+            from smile_orm import create_parent_notification_orm
+            create_parent_notification_orm(
+                lrn=None,  # Broadcast to all parents
+                title=f"📢 {title}",
+                body=content[:160] + ("..." if len(content) > 160 else ""),
+                category="ADVISORY" if not is_urgent else "WEATHER_EMERGENCY",
+                priority="URGENT" if is_urgent else "NORMAL",
+                workflow_key="announcement_publish"
+            )
+        except Exception:
+            pass
+
         return jsonify({"success": True, "announcement": new_ann})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1438,21 +1543,8 @@ def api_mobile_home(lrn):
         urgent_announcements = [a for a in all_ann if a.get("is_urgent")][:3]
 
         # Incident Logs
-        incidents = []
-        try:
-            import sqlite3
-            conn = sqlite3.connect(smile_config.DB_PATH)
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            c.execute("""
-                SELECT * FROM incidents 
-                WHERE lrn = ? OR lrn = '' OR lrn IS NULL 
-                ORDER BY id DESC LIMIT 10
-            """, (str(lrn),))
-            incidents = [dict(r) for r in c.fetchall()]
-            conn.close()
-        except Exception:
-            incidents = []
+        from smile_orm import get_incidents_orm
+        incidents = get_incidents_orm(lrn=str(lrn), limit=10)
 
         return jsonify({
             "success": True,
@@ -1476,19 +1568,11 @@ def api_mobile_home(lrn):
 @app.route('/api/incidents', methods=['GET', 'POST'])
 def api_incidents():
     """Returns safety and security incident logs or files a new incident."""
-    import sqlite3
+    from smile_orm import get_incidents_orm, save_incident_orm
     if request.method == 'GET':
         lrn = request.args.get('lrn', '')
         try:
-            conn = sqlite3.connect(smile_config.DB_PATH)
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            if lrn:
-                c.execute("SELECT * FROM incidents WHERE lrn = ? OR lrn = '' OR lrn IS NULL ORDER BY id DESC LIMIT 20", (str(lrn),))
-            else:
-                c.execute("SELECT * FROM incidents ORDER BY id DESC LIMIT 20")
-            items = [dict(r) for r in c.fetchall()]
-            conn.close()
+            items = get_incidents_orm(lrn=lrn, limit=20)
             return jsonify({"success": True, "incidents": items})
         except Exception as e:
             return jsonify({"success": True, "incidents": []})
@@ -1498,7 +1582,6 @@ def api_incidents():
     title = data.get('title', '').strip()
     desc = data.get('description', '').strip()
     lrn = data.get('lrn', '').strip()
-    student_name = data.get('student_name', 'Student').strip()
     incident_type = data.get('incident_type', 'PARENT_SAFETY_CONCERN').strip()
     location = data.get('location', 'Campus Grounds').strip()
     reported_by = data.get('reported_by', 'Parent Guardian').strip()
@@ -1507,18 +1590,19 @@ def api_incidents():
         return jsonify({"success": False, "message": "Title and description are required."}), 400
 
     try:
-        conn = sqlite3.connect(smile_config.DB_PATH)
-        c = conn.cursor()
-        inc_code = f"INC-{pht_now().strftime('%Y')}-{pht_now().strftime('%m%d%H%M%S')[-4:]}"
-        now_str = pht_now().strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("""
-            INSERT INTO incidents 
-            (incident_code, lrn, student_name, incident_type, title, description, location, severity, status, reported_by, reported_at, resolution_notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'MODERATE', 'OPEN', ?, ?, 'Under review by School Security Office')
-        """, (inc_code, lrn, student_name, incident_type, title, desc, location, reported_by, now_str))
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True, "message": f"Incident report #{inc_code} submitted successfully to School Security.", "incident_code": inc_code})
+        new_inc = save_incident_orm(
+            lrn=lrn,
+            title=title,
+            incident_type=incident_type,
+            description=desc,
+            location=location,
+            reported_by=reported_by
+        )
+        return jsonify({
+            "success": True,
+            "message": "Incident report submitted successfully to School Security.",
+            "incident": new_inc
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -1738,7 +1822,7 @@ def api_workflows_executions():
 @app.route('/api/mobile/broadcast', methods=['POST'])
 def api_mobile_broadcast():
     """Broadcasts a manual push alert to parent mobile apps."""
-    import sqlite3
+    from smile_orm import get_all_enrolled_students_orm, create_parent_notification_orm
     data = request.json or {}
     title = data.get('title', '').strip()
     body = data.get('body', '').strip()
@@ -1748,88 +1832,54 @@ def api_mobile_broadcast():
     if not title or not body:
         return jsonify({"success": False, "message": "Title and body are required."}), 400
 
-    now_str = pht_now().strftime("%Y-%m-%d %H:%M:%S")
     try:
-        conn = sqlite3.connect(smile_config.DB_PATH)
-        c = conn.cursor()
-        targets = ['152008250007', '152008250008', '109876543210']
-        for lrn in targets:
-            c.execute("""
-                INSERT INTO parent_notifications (lrn, title, body, category, priority, workflow_key, is_read, sent_at)
-                VALUES (?, ?, ?, ?, 'URGENT', 'manual_broadcast', 0, ?)
-            """, (lrn, title, body, category, now_str))
+        students = get_all_enrolled_students_orm()
+        targets = [s["lrn"] for s in students] if students else []
+        if not targets:
+            # Broadcast to all
+            create_parent_notification_orm(
+                lrn=None,
+                title=title,
+                body=body,
+                category=category,
+                priority="URGENT",
+                workflow_key="manual_broadcast"
+            )
+            count = 1
+        else:
+            for lrn in targets:
+                create_parent_notification_orm(
+                    lrn=lrn,
+                    title=title,
+                    body=body,
+                    category=category,
+                    priority="URGENT",
+                    workflow_key="manual_broadcast"
+                )
+            count = len(targets)
 
-        import json
-        c.execute("""
-            INSERT INTO workflow_executions (workflow_id, workflow_title, trigger_source, status, execution_ms, nodes_log, recipient_count, created_at)
-            VALUES (0, 'Manual Push Broadcast', 'ADMIN_PORTAL', 'SUCCESS', 18, ?, ?, ?)
-        """, (json.dumps([{"node": "Admin Broadcast", "duration": "18ms", "detail": f"Dispatched manual broadcast to {target}."}]), len(targets), now_str))
-
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True, "message": f"Broadcast sent to {len(targets)} parent devices successfully!"})
+        return jsonify({"success": True, "message": f"Broadcast sent to {count} parent recipient channel(s) successfully!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/mobile/notifications/<lrn>')
 def api_mobile_notifications(lrn):
     """Returns aggregated real-time notification stream for parents."""
-    from smile_orm import Session, Student, AttendanceLog, Announcement, ExcuseNote
+    from smile_orm import Session, Student, AttendanceLog, Announcement, ExcuseNote, get_parent_notifications_orm
     session = Session()
     try:
-        student = session.query(Student).filter_by(lrn=str(lrn)).first()
+        clean_lrn = str(lrn).strip()
+        student = session.query(Student).filter_by(lrn=clean_lrn).first()
         student_name = student.first_name if student else "Learner"
 
         notifications = []
 
-        # 0. Automated Workflow Push Notifications (n8n Engine)
-        try:
-            import sqlite3
-            p_conn = sqlite3.connect(smile_config.DB_PATH)
-            p_conn.row_factory = sqlite3.Row
-            p_cur = p_conn.cursor()
-            p_cur.execute("""
-                SELECT * FROM parent_notifications 
-                WHERE lrn = ? OR lrn = '' OR lrn IS NULL 
-                ORDER BY id DESC LIMIT 15
-            """, (str(lrn),))
-            p_rows = p_cur.fetchall()
-            for r in p_rows:
-                r_dict = dict(r)
-                is_urgent = (r_dict.get('priority') == 'URGENT')
-                cat = r_dict.get('category', 'ATTENDANCE')
-                icon = "fa-bell"
-                color = "amber"
-                if cat == 'ATTENDANCE':
-                    icon = "fa-shield-halved"
-                    color = "emerald"
-                elif cat == 'CLINIC':
-                    icon = "fa-heart-pulse"
-                    color = "rose"
-                elif cat == 'WEATHER_EMERGENCY':
-                    icon = "fa-cloud-bolt"
-                    color = "red"
-                elif cat == 'SAFETY_CHECK':
-                    icon = "fa-user-shield"
-                    color = "blue"
+        # 1. Real ORM Workflow Push Notifications
+        orm_notifs = get_parent_notifications_orm(lrn=clean_lrn, limit=20)
+        notifications.extend(orm_notifs)
 
-                notifications.append({
-                    "id": f"wf-{r_dict['id']}",
-                    "type": cat,
-                    "title": r_dict['title'],
-                    "body": r_dict['body'],
-                    "timestamp": r_dict.get('sent_at', '')[:16],
-                    "icon": icon,
-                    "color": color,
-                    "is_urgent": is_urgent,
-                    "read": bool(r_dict.get('is_read', 0))
-                })
-            p_conn.close()
-        except Exception:
-            pass
-
-        # 1. Gate attendance alerts
-        logs = session.query(AttendanceLog).filter_by(lrn=str(lrn)).order_by(AttendanceLog.id.desc()).limit(12).all()
+        # 2. Gate attendance alerts from attendance_logs
+        logs = session.query(AttendanceLog).filter_by(lrn=clean_lrn).order_by(AttendanceLog.id.desc()).limit(12).all()
         for l in logs:
             is_in = (l.scan_type == "TIME_IN")
             action = "entered" if is_in else "safely exited from"
@@ -1848,7 +1898,7 @@ def api_mobile_notifications(lrn):
                 "read": False
             })
 
-        # 2. Urgent School Announcements
+        # 3. Urgent School Announcements
         announcements = session.query(Announcement).filter_by(is_urgent=True).order_by(Announcement.id.desc()).limit(5).all()
         for a in announcements:
             t_str = a.created_at.strftime("%b %d, %I:%M %p") if a.created_at else ""
@@ -1864,8 +1914,8 @@ def api_mobile_notifications(lrn):
                 "read": False
             })
 
-        # 3. Excuse Note Status
-        notes = session.query(ExcuseNote).filter_by(lrn=str(lrn)).order_by(ExcuseNote.id.desc()).limit(3).all()
+        # 4. Excuse Note Status
+        notes = session.query(ExcuseNote).filter_by(lrn=clean_lrn).order_by(ExcuseNote.id.desc()).limit(3).all()
         for n in notes:
             t_str = n.created_at.strftime("%b %d, %I:%M %p") if n.created_at else ""
             notifications.append({
@@ -1891,16 +1941,12 @@ def api_mobile_notifications(lrn):
 @app.route('/api/mobile/notifications/read', methods=['POST'])
 def api_mobile_notifications_mark_read():
     """Marks all notifications as read for a learner."""
-    import sqlite3
+    from smile_orm import mark_parent_notifications_read_orm
     data = request.json or {}
     lrn = str(data.get('lrn', '')).strip()
     try:
-        conn = sqlite3.connect(smile_config.DB_PATH)
-        c = conn.cursor()
-        c.execute("UPDATE parent_notifications SET is_read = 1 WHERE lrn = ? OR lrn = ''", (lrn,))
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True, "message": "Marked notifications as read."})
+        updated = mark_parent_notifications_read_orm(lrn=lrn)
+        return jsonify({"success": True, "message": "Marked notifications as read.", "count": updated})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 

@@ -24,7 +24,7 @@ const { width, height } = Dimensions.get('window');
 // Server endpoints (Auto-failover: Cloud Vercel & Local LAN)
 const CLOUD_SERVER_URL = "https://deped-smile.vercel.app";
 const LOCAL_SERVER_URL = "http://192.168.1.9:5000";
-const DEFAULT_LRN = "152008250007";
+const DEFAULT_LRN = "";
 
 export default function App() {
   // Navigation State
@@ -42,53 +42,21 @@ export default function App() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeOutAnim = useRef(new Animated.Value(1)).current;
 
-  // Data State
-  const [student, setStudent] = useState({
-    lrn: "152008250007",
-    full_name: "Juan Dela Cruz",
-    first_name: "Juan",
-    last_name: "Dela Cruz",
-    grade_section: "Grade 10 - Rizal",
-    grade_level: "Grade 10",
-    class_adviser: "Mrs. Corazon Aquino",
-    parent_name: "Maria Dela Cruz",
-    parent_phone: "09171234567"
-  });
-  const [siblings, setSiblings] = useState([
-    { lrn: "152008250007", first_name: "Juan", grade_level: "Grade 10", grade_section: "Grade 10 - Rizal" },
-    { lrn: "152008250008", first_name: "Maria", grade_level: "Grade 8", grade_section: "Grade 8 - Luna" }
-  ]);
-  const [status, setStatus] = useState("INSIDE_CAMPUS");
-  const [latestLog, setLatestLog] = useState({
-    id: 101,
-    lrn: "152008250007",
-    student_name: "Juan Dela Cruz",
-    scan_type: "TIME_IN",
-    timestamp: "2026-09-27 07:18:42",
-    time_formatted: "07:18 AM",
-    device_id: "GATE-1-FACIAL-AI",
-    verification_method: "AI Facial Biometrics",
-    remarks: "Verified Morning Campus Entry"
-  });
-  const [todayLogs, setTodayLogs] = useState([
-    {
-      id: 101,
-      lrn: "152008250007",
-      student_name: "Juan Dela Cruz",
-      scan_type: "TIME_IN",
-      timestamp: "2026-09-27 07:18:42",
-      time_formatted: "07:18 AM",
-      device_id: "GATE-1-FACIAL-AI",
-      verification_method: "AI Facial Biometrics",
-      remarks: "Verified Morning Campus Entry"
-    }
-  ]);
+  // Data State (Strictly Real Live Data, Zero Dummy Fallbacks)
+  const [student, setStudent] = useState(null);
+  const [siblings, setSiblings] = useState([]);
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
+  const [studentPickerVisible, setStudentPickerVisible] = useState(false);
+  const [schoolName, setSchoolName] = useState("Department of Education • Project S.M.I.L.E.");
+  const [status, setStatus] = useState("AWAITING_ARRIVAL");
+  const [latestLog, setLatestLog] = useState(null);
+  const [todayLogs, setTodayLogs] = useState([]);
   const [allLogs, setAllLogs] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [urgentAnnouncements, setUrgentAnnouncements] = useState([]);
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  const [todayDate, setTodayDate] = useState("Sunday, September 27, 2026");
+  const [todayDate, setTodayDate] = useState(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
 
   // Filter States
   const [incidentFilter, setIncidentFilter] = useState('ALL');
@@ -119,6 +87,15 @@ export default function App() {
   const [alertModalVisible, setAlertModalVisible] = useState(false);
   const [alertData, setAlertData] = useState(null);
 
+  // Floating Heads-Up Banner State
+  const [floatingBannerData, setFloatingBannerData] = useState({
+    icon: "🔔",
+    title: "E-NOTIFICATION ALERT",
+    body: "System online. Real-time telemetry connected.",
+    time: "Just now",
+    color: "#FCD116"
+  });
+
   // Form States
   const [excuseReason, setExcuseReason] = useState("Illness / Medical");
   const [excuseDate, setExcuseDate] = useState(new Date().toISOString().split('T')[0]);
@@ -135,9 +112,10 @@ export default function App() {
   const [tempLrn, setTempLrn] = useState(DEFAULT_LRN);
 
   // Polling tracker & banner anim
-  const lastEventIdRef = useRef(101);
+  const lastEventIdRef = useRef(0);
+  const lastAnnIdRef = useRef(0);
   const pollIntervalRef = useRef(null);
-  const bannerAnim = useRef(new Animated.Value(-120)).current;
+  const bannerAnim = useRef(new Animated.Value(-140)).current;
 
   // -------------------------------------------------------------
   // 1. Initial Load & Multi-Stage Real Loading Animation
@@ -163,20 +141,18 @@ export default function App() {
     // Progress bar smooth sweep
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 2000,
+      duration: 1800,
       useNativeDriver: false,
     }).start();
 
     // Staged status messages
-    const t1 = setTimeout(() => setLoadingPhase("ESTABLISHING SECURE GATE TELEMETRY..."), 450);
-    const t2 = setTimeout(() => setLoadingPhase("SYNCHRONIZING BIOMETRIC GATE LOGS..."), 900);
-    const t3 = setTimeout(() => setLoadingPhase("DECRYPTING INCIDENT LOGS & E-NOTIFICATIONS..."), 1350);
-    const t4 = setTimeout(() => setLoadingPhase("SYSTEM SECURE • READY"), 1750);
+    const t1 = setTimeout(() => setLoadingPhase("ESTABLISHING SECURE GATE TELEMETRY..."), 350);
+    const t2 = setTimeout(() => setLoadingPhase("SYNCHRONIZING BIOMETRIC GATE LOGS..."), 700);
+    const t3 = setTimeout(() => setLoadingPhase("CONNECTING REAL-TIME PARENT ALERTS..."), 1050);
+    const t4 = setTimeout(() => setLoadingPhase("SYSTEM SECURE • READY"), 1400);
 
-    // Initial database fetch
-    fetchDashboardData(activeLrn);
-    fetchNotifications(activeLrn);
-    startPolling(activeLrn);
+    // Initial database handshake & real synchronization
+    bootstrapAndSync(activeLrn);
 
     // Complete loading after animation
     const completeTimer = setTimeout(() => {
@@ -188,7 +164,7 @@ export default function App() {
         setIsLoading(false);
         pulseLoop.stop();
       });
-    }, 2100);
+    }, 1800);
 
     return () => {
       clearTimeout(t1);
@@ -198,12 +174,94 @@ export default function App() {
       clearTimeout(completeTimer);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [activeLrn, serverUrl]);
+  }, [serverUrl]);
 
   // -------------------------------------------------------------
-  // 2. Fetch Data from Real Database with Fallback
+  // 2. Real-Time System Bootstrap & Device Synchronization
+  // -------------------------------------------------------------
+  const bootstrapAndSync = async (preferredLrn) => {
+    try {
+      setLoadingPhase("CONNECTING TO DEPED CLOUD SERVER...");
+      const lrnParam = preferredLrn || activeLrn || "";
+      const res = await fetch(`${serverUrl}/api/mobile/bootstrap?lrn=${lrnParam}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        if (data.school_name) setSchoolName(data.school_name);
+        if (data.enrolled_students && data.enrolled_students.length > 0) {
+          setEnrolledStudents(data.enrolled_students);
+          setSiblings(data.enrolled_students);
+        }
+
+        let targetStudent = data.active_student;
+        if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
+          targetStudent = data.enrolled_students[0];
+        }
+
+        if (targetStudent) {
+          setStudent(targetStudent);
+          setActiveLrn(targetStudent.lrn);
+          setTempLrn(targetStudent.lrn);
+
+          if (data.latest_log_id !== undefined) {
+            lastEventIdRef.current = data.latest_log_id;
+          }
+          if (data.latest_announcement_id !== undefined) {
+            lastAnnIdRef.current = data.latest_announcement_id;
+          }
+
+          // Fetch full dashboard data and notifications
+          await fetchDashboardData(targetStudent.lrn);
+          await fetchNotifications(targetStudent.lrn);
+          startPolling(targetStudent.lrn);
+        } else {
+          // Zero dummy records fallback
+          setStudent(null);
+          setActiveLrn("");
+          setTempLrn("");
+          setTodayLogs([]);
+          setLatestLog(null);
+          setStatus("AWAITING_ENROLLMENT");
+          startPolling("");
+        }
+      }
+    } catch (err) {
+      console.warn("Bootstrap cloud notice:", err.message);
+      if (serverUrl === CLOUD_SERVER_URL) {
+        try {
+          const localRes = await fetch(`${LOCAL_SERVER_URL}/api/mobile/bootstrap?lrn=${preferredLrn || activeLrn || ""}`);
+          const localData = await localRes.json();
+          if (localData && localData.success) {
+            setServerUrl(LOCAL_SERVER_URL);
+            setTempServerUrl(LOCAL_SERVER_URL);
+            if (localData.enrolled_students) {
+              setEnrolledStudents(localData.enrolled_students);
+              setSiblings(localData.enrolled_students);
+            }
+            if (localData.active_student) {
+              setStudent(localData.active_student);
+              setActiveLrn(localData.active_student.lrn);
+              setTempLrn(localData.active_student.lrn);
+              if (localData.latest_log_id !== undefined) lastEventIdRef.current = localData.latest_log_id;
+              if (localData.latest_announcement_id !== undefined) lastAnnIdRef.current = localData.latest_announcement_id;
+              fetchDashboardData(localData.active_student.lrn);
+              fetchNotifications(localData.active_student.lrn);
+              startPolling(localData.active_student.lrn);
+            }
+          }
+        } catch (_) {}
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 2b. Fetch Data from Real Database
   // -------------------------------------------------------------
   const fetchDashboardData = async (lrn) => {
+    if (!lrn) return;
     try {
       const res = await fetch(`${serverUrl}/api/mobile/home/${lrn}`, {
         headers: { 'Accept': 'application/json' }
@@ -215,7 +273,9 @@ export default function App() {
         if (data.status) setStatus(data.status);
         if (data.latest_log) {
           setLatestLog(data.latest_log);
-          if (data.latest_log.id) lastEventIdRef.current = data.latest_log.id;
+          if (data.latest_log.id && data.latest_log.id > lastEventIdRef.current) {
+            lastEventIdRef.current = data.latest_log.id;
+          }
         }
         if (data.today_logs) setTodayLogs(data.today_logs);
         if (data.all_logs) setAllLogs(data.all_logs);
@@ -227,31 +287,17 @@ export default function App() {
         if (data.today_date) setTodayDate(data.today_date);
       }
     } catch (err) {
-      console.warn("Server connection notice:", err.message);
-      // Fallback to local server if cloud is offline, or keep existing cached state
-      if (serverUrl === CLOUD_SERVER_URL) {
-        try {
-          const localRes = await fetch(`${LOCAL_SERVER_URL}/api/mobile/home/${lrn}`);
-          const localData = await localRes.json();
-          if (localData && localData.success) {
-            setServerUrl(LOCAL_SERVER_URL);
-            setTempServerUrl(LOCAL_SERVER_URL);
-            setStudent(localData.student);
-            setStatus(localData.status);
-            setTodayLogs(localData.today_logs || []);
-            setIncidents(localData.incidents || []);
-          }
-        } catch (_) {}
-      }
+      console.warn("Dashboard fetch notice:", err.message);
     } finally {
       setRefreshing(false);
     }
   };
 
   // -------------------------------------------------------------
-  // 2b. Fetch Push Notifications (n8n Automated Workflow Center)
+  // 2c. Fetch Push Notifications (Automated Workflow Stream)
   // -------------------------------------------------------------
   const fetchNotifications = async (lrn) => {
+    if (!lrn) return;
     try {
       const res = await fetch(`${serverUrl}/api/mobile/notifications/${lrn}`, {
         headers: { 'Accept': 'application/json' }
@@ -268,7 +314,7 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 3. Background Polling & E-Notification Alert Stream
+  // 3. Ultra-Fast 2000ms Real-Time Polling & Push Stream
   // -------------------------------------------------------------
   const startPolling = (lrn) => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
@@ -276,89 +322,148 @@ export default function App() {
     pollIntervalRef.current = setInterval(async () => {
       try {
         const lastId = lastEventIdRef.current;
-        const res = await fetch(`${serverUrl}/api/parent/poll/${lrn}?last_id=${lastId}`, {
+        const lastAnnId = lastAnnIdRef.current;
+        const targetLrn = lrn || activeLrn || "";
+
+        // 1. Poll gate attendance transactions and live announcements synchronously
+        const res = await fetch(`${serverUrl}/api/parent/poll/${targetLrn}?last_id=${lastId}&last_ann_id=${lastAnnId}`, {
           headers: { 'Accept': 'application/json' }
         });
         const data = await res.json();
+
+        // Handle new gate scan event in real time!
         if (data.has_new && data.event) {
-          lastEventIdRef.current = data.event.id;
+          lastEventIdRef.current = Math.max(lastEventIdRef.current, data.event.id);
           triggerGateAlert(data.event);
-          fetchDashboardData(lrn);
+          if (targetLrn) fetchDashboardData(targetLrn);
         }
 
-        // Periodically poll automated push notification pipeline
-        const notifRes = await fetch(`${serverUrl}/api/mobile/notifications/${lrn}`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        const notifData = await notifRes.json();
-        if (notifData && notifData.success) {
-          setNotifications(notifData.notifications || []);
-          const unread = notifData.unread_count || 0;
-          if (unread > lastNotifCountRef.current && lastNotifCountRef.current > 0) {
-            // New automated push notification received!
-            if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
-            const latest = notifData.notifications[0];
-            if (latest && pushEnabled) {
-              setAlertData({
-                student_name: student ? student.full_name : "Juan Dela Cruz",
-                scan_type: latest.title,
-                verification_method: latest.type || "n8n Automated Push",
-                remarks: latest.body
-              });
-              Animated.sequence([
-                Animated.timing(bannerAnim, {
-                  toValue: 20,
-                  duration: 350,
-                  useNativeDriver: true,
-                }),
-                Animated.delay(4500),
-                Animated.timing(bannerAnim, {
-                  toValue: -120,
-                  duration: 300,
-                  useNativeDriver: true,
-                })
-              ]).start();
+        // Handle new school announcement advisory in real time!
+        if (data.has_new_announcement && data.announcement) {
+          lastAnnIdRef.current = Math.max(lastAnnIdRef.current, data.announcement.id);
+          triggerAnnouncementAlert(data.announcement);
+          if (targetLrn) fetchDashboardData(targetLrn);
+        }
+
+        // Align baseline IDs if server reports higher pointers
+        if (data.latest_log_id && data.latest_log_id > lastEventIdRef.current) {
+          if (lastEventIdRef.current === 0) lastEventIdRef.current = data.latest_log_id;
+        }
+        if (data.latest_announcement_id && data.latest_announcement_id > lastAnnIdRef.current) {
+          if (lastAnnIdRef.current === 0) lastAnnIdRef.current = data.latest_announcement_id;
+        }
+
+        if (data.status) {
+          setStatus(data.status);
+        }
+
+        // 2. Poll push notification workflow pipeline
+        if (targetLrn) {
+          const notifRes = await fetch(`${serverUrl}/api/mobile/notifications/${targetLrn}`, {
+            headers: { 'Accept': 'application/json' }
+          });
+          const notifData = await notifRes.json();
+          if (notifData && notifData.success) {
+            setNotifications(notifData.notifications || []);
+            const unread = notifData.unread_count || 0;
+            if (unread > lastNotifCountRef.current && lastNotifCountRef.current > 0) {
+              if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
+              const latest = notifData.notifications[0];
+              if (latest && pushEnabled) {
+                showFloatingBanner({
+                  icon: "🔔",
+                  title: latest.title || "E-NOTIFICATION ALERT",
+                  body: latest.body || "New alert from school administration.",
+                  time: "Just now",
+                  color: "#FCD116"
+                });
+              }
             }
+            lastNotifCountRef.current = unread;
+            setUnreadNotifCount(unread);
           }
-          lastNotifCountRef.current = unread;
-          setUnreadNotifCount(unread);
         }
       } catch (_) {}
-    }, 3500);
+    }, 2000);
   };
 
+  // Floating Heads-Up Banner Trigger
+  const showFloatingBanner = (bannerObj) => {
+    setFloatingBannerData(bannerObj);
+    Animated.sequence([
+      Animated.timing(bannerAnim, {
+        toValue: 20,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.delay(4500),
+      Animated.timing(bannerAnim, {
+        toValue: -140,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  // Real-Time Gate Scan Alert Handler
   const triggerGateAlert = (eventData) => {
     if (vibrateEnabled) {
       // Dual haptic pulse
       Vibration.vibrate([0, 450, 120, 450]);
     }
 
-    setAlertData(eventData);
+    setAlertData({
+      ...eventData,
+      alert_kind: 'GATE_SCAN'
+    });
     setAlertModalVisible(true);
 
     if (pushEnabled) {
-      // Slide down floating heads-up banner
-      Animated.sequence([
-        Animated.timing(bannerAnim, {
-          toValue: 20,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.delay(4500),
-        Animated.timing(bannerAnim, {
-          toValue: -120,
-          duration: 300,
-          useNativeDriver: true,
-        })
-      ]).start();
+      const isEntry = eventData.scan_type === "TIME_IN";
+      showFloatingBanner({
+        icon: isEntry ? "🟢" : "🔵",
+        title: isEntry ? "CAMPUS ARRIVAL ALERT" : "CAMPUS EXIT ALERT",
+        body: `${eventData.student_name || "Student"} safely ${isEntry ? "arrived at" : "departed from"} Gate 1 (${eventData.time_formatted || "Just now"})`,
+        time: "Just now",
+        color: isEntry ? "#10B981" : "#38BDF8"
+      });
+    }
+  };
+
+  // Real-Time Announcement Alert Handler
+  const triggerAnnouncementAlert = (ann) => {
+    if (vibrateEnabled) {
+      // Urgent triple haptic alert
+      Vibration.vibrate([0, 500, 150, 500]);
+    }
+
+    setAlertData({
+      alert_kind: 'ANNOUNCEMENT',
+      title: ann.title || "DepEd Advisory",
+      message: ann.content || ann.message || ann.body || "",
+      is_urgent: ann.is_urgent || false,
+      category: ann.category || "GENERAL",
+      time_formatted: ann.created_at || "Just now",
+      device_id: "DepEd School Administration",
+      student_name: student ? student.full_name : "All Students & Parents"
+    });
+    setAlertModalVisible(true);
+
+    if (pushEnabled) {
+      showFloatingBanner({
+        icon: ann.is_urgent ? "🚨" : "📢",
+        title: ann.is_urgent ? "URGENT SCHOOL ADVISORY" : "SCHOOL ANNOUNCEMENT",
+        body: `${ann.title}: ${ann.content || ann.message || ann.body || ""}`,
+        time: "Just now",
+        color: ann.is_urgent ? "#EF4444" : "#FCD116"
+      });
     }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
     if (vibrateEnabled) Vibration.vibrate(40);
-    fetchDashboardData(activeLrn);
-    fetchNotifications(activeLrn);
+    bootstrapAndSync(activeLrn);
   };
 
   // Run n8n Automated Notification Workflow on demand
@@ -412,7 +517,7 @@ export default function App() {
     const isArrival = status !== "INSIDE_CAMPUS";
     const simulatedEvent = {
       id: Date.now(),
-      student_name: student ? student.full_name : "Juan Dela Cruz",
+      student_name: student ? student.full_name : (enrolledStudents.length > 0 ? enrolledStudents[0].full_name : "Enrolled Learner"),
       scan_type: isArrival ? "TIME_IN" : "TIME_OUT",
       timestamp: new Date().toISOString(),
       time_formatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -425,6 +530,10 @@ export default function App() {
 
   // Submit Excuse Note
   const handleSubmitExcuse = async () => {
+    if (!activeLrn || !student) {
+      Alert.alert("No Learner Selected", "Please select an enrolled student to file an excuse letter.");
+      return;
+    }
     if (!excuseDetails.trim()) {
       Alert.alert("Missing Details", "Please provide a reason for the absence or excuse letter.");
       return;
@@ -609,15 +718,17 @@ export default function App() {
       {/* Heads-Up E-Notification Push Banner (Shopee/TikTok style) */}
       <Animated.View style={[styles.floatingBanner, { transform: [{ translateY: bannerAnim }] }]}>
         <View style={styles.bannerIconBox}>
-          <Text style={styles.bannerIconText}>🔔</Text>
+          <Text style={styles.bannerIconText}>{floatingBannerData.icon}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={styles.bannerTitle}>E-NOTIFICATION ALERT</Text>
-            <Text style={styles.bannerTime}>Just now</Text>
+            <Text style={[styles.bannerTitle, { color: floatingBannerData.color }]}>
+              {floatingBannerData.title}
+            </Text>
+            <Text style={styles.bannerTime}>{floatingBannerData.time}</Text>
           </View>
           <Text style={styles.bannerBody} numberOfLines={2}>
-            {alertData ? `${alertData.student_name} (${alertData.scan_type}) verified at Gate 1 via ${alertData.verification_method}` : "Gate attendance scan verified."}
+            {floatingBannerData.body}
           </Text>
         </View>
       </Animated.View>
@@ -638,7 +749,7 @@ export default function App() {
               </View>
             </View>
             <Text style={styles.headerSubtitle} numberOfLines={1}>
-              Security Monitoring, Incident Logging, and E-notification
+              {schoolName || "Security Monitoring, Incident Logging, and E-notification"}
             </Text>
           </View>
         </View>
@@ -864,51 +975,101 @@ export default function App() {
       {/* ------------------------------------------------------------- */}
       <Modal visible={alertModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { borderColor: '#FCD116' }]}>
-            <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <View style={styles.alertIconBadge}>
-                <Text style={{ fontSize: 28 }}>🛡️</Text>
-              </View>
-              <Text style={styles.alertModalTitle}>BIOMETRIC GATE VERIFIED</Text>
-              <Text style={styles.alertModalSubtitle}>Project S.M.I.L.E. E-Notification Alert</Text>
-            </View>
-
-            {alertData && (
-              <View style={styles.alertDetailBox}>
-                <View style={styles.alertDetailRow}>
-                  <Text style={styles.alertDetailLabel}>Learner:</Text>
-                  <Text style={styles.alertDetailVal}>{alertData.student_name}</Text>
-                </View>
-                <View style={styles.alertDetailRow}>
-                  <Text style={styles.alertDetailLabel}>Transaction:</Text>
-                  <Text style={[
-                    styles.alertDetailVal,
-                    { color: alertData.scan_type === 'TIME_IN' ? '#10B981' : '#38BDF8', fontWeight: 'bold' }
-                  ]}>
-                    {alertData.scan_type === 'TIME_IN' ? '🟢 MORNING CAMPUS ENTRY' : '🔵 DISMISSAL CAMPUS EXIT'}
+          <View style={[styles.modalCard, { borderColor: alertData?.alert_kind === 'ANNOUNCEMENT' ? (alertData.is_urgent ? '#EF4444' : '#F59E0B') : '#FCD116' }]}>
+            {alertData?.alert_kind === 'ANNOUNCEMENT' ? (
+              <>
+                <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                  <View style={[styles.alertIconBadge, { backgroundColor: alertData.is_urgent ? '#7F1D1D' : '#1E293B' }]}>
+                    <Text style={{ fontSize: 28 }}>{alertData.is_urgent ? '🚨' : '📢'}</Text>
+                  </View>
+                  <Text style={[styles.alertModalTitle, { color: alertData.is_urgent ? '#EF4444' : '#FCD116' }]}>
+                    {alertData.is_urgent ? 'URGENT SCHOOL ADVISORY' : 'DEPED ANNOUNCEMENT'}
                   </Text>
+                  <Text style={styles.alertModalSubtitle}>Project S.M.I.L.E. Real-time Advisory</Text>
                 </View>
-                <View style={styles.alertDetailRow}>
-                  <Text style={styles.alertDetailLabel}>Timestamp:</Text>
-                  <Text style={styles.alertDetailVal}>{alertData.time_formatted || "Real-time"}</Text>
-                </View>
-                <View style={styles.alertDetailRow}>
-                  <Text style={styles.alertDetailLabel}>Gate Kiosk:</Text>
-                  <Text style={styles.alertDetailVal}>{alertData.device_id}</Text>
-                </View>
-                <View style={styles.alertDetailRow}>
-                  <Text style={styles.alertDetailLabel}>Method:</Text>
-                  <Text style={styles.alertDetailVal}>{alertData.verification_method || "Face AI"}</Text>
-                </View>
-              </View>
-            )}
 
-            <TouchableOpacity
-              style={styles.alertDismissBtn}
-              onPress={() => setAlertModalVisible(false)}
-            >
-              <Text style={styles.alertDismissText}>Acknowledge & Close</Text>
-            </TouchableOpacity>
+                <View style={styles.alertDetailBox}>
+                  <View style={styles.alertDetailRow}>
+                    <Text style={styles.alertDetailLabel}>Subject:</Text>
+                    <Text style={[styles.alertDetailVal, { fontWeight: 'bold', color: '#F8FAFC', flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+                      {alertData.title}
+                    </Text>
+                  </View>
+                  <View style={styles.alertDetailRow}>
+                    <Text style={styles.alertDetailLabel}>Category:</Text>
+                    <Text style={styles.alertDetailVal}>{alertData.category || "Official Notice"}</Text>
+                  </View>
+                  <View style={styles.alertDetailRow}>
+                    <Text style={styles.alertDetailLabel}>Time:</Text>
+                    <Text style={styles.alertDetailVal}>{alertData.time_formatted || "Just now"}</Text>
+                  </View>
+                  <View style={{ marginTop: 10, padding: 10, backgroundColor: '#0B192C', borderRadius: 8 }}>
+                    <Text style={{ color: '#E2E8F0', fontSize: 13, lineHeight: 18 }}>
+                      {alertData.message || alertData.body || alertData.content || "School advisory details."}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.alertDismissBtn, { backgroundColor: alertData.is_urgent ? '#DC2626' : '#FCD116' }]}
+                  onPress={() => {
+                    setAlertModalVisible(false);
+                    setActiveTab('bulletins');
+                  }}
+                >
+                  <Text style={[styles.alertDismissText, { color: alertData.is_urgent ? '#FFFFFF' : '#0B192C' }]}>
+                    Acknowledge & View Bulletins
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                  <View style={styles.alertIconBadge}>
+                    <Text style={{ fontSize: 28 }}>🛡️</Text>
+                  </View>
+                  <Text style={styles.alertModalTitle}>BIOMETRIC GATE VERIFIED</Text>
+                  <Text style={styles.alertModalSubtitle}>Project S.M.I.L.E. E-Notification Alert</Text>
+                </View>
+
+                {alertData && (
+                  <View style={styles.alertDetailBox}>
+                    <View style={styles.alertDetailRow}>
+                      <Text style={styles.alertDetailLabel}>Learner:</Text>
+                      <Text style={styles.alertDetailVal}>{alertData.student_name || "Student"}</Text>
+                    </View>
+                    <View style={styles.alertDetailRow}>
+                      <Text style={styles.alertDetailLabel}>Transaction:</Text>
+                      <Text style={[
+                        styles.alertDetailVal,
+                        { color: alertData.scan_type === 'TIME_IN' ? '#10B981' : '#38BDF8', fontWeight: 'bold' }
+                      ]}>
+                        {alertData.scan_type === 'TIME_IN' ? '🟢 MORNING CAMPUS ENTRY' : '🔵 DISMISSAL CAMPUS EXIT'}
+                      </Text>
+                    </View>
+                    <View style={styles.alertDetailRow}>
+                      <Text style={styles.alertDetailLabel}>Timestamp:</Text>
+                      <Text style={styles.alertDetailVal}>{alertData.time_formatted || "Real-time"}</Text>
+                    </View>
+                    <View style={styles.alertDetailRow}>
+                      <Text style={styles.alertDetailLabel}>Gate Kiosk:</Text>
+                      <Text style={styles.alertDetailVal}>{alertData.device_id || "Main Campus Gate"}</Text>
+                    </View>
+                    <View style={styles.alertDetailRow}>
+                      <Text style={styles.alertDetailLabel}>Method:</Text>
+                      <Text style={styles.alertDetailVal}>{alertData.verification_method || "Face AI"}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={styles.alertDismissBtn}
+                  onPress={() => setAlertModalVisible(false)}
+                >
+                  <Text style={styles.alertDismissText}>Acknowledge & Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -996,7 +1157,7 @@ export default function App() {
                   setServerUrl(tempServerUrl.trim());
                   setActiveLrn(tempLrn.trim());
                   setSettingsModalVisible(false);
-                  fetchDashboardData(tempLrn.trim());
+                  bootstrapAndSync(tempLrn.trim());
                 }}
               >
                 <Text style={styles.submitButtonText}>Save & Reconnect</Text>
@@ -1157,6 +1318,102 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 6: Enrolled Learner Switcher & LRN Linker               */}
+      {/* ------------------------------------------------------------- */}
+      <Modal visible={studentPickerVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Enrolled Learner</Text>
+              <TouchableOpacity onPress={() => setStudentPickerVisible(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }}>
+              <Text style={styles.inputLabel}>ENROLLED STUDENTS IN SCHOOL ({enrolledStudents.length})</Text>
+              {enrolledStudents.length > 0 ? (
+                enrolledStudents.map((st) => {
+                  const isSel = st.lrn === activeLrn;
+                  return (
+                    <TouchableOpacity
+                      key={st.lrn}
+                      onPress={() => {
+                        setStudent(st);
+                        setActiveLrn(st.lrn);
+                        setTempLrn(st.lrn);
+                        setStudentPickerVisible(false);
+                        fetchDashboardData(st.lrn);
+                        fetchNotifications(st.lrn);
+                        startPolling(st.lrn);
+                        if (vibrateEnabled) Vibration.vibrate(30);
+                      }}
+                      style={[
+                        styles.studentPickerItem,
+                        isSel && styles.studentPickerItemActive
+                      ]}
+                    >
+                      <View style={styles.avatarBoxSmall}>
+                        <Text style={styles.avatarTextSmall}>{(st.first_name || "S")[0]}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.studentPickerName, isSel && styles.studentPickerNameActive]}>
+                          {st.full_name}
+                        </Text>
+                        <Text style={styles.studentPickerMeta}>
+                          LRN: {st.lrn} • {st.grade_section || st.grade_level || "Student"}
+                        </Text>
+                        {st.parent_name ? (
+                          <Text style={styles.studentPickerParent}>Parent: {st.parent_name}</Text>
+                        ) : null}
+                      </View>
+                      {isSel && (
+                        <Text style={{ color: '#FCD116', fontSize: 18, fontWeight: 'bold' }}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center' }}>
+                    No students currently enrolled in the database.
+                  </Text>
+                </View>
+              )}
+
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.inputLabel}>OR ENTER 12-DIGIT LRN DIRECTLY</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput
+                    style={[styles.textInput, { flex: 1 }]}
+                    value={tempLrn}
+                    onChangeText={setTempLrn}
+                    placeholder="12-digit Learner Reference No."
+                    placeholderTextColor="#64748B"
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity
+                    style={[styles.submitButton, { marginTop: 0, paddingHorizontal: 16 }]}
+                    onPress={() => {
+                      const clean = tempLrn.trim();
+                      if (clean) {
+                        setActiveLrn(clean);
+                        setStudentPickerVisible(false);
+                        bootstrapAndSync(clean);
+                        if (vibrateEnabled) Vibration.vibrate(30);
+                      }
+                    }}
+                  >
+                    <Text style={styles.submitButtonText}>Link</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 
@@ -1169,21 +1426,29 @@ export default function App() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FCD116" />}
       >
-        {/* Sibling Switcher Bar */}
-        {siblings.length > 1 && (
+        {/* Enrolled Learner Selector / Sibling Bar */}
+        {enrolledStudents.length > 1 && (
           <View style={styles.siblingBar}>
-            <Text style={styles.siblingLabel}>STUDENTS:</Text>
+            <Text style={styles.siblingLabel}>CHILDREN:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.siblingScroll}>
-              {siblings.map((sib) => {
+              {enrolledStudents.map((sib) => {
                 const isActive = sib.lrn === activeLrn;
                 return (
                   <TouchableOpacity
                     key={sib.lrn}
-                    onPress={() => { setActiveLrn(sib.lrn); if (vibrateEnabled) Vibration.vibrate(30); }}
+                    onPress={() => {
+                      setStudent(sib);
+                      setActiveLrn(sib.lrn);
+                      setTempLrn(sib.lrn);
+                      fetchDashboardData(sib.lrn);
+                      fetchNotifications(sib.lrn);
+                      startPolling(sib.lrn);
+                      if (vibrateEnabled) Vibration.vibrate(30);
+                    }}
                     style={[styles.siblingPill, isActive && styles.siblingPillActive]}
                   >
                     <Text style={[styles.siblingPillText, isActive && styles.siblingPillTextActive]}>
-                      {sib.first_name} ({sib.grade_level || "Student"})
+                      {sib.first_name || sib.full_name} ({sib.grade_level || "Student"})
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1193,22 +1458,35 @@ export default function App() {
         )}
 
         {/* Active Learner Profile Header */}
-        <View style={styles.profileCard}>
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => setStudentPickerVisible(true)}
+          activeOpacity={0.85}
+        >
           <View style={styles.profileTopRow}>
             <View style={styles.avatarBox}>
-              <Text style={styles.avatarText}>{student ? student.first_name[0] : "J"}</Text>
+              <Text style={styles.avatarText}>
+                {student && student.first_name ? student.first_name[0] : (student && student.full_name ? student.full_name[0] : "🎓")}
+              </Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.studentName}>{student ? student.full_name : "Juan Dela Cruz"}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.studentName}>
+                  {student ? student.full_name : (enrolledStudents.length > 0 ? "Tap to Select Learner" : "No Learner Enrolled")}
+                </Text>
+                <View style={styles.switchChildBadge}>
+                  <Text style={styles.switchChildBadgeText}>Switch ▾</Text>
+                </View>
+              </View>
               <Text style={styles.studentMeta}>
-                LRN: {student?.lrn || activeLrn} • {student?.grade_section || "Grade 10 - Rizal"}
+                LRN: {student?.lrn || activeLrn || "Not linked"} • {student?.grade_section || student?.grade_level || "DepEd Enrolled"}
               </Text>
               <Text style={styles.studentAdviser}>
-                Adviser: {student?.class_adviser || "Mrs. Corazon Aquino"}
+                Adviser: {student?.class_adviser || "Department of Education"}
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Live Gate Status Card */}
         <View style={[
@@ -1628,8 +1906,8 @@ export default function App() {
             <Text style={styles.diagVal} numberOfLines={1}>{serverUrl}</Text>
           </View>
           <View style={styles.diagRow}>
-            <Text style={styles.diagLabel}>Monitored Student:</Text>
-            <Text style={styles.diagVal}>{student ? student.full_name : "Juan Dela Cruz"} ({activeLrn})</Text>
+            <Text style={styles.diagLabel}>Monitored Learner:</Text>
+            <Text style={styles.diagVal}>{student ? student.full_name : "No Learner Selected"} ({activeLrn || "None"})</Text>
           </View>
           <View style={styles.diagRow}>
             <Text style={styles.diagLabel}>Biometric Engine:</Text>
@@ -1641,7 +1919,7 @@ export default function App() {
             onPress={() => {
               const nextServer = serverUrl === CLOUD_SERVER_URL ? LOCAL_SERVER_URL : CLOUD_SERVER_URL;
               setServerUrl(nextServer);
-              fetchDashboardData(activeLrn);
+              bootstrapAndSync(activeLrn);
               Alert.alert("Switched Server", `Now connected to: ${nextServer}`);
             }}
           >
@@ -3147,5 +3425,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  studentPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  studentPickerItemActive: {
+    borderColor: '#FCD116',
+    backgroundColor: '#1E293B',
+  },
+  avatarBoxSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#0038A8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FCD116',
+  },
+  avatarTextSmall: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 16,
+  },
+  studentPickerName: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  studentPickerNameActive: {
+    color: '#FCD116',
+  },
+  studentPickerMeta: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  studentPickerParent: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  switchChildBadge: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FCD116',
+  },
+  switchChildBadgeText: {
+    color: '#FCD116',
+    fontSize: 10,
+    fontWeight: '800',
   },
 });

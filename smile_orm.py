@@ -441,6 +441,81 @@ class PushSubscription(Base):
             "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else ""
         }
 
+class ParentNotification(Base):
+    """Real-Time Automated Push Notifications & Advisory Stream for Parents."""
+    __tablename__ = 'parent_notifications'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lrn = Column(String(12), nullable=True, index=True)
+    title = Column(String(150), nullable=False)
+    body = Column(Text, nullable=False)
+    category = Column(String(50), default="ATTENDANCE") # ATTENDANCE, CLINIC, WEATHER_EMERGENCY, SAFETY_CHECK, GENERAL, ADVISORY
+    priority = Column(String(20), default="NORMAL")     # NORMAL, URGENT
+    workflow_key = Column(String(50), default="gate_scan")
+    is_read = Column(Boolean, default=False)
+    sent_at = Column(DateTime, default=pht_now, index=True)
+
+    def to_dict(self):
+        icon = "fa-bell"
+        color = "amber"
+        if self.category == 'ATTENDANCE':
+            icon = "fa-shield-halved"
+            color = "emerald"
+        elif self.category == 'CLINIC':
+            icon = "fa-heart-pulse"
+            color = "rose"
+        elif self.category in ['WEATHER_EMERGENCY', 'WEATHER_ALERT']:
+            icon = "fa-cloud-bolt"
+            color = "red"
+        elif self.category == 'SAFETY_CHECK':
+            icon = "fa-user-shield"
+            color = "blue"
+        elif self.category == 'ADVISORY':
+            icon = "fa-bullhorn"
+            color = "indigo"
+
+        return {
+            "id": f"wf-{self.id}",
+            "raw_id": self.id,
+            "lrn": self.lrn or "",
+            "type": self.category,
+            "title": self.title,
+            "body": self.body,
+            "timestamp": self.sent_at.strftime("%b %d, %I:%M %p") if self.sent_at else "",
+            "icon": icon,
+            "color": color,
+            "is_urgent": (self.priority == "URGENT"),
+            "read": bool(self.is_read)
+        }
+
+class Incident(Base):
+    """Campus Safety, Security, and Parent Concern Incident Reports."""
+    __tablename__ = 'incidents'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lrn = Column(String(12), nullable=True, index=True)
+    title = Column(String(150), nullable=False)
+    incident_type = Column(String(50), default="PARENT_SAFETY_CONCERN")
+    description = Column(Text, nullable=False)
+    location = Column(String(100), default="School Grounds")
+    status = Column(String(30), default="OPEN") # OPEN, UNDER_REVIEW, RESOLVED
+    reported_by = Column(String(100), default="Parent")
+    created_at = Column(DateTime, default=pht_now, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lrn": self.lrn or "",
+            "title": self.title,
+            "incident_type": self.incident_type,
+            "description": self.description,
+            "location": self.location,
+            "status": self.status,
+            "reported_by": self.reported_by,
+            "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else "",
+            "date_formatted": self.created_at.strftime("%b %d, %Y") if self.created_at else ""
+        }
+
 # -------------------------------------------------------------
 # Database Engine & Session Management
 # -------------------------------------------------------------
@@ -2522,6 +2597,106 @@ def clear_today_attendance_logs_orm():
 
 clear_today_attendance_logs = clear_today_attendance_logs_orm
 
+def create_parent_notification_orm(lrn, title, body, category="ATTENDANCE", priority="NORMAL", workflow_key="gate_scan"):
+    """Inserts a real-time parent push notification into the database."""
+    session = Session()
+    try:
+        notif = ParentNotification(
+            lrn=str(lrn).strip() if lrn else None,
+            title=title,
+            body=body,
+            category=category,
+            priority=priority,
+            workflow_key=workflow_key,
+            is_read=False,
+            sent_at=pht_now()
+        )
+        session.add(notif)
+        session.commit()
+        return notif.to_dict()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] create_parent_notification_orm error: {e}")
+        return None
+    finally:
+        session.close()
 
+def get_parent_notifications_orm(lrn=None, limit=25):
+    """Retrieves real-time notifications for a specific student LRN or broadcast."""
+    session = Session()
+    try:
+        query = session.query(ParentNotification)
+        if lrn:
+            clean_lrn = str(lrn).strip()
+            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == None) | (ParentNotification.lrn == ''))
+        items = query.order_by(ParentNotification.id.desc()).limit(limit).all()
+        return [i.to_dict() for i in items]
+    except Exception as e:
+        print(f"[!] get_parent_notifications_orm error: {e}")
+        return []
+    finally:
+        session.close()
 
+def mark_parent_notifications_read_orm(lrn=None):
+    """Marks notifications as read for a learner."""
+    session = Session()
+    try:
+        query = session.query(ParentNotification).filter_by(is_read=False)
+        if lrn:
+            clean_lrn = str(lrn).strip()
+            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == None))
+        updated = query.update({ParentNotification.is_read: True})
+        session.commit()
+        return updated
+    except Exception as e:
+        session.rollback()
+        print(f"[!] mark_parent_notifications_read_orm error: {e}")
+        return 0
+    finally:
+        session.close()
 
+def get_incidents_orm(lrn=None, limit=20):
+    """Retrieves safety incident logs from the database."""
+    session = Session()
+    try:
+        query = session.query(Incident)
+        if lrn:
+            clean_lrn = str(lrn).strip()
+            query = query.filter((Incident.lrn == clean_lrn) | (Incident.lrn == None) | (Incident.lrn == ''))
+        items = query.order_by(Incident.id.desc()).limit(limit).all()
+        return [i.to_dict() for i in items]
+    except Exception as e:
+        print(f"[!] get_incidents_orm error: {e}")
+        return []
+    finally:
+        session.close()
+
+def save_incident_orm(lrn, title, incident_type, description, location="School Grounds", reported_by="Parent"):
+    """Files a new safety or security incident log."""
+    session = Session()
+    try:
+        inc = Incident(
+            lrn=str(lrn).strip() if lrn else None,
+            title=title,
+            incident_type=incident_type,
+            description=description,
+            location=location,
+            reported_by=reported_by,
+            status="OPEN",
+            created_at=pht_now()
+        )
+        session.add(inc)
+        session.commit()
+        return inc.to_dict()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] save_incident_orm error: {e}")
+        return None
+    finally:
+        session.close()
+
+create_parent_notification = create_parent_notification_orm
+get_parent_notifications = get_parent_notifications_orm
+mark_parent_notifications_read = mark_parent_notifications_read_orm
+get_incidents = get_incidents_orm
+save_incident = save_incident_orm

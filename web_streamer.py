@@ -151,6 +151,25 @@ class GateStreamer:
                 attendance_log_id=log_id
             )
 
+            # Record Instant Parent Mobile Push Notification in ORM
+            is_entry = (scan_type == "TIME_IN")
+            period_label = eval_res.get('period', 'Morning Time-In' if is_entry else 'Time-Out')
+            notif_title = f"🟢 Campus Entry: {period_label}" if is_entry else f"🟠 Campus Departure: {period_label}"
+            action_desc = "entered" if is_entry else "safely exited from"
+            notif_body = f"{student['full_name']} {action_desc} Don Montano Central Integrated School via Gate 1 at {now_dt.strftime('%I:%M %p')}."
+            try:
+                from smile_orm import create_parent_notification_orm
+                create_parent_notification_orm(
+                    lrn=student["lrn"],
+                    title=notif_title,
+                    body=notif_body,
+                    category="ATTENDANCE",
+                    priority="NORMAL",
+                    workflow_key="kiosk_auto_scan"
+                )
+            except Exception as _pn_err:
+                print(f"[!] Notification dispatch note: {_pn_err}")
+
             with self.lock:
                 self.event_counter += 1
                 self.latest_event = {

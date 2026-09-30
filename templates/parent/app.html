@@ -1061,11 +1061,12 @@
 
 
   <script>
-    const studentLrn = "{{ active_student.lrn }}";
-    const studentName = "{{ active_student.full_name }}";
-    const parentPhone = "{{ active_student.parent_phone }}";
-    const parentName = "{{ active_student.parent_name }}";
+    const studentLrn = "{{ active_student.lrn if active_student else '' }}";
+    const studentName = "{{ active_student.full_name if active_student else 'Learner' }}";
+    const parentPhone = "{{ active_student.parent_phone if active_student else '' }}";
+    const parentName = "{{ active_student.parent_name if active_student else 'Parent' }}";
     let lastEventId = {% if latest_log %}{{ latest_log.id }}{% else %}0{% endif %};
+    let lastAnnId = {% if announcements and announcements|length > 0 %}{{ announcements[0].id }}{% else %}0{% endif %};
 
     // -------------------------------------------------------------
     // PWA Native Installation Engine
@@ -1349,7 +1350,7 @@
     // Shopee & TikTok Style In-App Floating Heads-Up Banner
     // -------------------------------------------------------------
     let floatingBannerTimer = null;
-    function showFloatingPushBanner(name, action, timeStr, isEntry = true) {
+    function showFloatingPushBanner(name, action, timeStr, isEntry = true, customIcon = null, customBg = null) {
       const banner = document.getElementById('floatingPushBanner');
       if (!banner) return;
 
@@ -1364,7 +1365,10 @@
       if (timeEl) timeEl.textContent = timeStr || 'Just Now';
 
       if (iconBox && icon) {
-        if (isEntry) {
+        if (customIcon) {
+          iconBox.className = customBg || "w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md";
+          icon.className = customIcon;
+        } else if (isEntry) {
           iconBox.className = "w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md";
           icon.className = "fa-solid fa-right-to-bracket";
         } else {
@@ -1878,15 +1882,29 @@
     }
 
     // -------------------------------------------------------------
-    // Polling for Live Gate Scans
+    // Polling for Live Gate Scans & School Advisories
     // -------------------------------------------------------------
     setInterval(async () => {
       try {
-        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}`);
+        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}&last_ann_id=${lastAnnId}`);
         const data = await res.json();
         if (data.has_new && data.event) {
           lastEventId = data.event.id;
           triggerParentAlert(data.event);
+        }
+        if (data.has_new_announcement && data.announcement) {
+          lastAnnId = data.announcement.id;
+          const ann = data.announcement;
+          showFloatingPushBanner(
+            ann.is_urgent ? "🚨 URGENT SCHOOL ADVISORY" : "📢 DEPED ANNOUNCEMENT",
+            (ann.title || "School Notice") + ": " + (ann.content || ann.message || ""),
+            "Just Now",
+            true,
+            ann.is_urgent ? "fa-solid fa-triangle-exclamation" : "fa-solid fa-bullhorn",
+            ann.is_urgent ? "w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-700 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md animate-bounce" : "w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md"
+          );
+          playChime(true);
+          vibratePhone();
         }
       } catch(e) {}
     }, 2500);
