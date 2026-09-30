@@ -712,6 +712,9 @@ def init_orm_db(force=False):
         return
 
     try:
+        # 1. Ensure all core tables exist in database (CREATE TABLE IF NOT EXISTS)
+        Base.metadata.create_all(engine)
+
         from sqlalchemy import inspect
         inspector = inspect(engine)
         existing_tables = inspector.get_table_names()
@@ -733,9 +736,6 @@ def init_orm_db(force=False):
                     print(f"[!] push_subscriptions creation note: {ex}")
             _db_initialized = True
             return
-
-        # 1. Create all tables first
-        Base.metadata.create_all(engine)
 
         # 2. Auto-migrate PostgreSQL column lengths if needed
         if "postgres" in engine.dialect.name.lower():
