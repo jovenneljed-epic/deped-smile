@@ -121,9 +121,10 @@
         <option value="EXIT">🟠 EXIT (TIME-OUT)</option>
       </select>
 
-      <!-- Camera Device Switcher (Dropdown for Multi-Camera / USB Gate Camera) -->
-      <select id="cameraSelect" onchange="onCameraSelectChange(this.value)" title="Select Video Camera" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 py-1.5 sm:py-2 text-[11px] sm:text-xs font-mono text-cyan-200 focus:outline-none cursor-pointer hidden sm:block">
-        <option value="">🎥 Camera: Default</option>
+      <!-- Camera Device Switcher (Dropdown for Multi-Camera / USB Gate Camera / V380 CCTV) -->
+      <select id="cameraSelect" onchange="onCameraSelectChange(this.value)" title="Select Video Camera" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 py-1.5 sm:py-2 text-[11px] sm:text-xs font-mono text-cyan-200 focus:outline-none cursor-pointer block">
+        <option value="CCTV_STREAM" selected>📡 V380 Gate CCTV Camera (RTSP)</option>
+        <option value="WEBCAM_DEFAULT">🎥 Device Webcam (USB / Built-in)</option>
       </select>
 
       <!-- Voice Toggle Button -->
@@ -546,30 +547,84 @@
     });
 
     // -------------------------------------------------------------
-    // 4. Live Camera Manager (Always-On HTML5 Video Stream)
+    // 4. Live Camera Manager (V380 Gate CCTV Stream & Webcams)
     // -------------------------------------------------------------
     let kioskStream = null;
     let availableVideoDevices = [];
     let currentDeviceIndex = 0;
+    let isCctvMode = false;
+    let cctvPollTimer = null;
+    let lastCctvEventId = 0;
     const videoEl = document.getElementById('kioskWebcam');
     const canvasEl = document.getElementById('kioskCanvas');
+    const streamImgEl = document.getElementById('kioskStream');
     const standbyPrompt = document.getElementById('cameraStandbyPrompt');
     const targetBracket = document.getElementById('targetBracket');
+
+    function startCctvStreamMode() {
+      isCctvMode = true;
+      if (kioskStream) {
+        kioskStream.getTracks().forEach(t => t.stop());
+        kioskStream = null;
+      }
+      if (autoScanTimer) {
+        clearInterval(autoScanTimer);
+        autoScanTimer = null;
+      }
+
+      videoEl.classList.add('hidden');
+      streamImgEl.classList.remove('hidden');
+      standbyPrompt.classList.add('hidden');
+      const pill = document.getElementById('cameraStatusPill');
+      if (pill) pill.innerText = '📡 V380 CCTV LIVE • AUTO-SCAN ON';
+
+      // Poll latest event from GateStreamer every 400ms for instant HUD validation & voice announcements
+      if (cctvPollTimer) clearInterval(cctvPollTimer);
+      cctvPollTimer = setInterval(async () => {
+        try {
+          const res = await fetch('/api/stream-event');
+          const data = await res.json();
+          if (data && data.success && data.event && data.event_id > lastCctvEventId) {
+            lastCctvEventId = data.event_id;
+            handleMatchedStudent({
+              success: true,
+              student: {
+                lrn: data.event.lrn,
+                full_name: data.event.name,
+                grade_section: data.event.grade,
+                photo_path: data.event.photo_path,
+                parent_phone: data.event.parent_phone
+              },
+              scan_type: data.event.scan_type,
+              period: data.event.period,
+              voice_text: data.event.voice_text,
+              score: data.event.score,
+              am_in: data.event.am_in,
+              am_out: data.event.am_out,
+              pm_in: data.event.pm_in,
+              pm_out: data.event.pm_out,
+              total_scans: data.event.total_scans,
+              event: data.event
+            });
+          }
+        } catch (_) {}
+      }, 400);
+    }
 
     async function enumerateCameras() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         availableVideoDevices = devices.filter(d => d.kind === 'videoinput');
         const select = document.getElementById('cameraSelect');
-        if (select && availableVideoDevices.length > 0) {
-          select.innerHTML = '';
+        if (select) {
+          select.innerHTML = '<option value="CCTV_STREAM">📡 V380 Gate CCTV Camera (RTSP)</option>';
           availableVideoDevices.forEach((dev, idx) => {
             const opt = document.createElement('option');
             opt.value = dev.deviceId;
             opt.text = dev.label ? `🎥 ${dev.label}` : `🎥 Camera ${idx + 1}`;
             select.appendChild(opt);
           });
-          select.classList.remove('hidden');
+          select.value = isCctvMode ? 'CCTV_STREAM' : (availableVideoDevices[0]?.deviceId || 'CCTV_STREAM');
         }
       } catch (e) {
         console.warn("Could not enumerate cameras:", e);
@@ -577,6 +632,14 @@
     }
 
     async function startKioskCamera(preferredDeviceId = null) {
+      isCctvMode = false;
+      if (cctvPollTimer) {
+        clearInterval(cctvPollTimer);
+        cctvPollTimer = null;
+      }
+      streamImgEl.classList.add('hidden');
+      videoEl.classList.remove('hidden');
+
       if (kioskStream) {
         kioskStream.getTracks().forEach(t => t.stop());
         kioskStream = null;
@@ -594,7 +657,8 @@
         videoEl.srcObject = kioskStream;
         await videoEl.play();
         standbyPrompt.classList.add('hidden');
-        document.getElementById('cameraStatusPill').innerText = 'LIVE CAMERA • AUTO-SCAN ON';
+        const pill = document.getElementById('cameraStatusPill');
+        if (pill) pill.innerText = 'LIVE WEBCAM • AUTO-SCAN ON';
         await enumerateCameras();
         startAutoScanLoop();
       } catch (err) {
@@ -604,12 +668,19 @@
     }
 
     function onCameraSelectChange(deviceId) {
-      if (deviceId) startKioskCamera(deviceId);
+      if (deviceId === 'CCTV_STREAM') {
+        startCctvStreamMode();
+      } else {
+        startKioskCamera(deviceId === 'WEBCAM_DEFAULT' ? null : deviceId);
+      }
     }
 
     function toggleNextCamera() {
+      if (isCctvMode) {
+        startKioskCamera();
+        return;
+      }
       if (availableVideoDevices.length <= 1) {
-        // Toggle user vs environment
         const currentMode = videoEl.getAttribute('data-mode') || 'user';
         const newMode = currentMode === 'user' ? 'environment' : 'user';
         videoEl.setAttribute('data-mode', newMode);
@@ -623,8 +694,17 @@
       if (select) select.value = nextDevice.deviceId;
     }
 
-    // Auto-start camera when page loads
-    window.addEventListener('DOMContentLoaded', () => {
+    // Auto-detect and start CCTV Stream or Webcam when page loads
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const check = await fetch('/api/stream-event');
+        const checkData = await check.json();
+        if (checkData && checkData.success) {
+          startCctvStreamMode();
+          await enumerateCameras();
+          return;
+        }
+      } catch (_) {}
       startKioskCamera();
     });
 

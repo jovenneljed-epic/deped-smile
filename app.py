@@ -954,6 +954,17 @@ def api_camera_snapshot():
         return Response(frame_bytes, mimetype='image/jpeg')
     return jsonify({"error": "No camera frame available"}), 503
 
+@app.route('/api/stream-event')
+def api_stream_event():
+    """Returns the latest biometric gate event from GateStreamer (for CCTV kiosk mode)."""
+    ev = streamer.get_latest_event()
+    return jsonify({
+        "success": True,
+        "event": ev,
+        "event_id": getattr(streamer, "event_counter", 0),
+        "is_cctv": True
+    })
+
 @app.route('/api/detect-face-preview', methods=['POST'])
 def api_detect_face_preview():
     """Instant biometric pre-check to verify if a face is detectable before submitting registration."""
