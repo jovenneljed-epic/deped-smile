@@ -441,6 +441,34 @@ class PushSubscription(Base):
             "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else ""
         }
 
+class ParentDeviceToken(Base):
+    """
+    Native Expo & Android Push Notification Tokens.
+    Delivers instant lock-screen alerts to parent mobile phones (Expo Go & Android APK).
+    Wakes up device with sound and vibration when screen is off or mobile is locked.
+    """
+    __tablename__ = 'parent_device_tokens'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token = Column(String(250), unique=True, nullable=False, index=True) # ExponentPushToken[...]
+    lrn = Column(String(12), nullable=True, index=True)                  # Linked learner LRN or "ALL"
+    platform = Column(String(30), default="android")                     # android, ios
+    device_name = Column(String(100), default="")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=pht_now)
+    updated_at = Column(DateTime, default=pht_now, onupdate=pht_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "token": self.token,
+            "lrn": self.lrn or "",
+            "platform": self.platform,
+            "device_name": self.device_name,
+            "is_active": self.is_active,
+            "updated_at": self.updated_at.strftime("%Y-%m-%d %I:%M %p") if self.updated_at else ""
+        }
+
 class ParentNotification(Base):
     """Real-Time Automated Push Notifications & Advisory Stream for Parents."""
     __tablename__ = 'parent_notifications'
@@ -811,6 +839,12 @@ def init_orm_db(force=False):
                     print("[+] Created push_subscriptions table in cloud database.")
                 except Exception as ex:
                     print(f"[!] push_subscriptions creation note: {ex}")
+            if "parent_device_tokens" not in existing_tables:
+                try:
+                    ParentDeviceToken.__table__.create(engine, checkfirst=True)
+                    print("[+] Created parent_device_tokens table in database.")
+                except Exception as ex:
+                    print(f"[!] parent_device_tokens creation note: {ex}")
 
 
             _db_initialized = True
@@ -1369,6 +1403,29 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
             )
         except Exception as _p_err:
             print(f"[Push] Auto-dispatch note: {_p_err}")
+
+        # Dispatch Native Mobile Expo Push (wakes locked Android phone, rings sound, vibrates, lock-screen Heads-Up banner)
+        try:
+            is_entry = (scan_type == "TIME_IN")
+            icon_emoji = "🟢" if is_entry else "🟠"
+            action_desc = "entered" if is_entry else "safely departed from"
+            push_title = f"{icon_emoji} Gate Attendance: {'Time-In' if is_entry else 'Time-Out'}"
+            push_body = f"{student_name} {action_desc} Don Montano Central Integrated School Gate 1 at {now_pht}."
+            dispatch_expo_push_notification(
+                title=push_title,
+                body=push_body,
+                lrn=str(lrn),
+                data={
+                    "type": "GATE_SCAN",
+                    "lrn": str(lrn),
+                    "student_name": student_name,
+                    "scan_type": scan_type,
+                    "timestamp": now_pht
+                },
+                channel_id="gate-attendance-channel"
+            )
+        except Exception as _ep_err:
+            print(f"[Expo Push] Auto-dispatch note: {_ep_err}")
 
         return log_id
     except Exception as e:
@@ -2534,9 +2591,169 @@ def dispatch_web_push_notification(lrn, title, body, tag=None, data_url=None, ic
     except Exception as e:
         session.rollback()
         print(f"[Push] dispatch error: {e}")
-        return 0
+# -------------------------------------------------------------
+# Expo Native Push Notification Token & Lock-Screen Dispatch System
+# Wakes mobile device with sound and vibration even when phone is locked
+# -------------------------------------------------------------
+
+def save_parent_device_token_orm(token, lrn=None, platform="android", device_name=""):
+    """Registers or updates a parent device Expo push token."""
+    session = Session()
+    try:
+        clean_tok = str(token).strip()
+        if not clean_tok:
+            return None
+        dev = session.query(ParentDeviceToken).filter_by(token=clean_tok).first()
+        if not dev:
+            dev = ParentDeviceToken(
+                token=clean_tok,
+                lrn=str(lrn).strip() if lrn else None,
+                platform=str(platform or "android").lower(),
+                device_name=str(device_name or ""),
+                is_active=True,
+                created_at=pht_now(),
+                updated_at=pht_now()
+            )
+            session.add(dev)
+        else:
+            if lrn:
+                dev.lrn = str(lrn).strip()
+            if platform:
+                dev.platform = str(platform).lower()
+            if device_name:
+                dev.device_name = str(device_name)
+            dev.is_active = True
+            dev.updated_at = pht_now()
+        session.commit()
+        return dev.to_dict()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] save_parent_device_token_orm error: {e}")
+        return None
     finally:
         session.close()
+
+def get_parent_device_tokens_orm(lrn=None):
+    """Retrieves active device tokens for a learner LRN or all active tokens."""
+    session = Session()
+    try:
+        query = session.query(ParentDeviceToken).filter_by(is_active=True)
+        if lrn and str(lrn).strip() and str(lrn) != "ALL":
+            clean_lrn = str(lrn).strip()
+            query = query.filter(
+                (ParentDeviceToken.lrn == clean_lrn) |
+                (ParentDeviceToken.lrn == "ALL") |
+                (ParentDeviceToken.lrn == "") |
+                (ParentDeviceToken.lrn.is_(None))
+            )
+        tokens = query.all()
+        return [t.to_dict() for t in tokens]
+    finally:
+        session.close()
+
+def deactivate_parent_device_token_orm(token):
+    """Deactivates an unsubscribed device token."""
+    session = Session()
+    try:
+        dev = session.query(ParentDeviceToken).filter_by(token=str(token).strip()).first()
+        if dev:
+            dev.is_active = False
+            session.commit()
+            return True
+        return False
+    except Exception:
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+def dispatch_expo_push_notification(title, body, lrn=None, data=None, channel_id="gate-attendance-channel", sound="default"):
+    """
+    Dispatches high-priority push notifications to registered parent devices via Expo Push Service.
+    Wakes up Android phone, displays Heads-Up notification on Lock Screen with audio sound and vibration!
+    """
+    import urllib.request
+    import json
+    import threading
+
+    def _do_send():
+        session = Session()
+        try:
+            query = session.query(ParentDeviceToken).filter_by(is_active=True)
+            if lrn and str(lrn).strip() and str(lrn) != "ALL":
+                clean_lrn = str(lrn).strip()
+                query = query.filter(
+                    (ParentDeviceToken.lrn == clean_lrn) |
+                    (ParentDeviceToken.lrn == "ALL") |
+                    (ParentDeviceToken.lrn == "") |
+                    (ParentDeviceToken.lrn.is_(None))
+                )
+            tokens = query.all()
+            if not tokens:
+                return 0
+
+            unique_tokens = list({t.token for t in tokens if t.token})
+            if not unique_tokens:
+                return 0
+
+            messages = []
+            for tok in unique_tokens:
+                msg = {
+                    "to": tok,
+                    "sound": sound or "default",
+                    "title": title,
+                    "body": body,
+                    "channelId": channel_id,
+                    "priority": "high",
+                    "_displayInForeground": True,
+                    "data": data or {}
+                }
+                messages.append(msg)
+
+            chunk_size = 100
+            success_count = 0
+            for i in range(0, len(messages), chunk_size):
+                chunk = messages[i:i + chunk_size]
+                req = urllib.request.Request(
+                    "https://exp.host/--/api/v2/push/send",
+                    data=json.dumps(chunk).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "Accept-Encoding": "gzip, deflate",
+                        "User-Agent": "DepEd-Project-Smile/1.0"
+                    }
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=6) as res:
+                        resp_data = json.loads(res.read().decode("utf-8"))
+                        print(f"[Expo Push] Dispatched {len(chunk)} push alert(s) to parent devices: {resp_data.get('data', [])}")
+                        success_count += len(chunk)
+                except Exception as post_err:
+                    print(f"[Expo Push] Error posting to Expo Push API: {post_err}")
+
+            return success_count
+        except Exception as err:
+            print(f"[Expo Push] Dispatch error: {err}")
+            return 0
+        finally:
+            session.close()
+
+    is_serverless = getattr(smile_config, 'IS_VERCEL', False) or os.environ.get('VERCEL') == '1'
+    if is_serverless:
+        try:
+            return _do_send()
+        except Exception as _e:
+            print(f"[Expo Push] Serverless send note: {_e}")
+            return 0
+    else:
+        threading.Thread(target=_do_send, daemon=True).start()
+        return 1
+
+save_parent_device_token = save_parent_device_token_orm
+get_parent_device_tokens = get_parent_device_tokens_orm
+deactivate_parent_device_token = deactivate_parent_device_token_orm
+dispatch_expo_push = dispatch_expo_push_notification
 
 try:
     init_orm_db()

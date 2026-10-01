@@ -1945,6 +1945,18 @@ def api_mobile_broadcast():
                 )
             count = len(targets)
 
+        # Dispatch real-time Expo push notification to parent devices
+        try:
+            from smile_orm import dispatch_expo_push_notification
+            dispatch_expo_push_notification(
+                title=f"📢 {title}",
+                body=body,
+                lrn=None,
+                data={"type": "ANNOUNCEMENT", "title": title, "category": category}
+            )
+        except Exception as _b_err:
+            print(f"[!] Broadcast push notice: {_b_err}")
+
         return jsonify({"success": True, "message": f"Broadcast sent to {count} parent recipient channel(s) successfully!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -2034,6 +2046,25 @@ def api_mobile_notifications_mark_read():
     try:
         updated = mark_parent_notifications_read_orm(lrn=lrn)
         return jsonify({"success": True, "message": "Marked notifications as read.", "count": updated})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/mobile/register-push-token', methods=['POST'])
+def api_mobile_register_push_token():
+    """Registers a native Expo push token for locked-screen push alerts."""
+    from smile_orm import save_parent_device_token_orm
+    try:
+        data = request.json or {}
+        token = data.get('token', '').strip()
+        lrn = data.get('lrn', '').strip() or None
+        platform = data.get('platform', 'android').strip()
+        device_name = data.get('device_name', '').strip()
+        if not token:
+            return jsonify({"success": False, "message": "Expo push token is required."}), 400
+        saved = save_parent_device_token_orm(token=token, lrn=lrn, platform=platform, device_name=device_name)
+        if saved:
+            return jsonify({"success": True, "message": "Device registered for real-time lock-screen alerts.", "device": saved})
+        return jsonify({"success": False, "message": "Failed to save device push token."}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 

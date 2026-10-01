@@ -1,3 +1,5 @@
+import os
+import json
 import cv2
 import time
 import threading
@@ -8,6 +10,7 @@ from smile_config import (
     CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT, SCHOOL_NAME,
     COOLDOWN_SECONDS, PHOTOS_DIR, pht_now
 )
+import smile_config
 from smile_orm import (
     get_all_enrolled_students_orm, get_student_by_lrn_or_rfid_orm,
     check_can_scan_orm, record_attendance_orm, evaluate_daily_scan_rule_orm

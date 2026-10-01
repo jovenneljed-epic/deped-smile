@@ -89,9 +89,6 @@
           <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
             <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
           </a>
-          <a href="/parent" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-mobile-screen mr-1 text-[11px] text-amber-300"></i> Parent App
-          </a>
           <a href="/automations" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/automations' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
             <i class="fa-solid fa-network-wired mr-1 text-[11px] text-amber-400"></i> Automations
           </a>
@@ -195,10 +192,6 @@
           <i class="fa-solid fa-users text-indigo-400 text-sm w-4 text-center"></i>
           <span>Students</span>
         </a>
-        <a href="/parent" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path.startswith('/parent') %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
-          <i class="fa-solid fa-mobile-screen text-amber-400 text-sm w-4 text-center"></i>
-          <span>Parent App</span>
-        </a>
         <a href="/automations" class="p-2.5 rounded-xl flex items-center gap-2 font-semibold transition {% if request.path == '/automations' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40{% else %}bg-white/5 text-slate-200 hover:bg-white/10{% endif %}">
           <i class="fa-solid fa-network-wired text-amber-400 text-sm w-4 text-center"></i>
           <span>Automations</span>
@@ -267,42 +260,11 @@
         <span class="font-semibold text-slate-200">Project S.M.I.L.E.</span> &copy; 2026 Department of Education. RA 10173 Data Privacy Compliant.
       </div>
       <div class="flex items-center space-x-4">
-        <button onclick="document.getElementById('phoneModal').classList.remove('hidden')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-deped-gold font-bold transition flex items-center gap-1.5 border border-slate-700">
-          <i class="fa-solid fa-qrcode"></i> Install on Phone (QR)
-        </button>
         <span><i class="fa-solid fa-shield-halved text-emerald-400 mr-1"></i> RA 10173 Smart ID Compliant</span>
         <span><i class="fa-solid fa-signal text-deped-gold mr-1"></i> SMS Gateway Ready</span>
       </div>
     </div>
   </footer>
-
-  <!-- Phone QR Modal -->
-  <div id="phoneModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl border border-slate-200">
-      <div class="flex justify-between items-center">
-        <h3 class="font-heading font-black text-slate-900 text-base">Open Parent App on Phone</h3>
-        <button onclick="document.getElementById('phoneModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <p class="text-xs text-slate-500">
-        Scan this QR code with your iPhone or Android phone camera (connected to the same Wi-Fi) to install the real Parent App!
-      </p>
-
-      <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center">
-        <img src="/api/parent/qr-code" alt="Scan to open on phone" class="w-full h-full object-contain">
-      </div>
-
-      <div class="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-deped-blue font-mono font-bold break-all">
-        http://192.168.1.9:5000/parent
-      </div>
-
-      <button onclick="document.getElementById('phoneModal').classList.add('hidden')" class="w-full py-2.5 bg-deped-darkblue hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition">
-        Close
-      </button>
-    </div>
-  </div>
 
   {% block scripts %}{% endblock %}
 </body>

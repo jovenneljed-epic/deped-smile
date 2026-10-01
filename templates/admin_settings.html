@@ -209,14 +209,14 @@
                 <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">QR Codes & Parent App Target</span>
               </div>
               <p class="text-[11px] text-slate-600">
-                Enter your custom domain (e.g. <span class="font-mono font-bold text-blue-800">https://smile.donmontano.edu.ph</span> or your Cloudflare tunnel domain). All generated Parent QR codes and SMS portal links will instantly update to point to this address.
+                Enter your custom domain (e.g. <span class="font-mono font-bold text-blue-800">https://smile.donmontano.edu.ph</span> or your Cloudflare tunnel domain). All system endpoints and services will instantly update to point to this address.
               </p>
               <div class="flex gap-2">
                 <input type="url" name="system_domain" value="{{ system_domain or '' }}" placeholder="https://smile.donmontano.edu.ph or https://classic-optics-cooperative-therapy.trycloudflare.com"
                        class="flex-1 px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500">
                 {% if system_domain %}
-                <a href="{{ system_domain }}/parent" target="_blank" class="px-3.5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0" title="Test Parent Portal on Domain">
-                  <i class="fa-solid fa-mobile-screen"></i> Test
+                <a href="{{ system_domain }}" target="_blank" class="px-3.5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0" title="Test System Domain">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Test
                 </a>
                 {% endif %}
               </div>

@@ -18,6 +18,18 @@ import {
   Dimensions,
   Platform
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+
+// Configure notification presentation handler for foreground & heads-up alerts on lock screen
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    priority: Notifications.AndroidNotificationPriority.MAX,
+  }),
+});
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,6 +81,9 @@ export default function App() {
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [runningAutomation, setRunningAutomation] = useState(false);
   const lastNotifCountRef = useRef(0);
+  const [expoPushToken, setExpoPushToken] = useState('');
+  const notificationListener = useRef();
+  const responseListener = useRef();
 
   // Security Staff Mode State
   const [isGuardAuthenticated, setIsGuardAuthenticated] = useState(false);
@@ -175,6 +190,94 @@ export default function App() {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [serverUrl]);
+
+  // -------------------------------------------------------------
+  // 1b. Real-Time Push Notification Engine & Android Lock-Screen Channel
+  // -------------------------------------------------------------
+  useEffect(() => {
+    // A. Create Max Importance Android Channel for Lock-Screen Heads-Up Alerts
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('gate-attendance-channel', {
+        name: 'Gate Attendance & DepEd Alerts',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 500, 250, 500],
+        lightColor: '#2563EB',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        sound: 'default',
+        bypassDnd: true,
+      }).catch(err => console.warn('Android channel setup note:', err.message));
+    }
+
+    // B. Register Native Device Token with Expo Push Service
+    registerForPushNotificationsAsync().then(tok => {
+      if (tok) {
+        setExpoPushToken(tok);
+        sendPushTokenToBackend(tok, activeLrn);
+      }
+    });
+
+    // C. Foreground notification listener
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      if (vibrateEnabled) Vibration.vibrate([0, 450, 150, 450]);
+    });
+
+    // D. Response listener (when user taps the lock-screen or banner notification)
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      setActiveTab('gate');
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [activeLrn]);
+
+  const registerForPushNotificationsAsync = async () => {
+    let token = null;
+    if (Device.isDevice) {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.warn('Push notification permissions not granted.');
+        return null;
+      }
+      try {
+        const pushData = await Notifications.getExpoPushTokenAsync({
+          projectId: '154c8bf7-a3c6-41d8-8a8a-b8a9f95611e1',
+        });
+        token = pushData.data;
+      } catch (err) {
+        console.warn('Expo push token notice:', err.message);
+      }
+    }
+    return token;
+  };
+
+  const sendPushTokenToBackend = async (token, lrn) => {
+    if (!token) return;
+    try {
+      await fetch(`${serverUrl}/api/mobile/register-push-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          lrn: lrn || '',
+          platform: Platform.OS,
+          device_name: Device.modelName || 'Android Device',
+        }),
+      });
+    } catch (err) {
+      console.warn('Token registration note:', err.message);
+    }
+  };
 
   // -------------------------------------------------------------
   // 2. Real-Time System Bootstrap & Device Synchronization
@@ -418,8 +521,8 @@ export default function App() {
     });
     setAlertModalVisible(true);
 
+    const isEntry = eventData.scan_type === "TIME_IN";
     if (pushEnabled) {
-      const isEntry = eventData.scan_type === "TIME_IN";
       showFloatingBanner({
         icon: isEntry ? "🟢" : "🔵",
         title: isEntry ? "CAMPUS ARRIVAL ALERT" : "CAMPUS EXIT ALERT",
@@ -427,6 +530,26 @@ export default function App() {
         time: "Just now",
         color: isEntry ? "#10B981" : "#38BDF8"
       });
+    }
+
+    // Native Android Lock-Screen Notification: Wakes screen, plays sound, vibrates, displays Heads-Up banner
+    try {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: isEntry ? "🟢 CAMPUS ARRIVAL ALERT" : "🟠 CAMPUS DEPARTURE ALERT",
+          body: `${eventData.student_name || "Student"} safely ${isEntry ? "entered" : "safely exited from"} Don Montano CIS Gate 1 (${eventData.time_formatted || "Just now"}).`,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 500, 250, 500],
+          data: {
+            type: "GATE_SCAN",
+            ...eventData
+          },
+        },
+        trigger: null,
+      });
+    } catch (_notifErr) {
+      console.warn("Native notification dispatch note:", _notifErr.message);
     }
   };
 
@@ -457,6 +580,26 @@ export default function App() {
         time: "Just now",
         color: ann.is_urgent ? "#EF4444" : "#FCD116"
       });
+    }
+
+    // Native Android Lock-Screen Notification for Advisories: Rings chime, vibrates, displays over lock screen
+    try {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: ann.is_urgent ? "🚨 URGENT DepEd School Advisory" : "📢 DepEd School Announcement",
+          body: `${ann.title}: ${ann.content || ann.message || ann.body || ""}`,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 600, 200, 600],
+          data: {
+            type: "ANNOUNCEMENT",
+            ...ann
+          },
+        },
+        trigger: null,
+      });
+    } catch (_notifErr) {
+      console.warn("Native announcement dispatch note:", _notifErr.message);
     }
   };
 
