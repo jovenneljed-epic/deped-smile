@@ -481,6 +481,32 @@
       btn.disabled = false;
       btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> Auto-Scan School Network';
 
+      if (data && data.is_cloud) {
+        box.classList.remove('hidden');
+        subnetText.innerText = '☁️ Cloud Environment';
+        list.innerHTML = `
+          <div class="p-3 text-[11px] text-cyan-200 bg-cyan-950/70 rounded-xl border border-cyan-500/40 space-y-1.5">
+            <div class="font-bold flex items-center gap-1.5 text-cyan-300">
+              <i class="fa-solid fa-cloud"></i> Cloud Web App Mode
+            </div>
+            <p class="text-slate-300">
+              You are viewing Settings on the cloud server (Vercel). Cloud servers cannot scan your private home/school Wi-Fi. 
+            </p>
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-between">
+              <div>
+                <span class="font-bold text-cyan-300 font-mono">192.168.1.165</span>
+                <span class="text-[10px] text-emerald-400 ml-2">Active V380 CCTV Camera</span>
+                <div class="text-[10px] text-slate-400 font-mono">rtsp://192.168.1.165:554/live/ch0</div>
+              </div>
+              <button type="button" onclick="document.getElementById('cameraSourceInput').value='rtsp://192.168.1.165:554/live/ch0'; this.innerText='Applied!';" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[10px] transition cursor-pointer">
+                Apply Active
+              </button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (data && data.success && data.cameras && data.cameras.length > 0) {
         box.classList.remove('hidden');
         subnetText.innerText = `Subnet: ${data.subnet}.x (${data.cameras.length} found)`;

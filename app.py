@@ -984,6 +984,23 @@ def api_camera_discover():
 
     subnet = get_local_subnet()
 
+    if smile_config.IS_VERCEL or subnet.startswith("169.254."):
+        return jsonify({
+            "success": True,
+            "is_cloud": True,
+            "subnet": subnet,
+            "cameras": [
+                {
+                    "ip": "192.168.1.165",
+                    "port": 554,
+                    "rtsp_url": "rtsp://192.168.1.165:554/live/ch0",
+                    "tag": "V380 Active Gate Camera (Default)"
+                }
+            ],
+            "total_found": 1,
+            "message": "Cloud runtime detected. Displaying your active campus camera profile."
+        })
+
     def probe(i):
         ip = f"{subnet}.{i}"
         for port in [554, 8899, 8000]:
