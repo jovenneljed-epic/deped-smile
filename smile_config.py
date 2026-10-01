@@ -147,7 +147,8 @@ DEFAULT_SCHOOL_SETTINGS = {
     "school_short_name": "DMCIS",
     "deped_region": "Region IV-A CALABARZON",
     "school_id": "152008",
-    "system_domain": "https://classic-optics-cooperative-therapy.trycloudflare.com"
+    "system_domain": "https://classic-optics-cooperative-therapy.trycloudflare.com",
+    "camera_source": "rtsp://192.168.1.165:554/live/ch0"
 }
 
 def load_school_settings():
@@ -165,7 +166,7 @@ def load_school_settings():
 def save_school_settings(new_settings):
     """Persists updated school configuration and updates module globals."""
     import json
-    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN
+    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN, CAMERA_INDEX
     current = load_school_settings()
     current.update(new_settings)
     with open(SCHOOL_SETTINGS_PATH, "w", encoding="utf-8") as f:
@@ -173,6 +174,8 @@ def save_school_settings(new_settings):
     SCHOOL_NAME = current.get("school_name", SCHOOL_NAME)
     SCHOOL_SHORT_NAME = current.get("school_short_name", SCHOOL_SHORT_NAME)
     SYSTEM_DOMAIN = current.get("system_domain", SYSTEM_DOMAIN)
+    cam = current.get("camera_source", "rtsp://192.168.1.165:554/live/ch0")
+    CAMERA_INDEX = int(cam) if str(cam).isdigit() else str(cam)
     return current
 
 _active_school = load_school_settings()
@@ -223,8 +226,9 @@ SFACE_PATH = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
 COSINE_SIMILARITY_THRESHOLD = 0.363
 DETECTION_CONFIDENCE = 0.55  # Optimized for high sensitivity & fast face-locking in school lighting
 
-# Camera Settings
-CAMERA_INDEX = 0          # 0 is usually default webcam, 1 for external USB camera
+# Camera Settings (Supports USB Webcams: 0, 1, or V380/IP CCTV RTSP Stream)
+_cam_setting = _active_school.get("camera_source", "rtsp://192.168.1.165:554/live/ch0")
+CAMERA_INDEX = int(_cam_setting) if str(_cam_setting).isdigit() else str(_cam_setting)
 FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
 

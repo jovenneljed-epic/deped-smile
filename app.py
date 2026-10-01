@@ -44,7 +44,7 @@ app.config['SECRET_KEY'] = 'deped-project-smile-2026-secret'
 
 # Initialize background AI camera streamer (lightweight in cloud/serverless)
 streamer = GateStreamer.get_instance()
-if not smile_config.IS_VERCEL and os.environ.get("ENABLE_LOCAL_CAMERA") == "1":
+if not smile_config.IS_VERCEL:
     streamer.start()
 
 # Initialize AI Face Recognition Engine (YuNet + SFace) - Lazy Loaded on Demand
@@ -258,20 +258,24 @@ def admin_save_sms_settings():
 @app.route('/admin/settings/school', methods=['POST'])
 @admin_required
 def admin_save_school_settings():
-    """Super Admin: Updates official school profile, DepEd metadata, and Public Domain URL."""
+    """Super Admin: Updates official school profile, DepEd metadata, CCTV Camera Source, and Public Domain URL."""
     school_name = request.form.get("school_name", "").strip()
     deped_region = request.form.get("deped_region", "").strip()
     school_id = request.form.get("school_id", "").strip()
     system_domain = request.form.get("system_domain", "").strip()
+    camera_source = request.form.get("camera_source", "").strip()
 
     if school_name:
-        smile_config.save_school_settings({
+        payload = {
             "school_name": school_name,
             "deped_region": deped_region,
             "school_id": school_id,
             "system_domain": system_domain
-        })
-    return redirect(url_for('admin_settings', msg="School identity and Public Domain settings updated successfully."))
+        }
+        if camera_source:
+            payload["camera_source"] = camera_source
+        smile_config.save_school_settings(payload)
+    return redirect(url_for('admin_settings', msg="School identity, CCTV Camera, and Public Domain settings updated successfully."))
 
 @app.route('/admin/events')
 @admin_required

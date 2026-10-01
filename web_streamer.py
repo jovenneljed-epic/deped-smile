@@ -385,20 +385,52 @@ class GateStreamer:
 
     def _capture_loop(self):
         """Reads camera frames, runs AI face recognition and QR detection in real time."""
-        self.cap = cv2.VideoCapture(CAMERA_INDEX)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        import os
+        import smile_config
+        cam_src = getattr(smile_config, "CAMERA_INDEX", 0)
+
+        # Support IP/CCTV Camera RTSP Stream (e.g. V380, Hikvision, Dahua) or Local Webcams
+        if isinstance(cam_src, str) and str(cam_src).startswith("rtsp://"):
+            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
+            print(f"[*] GateStreamer connecting to CCTV RTSP Stream: {cam_src}...")
+            self.cap = cv2.VideoCapture(cam_src, cv2.CAP_FFMPEG)
+            if self.cap.isOpened():
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        else:
+            try:
+                cam_int = int(cam_src)
+            except Exception:
+                cam_int = 0
+            self.cap = cv2.VideoCapture(cam_int)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
         if not self.cap.isOpened():
+            print(f"[!] Warning: Camera {cam_src} not opened. Falling back to virtual camera simulation.")
             self._virtual_camera_loop()
             return
 
-        print("[+] Physical Camera Connected! Live 60 FPS Face Recognition active.")
+        print(f"[+] Camera Connected ({cam_src})! Live Real-Time Face Recognition active.")
+        failed_reads = 0
         while self.running:
             ret, frame = self.cap.read()
-            if not ret:
+            if not ret or frame is None:
+                failed_reads += 1
                 time.sleep(0.05)
+                # Auto-reconnect for CCTV streams if network packet was dropped
+                if failed_reads > 50 and isinstance(cam_src, str) and cam_src.startswith("rtsp://"):
+                    print("[!] Reconnecting to CCTV stream...")
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
+                    time.sleep(1)
+                    self.cap = cv2.VideoCapture(cam_src, cv2.CAP_FFMPEG)
+                    if self.cap.isOpened():
+                        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    failed_reads = 0
                 continue
+            failed_reads = 0
 
             # 1. Real-Time Face Recognition (YuNet + SFace)
             faces = self.face_engine.detect_faces(frame)
