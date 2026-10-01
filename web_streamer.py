@@ -170,6 +170,24 @@ class GateStreamer:
             except Exception as _pn_err:
                 print(f"[!] Notification dispatch note: {_pn_err}")
 
+            # Forward scan event directly to the live Cloud Web App (https://deped-smile.vercel.app)
+            cloud_url = os.environ.get("CLOUD_SYNC_URL", "https://deped-smile.vercel.app").rstrip("/")
+            if cloud_url and not getattr(smile_config, "IS_VERCEL", False):
+                def _forward_to_cloud():
+                    try:
+                        import urllib.request
+                        payload = json.dumps({"identifier": student["lrn"], "method": method}).encode("utf-8")
+                        req = urllib.request.Request(
+                            f"{cloud_url}/api/scan-id",
+                            data=payload,
+                            headers={"Content-Type": "application/json", "User-Agent": "DepEd-CCTV-Agent"}
+                        )
+                        with urllib.request.urlopen(req, timeout=5) as r:
+                            print(f"[+] Synced scan to cloud web app ({cloud_url}): Status {r.status}")
+                    except Exception as err:
+                        print(f"[!] Note on cloud sync: {err}")
+                threading.Thread(target=_forward_to_cloud, daemon=True).start()
+
             with self.lock:
                 self.event_counter += 1
                 self.latest_event = {
