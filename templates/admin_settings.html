@@ -222,29 +222,83 @@
               </div>
             </div>
 
-            <!-- Gate CCTV Camera Source (V380 RTSP / USB Webcam) -->
-            <div class="sm:col-span-2 p-4 bg-gradient-to-r from-slate-900 to-indigo-950 border border-cyan-800/60 rounded-2xl space-y-2 text-white">
-              <div class="flex items-center justify-between">
+            <!-- Gate CCTV Camera Source (Multi-Brand RTSP & USB Webcams) -->
+            <div class="sm:col-span-2 p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-cyan-800/60 rounded-2xl space-y-3 text-white">
+              <div class="flex items-center justify-between flex-wrap gap-2">
                 <label class="block text-xs font-extrabold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
                   <i class="fa-solid fa-video text-cyan-400"></i> Gate CCTV Camera / RTSP Video Stream
                 </label>
-                <span class="text-[10px] text-emerald-300 font-bold bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Zero Gate Computers
-                </span>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="btnScanCctv" onclick="discoverLanCameras()" class="px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-lg text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-satellite-dish" id="scanIcon"></i> Auto-Scan School Network
+                  </button>
+                  <span class="text-[10px] text-emerald-300 font-bold bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Zero Gate Computers
+                  </span>
+                </div>
               </div>
+
               <p class="text-[11px] text-slate-300">
-                Connect your standalone V380 Wi-Fi IP Camera or USB webcam. With RTSP, only the camera is installed at the school gate—no laptops or computers required at the gate!
+                Connect <strong>any</strong> IP CCTV camera (V380, TP-Link Tapo, Hikvision, Dahua, IMOU, or generic ONVIF) or USB webcam. With RTSP, only the camera is installed at the school gate—no laptops or computers required at the gate!
               </p>
-              <div class="flex flex-col sm:flex-row gap-2">
-                <input type="text" name="camera_source" id="cameraSourceInput" value="{{ school_settings.camera_source if school_settings and school_settings.camera_source else 'rtsp://192.168.1.165:554/live/ch0' }}" placeholder="rtsp://192.168.1.165:554/live/ch0 or 0"
-                       class="flex-1 px-3.5 py-2.5 bg-slate-950/80 border border-cyan-700/60 rounded-xl text-xs font-mono font-bold text-cyan-200 focus:ring-2 focus:ring-cyan-500">
-                <button type="button" onclick="document.getElementById('cameraSourceInput').value='rtsp://192.168.1.165:554/live/ch0'" class="px-3 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/40 font-bold rounded-xl text-xs transition flex items-center gap-1 shrink-0">
-                  <i class="fa-solid fa-crosshairs"></i> V380 Preset (192.168.1.165)
-                </button>
-                <button type="button" onclick="document.getElementById('cameraSourceInput').value='0'" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold rounded-xl text-xs transition flex items-center gap-1 shrink-0">
-                  <i class="fa-solid fa-camera"></i> USB Webcam (0)
-                </button>
+
+              <!-- Dynamic Scan Results Banner (Hidden by default) -->
+              <div id="discoveredCamsBox" class="hidden p-3 rounded-xl bg-slate-950 border border-cyan-500/50 space-y-2">
+                <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+                  <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i> Discovered Cameras on School Network:
+                  </span>
+                  <span id="scanSubnetText" class="font-mono text-[10px] text-slate-400"></span>
+                </div>
+                <div id="discoveredCamsList" class="space-y-1.5"></div>
               </div>
+
+              <div class="space-y-2">
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <input type="text" name="camera_source" id="cameraSourceInput" value="{{ school_settings.camera_source if school_settings and school_settings.camera_source else 'rtsp://192.168.1.165:554/live/ch0' }}" placeholder="rtsp://admin:pass@IP:554/live/ch0 or 0"
+                         class="flex-1 px-3.5 py-2.5 bg-slate-950/90 border border-cyan-700/60 rounded-xl text-xs font-mono font-bold text-cyan-200 focus:ring-2 focus:ring-cyan-500">
+                  <a href="/api/camera-snapshot" target="_blank" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0" title="Test Live Snapshot Frame">
+                    <i class="fa-solid fa-eye"></i> Test View
+                  </a>
+                </div>
+
+                <!-- Brand Presets Quick Selector -->
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px] pt-1">
+                  <span class="text-slate-400 font-bold mr-1">Brand Presets:</span>
+                  <button type="button" onclick="applyCameraPreset('V380')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 rounded-lg font-mono transition">
+                    V380
+                  </button>
+                  <button type="button" onclick="applyCameraPreset('TAPO')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 rounded-lg font-mono transition">
+                    TP-Link Tapo
+                  </button>
+                  <button type="button" onclick="applyCameraPreset('HIKVISION')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 rounded-lg font-mono transition">
+                    Hikvision
+                  </button>
+                  <button type="button" onclick="applyCameraPreset('DAHUA')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 rounded-lg font-mono transition">
+                    Dahua / IMOU
+                  </button>
+                  <button type="button" onclick="applyCameraPreset('ONVIF')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 rounded-lg font-mono transition">
+                    Generic ONVIF
+                  </button>
+                  <button type="button" onclick="applyCameraPreset('WEBCAM')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-lg font-mono transition">
+                    USB Webcam (0)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Collapsible Multi-Brand Guide -->
+              <details class="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 cursor-pointer">
+                <summary class="font-bold text-slate-300 hover:text-cyan-300 transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-circle-info text-cyan-400"></i> How to switch to any other CCTV Camera (Brand RTSP Formats)
+                </summary>
+                <div class="pt-2 pl-2 space-y-1 text-slate-300 font-mono text-[10px]">
+                  <div>• <strong>V380 / V380 Pro:</strong> <code class="text-cyan-300">rtsp://admin:password@IP:554/live/ch0</code> (default port 554)</div>
+                  <div>• <strong>TP-Link Tapo:</strong> <code class="text-cyan-300">rtsp://admin:password@IP:554/stream1</code> (create camera account in Tapo App &rarr; Advanced)</div>
+                  <div>• <strong>Hikvision:</strong> <code class="text-cyan-300">rtsp://admin:password@IP:554/Streaming/Channels/101</code></div>
+                  <div>• <strong>Dahua / IMOU:</strong> <code class="text-cyan-300">rtsp://admin:password@IP:554/cam/realmonitor?channel=1&subtype=0</code></div>
+                  <div>• <strong>Yoosee / SriHome / ONVIF:</strong> <code class="text-cyan-300">rtsp://admin:password@IP:554/onvif1</code></div>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -378,6 +432,88 @@
       location.reload();
     } catch(e) {
       alert("Error: " + e.message);
+    }
+  }
+
+  function applyCameraPreset(brand) {
+    const input = document.getElementById('cameraSourceInput');
+    const currentVal = input.value || '';
+    let ip = '192.168.1.165';
+    const ipMatch = currentVal.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+    if (ipMatch) ip = ipMatch[0];
+
+    switch(brand) {
+      case 'V380':
+        input.value = `rtsp://${ip}:554/live/ch0`;
+        break;
+      case 'TAPO':
+        input.value = `rtsp://admin:yourpassword@${ip}:554/stream1`;
+        break;
+      case 'HIKVISION':
+        input.value = `rtsp://admin:yourpassword@${ip}:554/Streaming/Channels/101`;
+        break;
+      case 'DAHUA':
+        input.value = `rtsp://admin:yourpassword@${ip}:554/cam/realmonitor?channel=1&subtype=0`;
+        break;
+      case 'ONVIF':
+        input.value = `rtsp://admin:yourpassword@${ip}:554/onvif1`;
+        break;
+      case 'WEBCAM':
+        input.value = '0';
+        break;
+    }
+    input.focus();
+  }
+
+  async function discoverLanCameras() {
+    const btn = document.getElementById('btnScanCctv');
+    const icon = document.getElementById('scanIcon');
+    const box = document.getElementById('discoveredCamsBox');
+    const list = document.getElementById('discoveredCamsList');
+    const subnetText = document.getElementById('scanSubnetText');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning Subnet...';
+
+    try {
+      const res = await fetch('/api/camera/discover');
+      const data = await res.json();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> Auto-Scan School Network';
+
+      if (data && data.success && data.cameras && data.cameras.length > 0) {
+        box.classList.remove('hidden');
+        subnetText.innerText = `Subnet: ${data.subnet}.x (${data.cameras.length} found)`;
+        list.innerHTML = '';
+
+        data.cameras.forEach(cam => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs';
+          item.innerHTML = `
+            <div>
+              <span class="font-bold text-cyan-300 font-mono">${cam.ip}</span>
+              <span class="text-[10px] text-slate-400 ml-2">Port ${cam.port} • ${cam.tag}</span>
+              <div class="text-[10px] text-slate-500 font-mono truncate max-w-xs">${cam.rtsp_url}</div>
+            </div>
+            <button type="button" onclick="document.getElementById('cameraSourceInput').value='${cam.rtsp_url}'; this.innerText='Applied!';" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[10px] transition cursor-pointer">
+              Select Camera
+            </button>
+          `;
+          list.appendChild(item);
+        });
+      } else {
+        box.classList.remove('hidden');
+        subnetText.innerText = `Subnet: ${data.subnet || '192.168.1'}.x`;
+        list.innerHTML = `
+          <div class="p-2 text-[11px] text-amber-300 bg-amber-950/40 rounded-lg border border-amber-500/30">
+            No RTSP cameras detected on port 554 yet. Ensure the camera is powered on and connected to this Wi-Fi network.
+          </div>
+        `;
+      }
+    } catch(err) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> Auto-Scan School Network';
+      alert("Scan error: " + err.message);
     }
   }
 </script>

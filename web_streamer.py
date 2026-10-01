@@ -451,23 +451,26 @@ class GateStreamer:
             failed_reads = 0
 
             # 1. Real-Time Face Recognition (YuNet + SFace)
-            faces = self.face_engine.detect_faces(frame)
-            for face in faces:
-                x, y, w, h = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                emb = self.face_engine.extract_face_embedding(frame, face)
-                match, score = self.face_engine.match_against_enrolled(emb, self.enrolled_students)
+            try:
+                faces = self.face_engine.detect_faces(frame) if self.face_engine else []
+                for face in faces:
+                    x, y, w, h = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+                    emb = self.face_engine.extract_face_embedding(frame, face)
+                    match, score = self.face_engine.match_against_enrolled(emb, self.enrolled_students)
 
-                if match:
-                    label = f"{match['full_name']} ({score*100:.1f}%)"
-                    color = (0, 255, 128)
-                    self.trigger_scan_by_student(match, method="FACE_RECOGNITION", score=score)
-                else:
-                    label = f"UNKNOWN FACE ({score*100:.1f}%)" if score > 0 else "UNKNOWN FACE"
-                    color = (0, 165, 255)
+                    if match:
+                        label = f"{match['full_name']} ({score*100:.1f}%)"
+                        color = (0, 255, 128)
+                        self.trigger_scan_by_student(match, method="FACE_RECOGNITION", score=score)
+                    else:
+                        label = f"UNKNOWN FACE ({score*100:.1f}%)" if score > 0 else "UNKNOWN FACE"
+                        color = (0, 165, 255)
 
-                cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
-                cv2.putText(frame, label, (x, max(20, y - 10)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+                    cv2.putText(frame, label, (x, max(20, y - 10)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+            except Exception as _fe_err:
+                pass
 
             # 2. QR Code fallback
             try:

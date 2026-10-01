@@ -189,7 +189,14 @@ class SmileFaceEngine:
         query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
 
         for student in enrolled_students:
-            cand_emb = student["embedding"]
+            cand_emb = student.get("embedding")
+            if cand_emb is None:
+                continue
+            if not isinstance(cand_emb, np.ndarray):
+                try:
+                    cand_emb = np.array(cand_emb, dtype=np.float32)
+                except Exception:
+                    continue
             cand_norm = cand_emb / (np.linalg.norm(cand_emb) + 1e-10)
             
             # Cosine similarity between -1.0 and 1.0

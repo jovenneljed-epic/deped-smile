@@ -965,6 +965,57 @@ def api_stream_event():
         "is_cctv": True
     })
 
+@app.route('/api/camera/discover', methods=['GET', 'POST'])
+def api_camera_discover():
+    """Scans the local network subnet to automatically discover connected CCTV / IP cameras."""
+    import socket
+    from concurrent.futures import ThreadPoolExecutor
+
+    def get_local_subnet():
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            parts = local_ip.split('.')
+            return f"{parts[0]}.{parts[1]}.{parts[2]}"
+        except Exception:
+            return "192.168.1"
+
+    subnet = get_local_subnet()
+
+    def probe(i):
+        ip = f"{subnet}.{i}"
+        for port in [554, 8899, 8000]:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.25)
+                if s.connect_ex((ip, port)) == 0:
+                    s.close()
+                    tag = "V380 / ONVIF IP Camera" if port in (554, 8899) else "IP Camera"
+                    return {
+                        "ip": ip,
+                        "port": port,
+                        "rtsp_url": f"rtsp://{ip}:554/live/ch0",
+                        "tag": tag
+                    }
+                s.close()
+            except Exception:
+                pass
+        return None
+
+    try:
+        with ThreadPoolExecutor(max_workers=60) as ex:
+            cams = [r for r in ex.map(probe, range(1, 255)) if r]
+        return jsonify({
+            "success": True,
+            "subnet": subnet,
+            "cameras": cams,
+            "total_found": len(cams)
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/api/detect-face-preview', methods=['POST'])
 def api_detect_face_preview():
     """Instant biometric pre-check to verify if a face is detectable before submitting registration."""
