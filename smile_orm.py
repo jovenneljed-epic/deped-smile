@@ -7,9 +7,9 @@ from pathlib import Path
 from contextlib import contextmanager
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text,
-    DateTime, Boolean, Float, ForeignKey, desc, func
+    DateTime, Boolean, Float, ForeignKey, desc, func, event
 )
-from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship, joinedload
 from smile_config import (
     get_database_url, DATABASE_TYPE, COOLDOWN_SECONDS, MIDDAY_SPLIT_HOUR,
     pht_now, PHT, IS_VERCEL,
@@ -22,9 +22,12 @@ import smile_config
 from smile_qr import generate_student_qr
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# High-Speed In-Memory Caches for Static/Infrequent Records (60s TTL)
+# High-Speed In-Memory Caches for Static/Infrequent Records (TTL Caching)
 _ANNOUNCEMENTS_CACHE = {"data": None, "ts": 0}
 _EVENTS_CACHE = {"data": None, "ts": 0}
+_SECTIONS_CACHE = {"data": None, "ts": 0}
+_STUDENT_COUNT_CACHE = {"count": None, "ts": 0}
+_PRICING_PLANS_CACHE = {"data": None, "ts": 0}
 
 Base = declarative_base()
 
@@ -72,8 +75,8 @@ class Student(Base):
     grade_level = Column(String(50), default="")            # Kindergarten, Grade 1 to 12
     section_name = Column(String(60), default="")           # Section (e.g. Rizal, Sampaguita)
     class_adviser = Column(String(100), default="")         # Designated Section Adviser Teacher
-    grade_section = Column(String(150), nullable=False)     # e.g. "Grade 10 - Rizal"
-    section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
+    grade_section = Column(String(150), nullable=False, index=True)     # e.g. "Grade 10 - Rizal"
+    section_id = Column(Integer, ForeignKey('sections.id'), nullable=True, index=True)
     track_strand = Column(String(100), default="Junior High") # JHS, STEM, ABM, HUMSS, TVL
     parent_name = Column(String(150), default="")
     parent_phone = Column(String(50), nullable=True, default="N/A", index=True)
@@ -82,7 +85,7 @@ class Student(Base):
     qr_code_path = Column(Text, default="")                 # URL or dynamic path to student's QR ID badge
     photo_path = Column(Text, default="")                   # Path or data URI to student portrait photo
     face_embedding = Column(Text, nullable=True)            # JSON list of 128 floats for SFace recognition
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=pht_now)
 
     section_rel = relationship("Section", back_populates="students")
@@ -137,11 +140,11 @@ class AttendanceLog(Base):
     lrn = Column(String(12), ForeignKey('students.lrn'), nullable=False, index=True)
     student_name = Column(String(120), nullable=False)
     grade_section = Column(String(80), default="")
-    scan_type = Column(String(20), nullable=False)          # TIME_IN, TIME_OUT
+    scan_type = Column(String(20), nullable=False, index=True)          # TIME_IN, TIME_OUT
     timestamp = Column(DateTime, default=pht_now, index=True)
     device_id = Column(String(50), default="GATE-1-SMART-ID")
     verification_method = Column(String(30), default="QR_CODE") # QR_CODE, RFID_TAP, MANUAL_LRN
-    sms_status = Column(String(30), default="PENDING")      # PENDING, SENT, MOCKED, FAILED
+    sms_status = Column(String(30), default="PENDING", index=True)      # PENDING, SENT, MOCKED, FAILED
     remarks = Column(String(100), default="")
 
     student_rel = relationship("Student", back_populates="attendance_records")
@@ -553,7 +556,22 @@ def create_orm_engine():
     connect_args = {}
     if "sqlite" in db_url:
         connect_args["check_same_thread"] = False
-        return create_engine(db_url, connect_args=connect_args)
+        connect_args["timeout"] = 30
+        eng = create_engine(db_url, connect_args=connect_args)
+
+        @event.listens_for(eng, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            try:
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA cache_size=-64000")   # 64MB RAM page cache
+                cursor.execute("PRAGMA temp_store=MEMORY")
+                cursor.execute("PRAGMA mmap_size=268435456") # 256MB memory mapped I/O
+                cursor.close()
+            except Exception as ex:
+                pass
+        return eng
     else:
         # Check if pg8000 is used for PostgreSQL
         if "pg8000" in db_url:
@@ -695,11 +713,19 @@ def seed_default_sections_orm():
         session.close()
 
 def get_all_sections_orm():
-    """Returns all real sections from the database ordered by grade and section name."""
+    """Returns all real sections from the database with in-memory TTL caching."""
+    global _SECTIONS_CACHE
+    now = time.time()
+    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 60:
+        return _SECTIONS_CACHE["data"]
+
     session = Session()
     try:
         sections = session.query(Section).order_by(Section.id.asc()).all()
-        return [sec.to_dict() for sec in sections]
+        res = [sec.to_dict() for sec in sections]
+        _SECTIONS_CACHE["data"] = res
+        _SECTIONS_CACHE["ts"] = now
+        return res
     finally:
         session.close()
 
@@ -723,6 +749,8 @@ def get_sections_by_grade_orm(grade_level):
 
 def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=""):
     """Inserts or updates a class section in the database."""
+    global _SECTIONS_CACHE
+    _SECTIONS_CACHE["data"] = None
     session = Session()
     try:
         gl = str(grade_level).strip()
@@ -745,6 +773,8 @@ def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=
 
 def delete_section_orm(section_id):
     """Removes a section from the database by ID."""
+    global _SECTIONS_CACHE
+    _SECTIONS_CACHE["data"] = None
     session = Session()
     try:
         sec = session.query(Section).filter_by(id=int(section_id)).first()
@@ -972,6 +1002,7 @@ def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="
         student.qr_code_path = qr_url
 
         session.commit()
+        _STUDENT_COUNT_CACHE["count"] = None
         return student.to_dict()
     except Exception as e:
         session.rollback()
@@ -1007,6 +1038,7 @@ def delete_student_orm(lrn):
 
         session.delete(student)
         session.commit()
+        _STUDENT_COUNT_CACHE["count"] = None
         try:
             (smile_config.DATA_DIR / ".students_seeded").touch(exist_ok=True)
         except Exception:
@@ -1039,10 +1071,16 @@ def get_all_enrolled_students_orm():
         session.close()
 
 def get_enrolled_students_count_orm():
-    """Ultra-fast count of enrolled students without loading objects or embeddings (2ms)."""
+    """Ultra-fast count of enrolled students without loading objects or embeddings (2ms) with TTL caching."""
+    now = time.time()
+    if _STUDENT_COUNT_CACHE["count"] is not None and (now - _STUDENT_COUNT_CACHE["ts"]) < 30:
+        return _STUDENT_COUNT_CACHE["count"]
     session = Session()
     try:
-        return session.query(func.count(Student.lrn)).filter_by(is_active=True).scalar() or 0
+        cnt = session.query(func.count(Student.lrn)).filter_by(is_active=True).scalar() or 0
+        _STUDENT_COUNT_CACHE["count"] = cnt
+        _STUDENT_COUNT_CACHE["ts"] = now
+        return cnt
     finally:
         session.close()
 
@@ -1472,7 +1510,7 @@ def get_today_summary_orm():
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
         total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
         unique_students = session.query(func.count(func.distinct(AttendanceLog.lrn))).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
-        recent_logs = session.query(AttendanceLog).order_by(desc(AttendanceLog.id)).limit(10).all()
+        recent_logs = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).order_by(desc(AttendanceLog.id)).limit(10).all()
         return {
             "total_scans": total_scans,
             "unique_students": unique_students,
@@ -1486,7 +1524,7 @@ def get_today_attendance_logs_orm(limit=None):
     session = Session()
     try:
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        query = session.query(AttendanceLog).filter(AttendanceLog.timestamp >= today_start).order_by(desc(AttendanceLog.id))
+        query = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).filter(AttendanceLog.timestamp >= today_start).order_by(desc(AttendanceLog.id))
         if limit:
             query = query.limit(limit)
         logs = query.all()

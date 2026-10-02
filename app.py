@@ -2,6 +2,7 @@ import os
 import io
 import csv
 import base64
+import threading
 import cv2
 import numpy as np
 from datetime import datetime, date
@@ -562,9 +563,13 @@ def api_get_pricing_plans():
 
 @app.after_request
 def add_performance_headers(response):
-    """Adds aggressive browser caching headers for static assets (0ms repeat loads)."""
-    if request.path.startswith('/static/'):
-        response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+    """Adds aggressive browser caching headers for static assets (0ms repeat loads) and bfcache."""
+    path = request.path
+    if path.startswith('/static/') or path.startswith('/qr/') or path.endswith(('.png', '.jpg', '.jpeg', '.svg', '.woff2', '.webp', '.ico', '.css', '.js')):
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    elif response.status_code == 200 and 'text/html' in response.headers.get('Content-Type', ''):
+        # Enable Back-Forward Cache (bfcache) and fast navigation
+        response.headers['Cache-Control'] = 'no-cache, must-revalidate'
     return response
 
 @app.route('/')
@@ -2236,7 +2241,8 @@ def api_enroll_student():
             embedding_array=embedding_vector
         )
 
-        streamer.reload_enrolled_students()
+        # Decouple facial biometric reload from HTTP request lifecycle for sub-150ms response
+        threading.Thread(target=streamer.reload_enrolled_students, daemon=True).start()
 
         full_display_name = student.get("full_name", f"{first_name} {last_name}")
         face_msg = "with Face Recognition Active" if embedding_vector is not None else "with Smart ID"

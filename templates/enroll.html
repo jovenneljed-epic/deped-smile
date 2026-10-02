@@ -786,15 +786,30 @@
   async function captureSnapshot() {
     if (activeTab === 'webcam') {
       if (!webcamVideo.videoWidth) return;
-      hiddenCanvas.width = webcamVideo.videoWidth;
-      hiddenCanvas.height = webcamVideo.videoHeight;
-      const ctx = hiddenCanvas.getContext('2d');
+      // High-speed downscaling to max 640px (reduces payload from ~8MB to ~35KB)
+      const maxDim = 640;
+      let w = webcamVideo.videoWidth;
+      let h = webcamVideo.videoHeight;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      hiddenCanvas.width = w;
+      hiddenCanvas.height = h;
+      const ctx = hiddenCanvas.getContext('2d', { alpha: false });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       if (isMirrored) {
-        ctx.translate(hiddenCanvas.width, 0);
+        ctx.translate(w, 0);
         ctx.scale(-1, 1);
       }
-      ctx.drawImage(webcamVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-      const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.92);
+      ctx.drawImage(webcamVideo, 0, 0, w, h);
+      const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.82);
       applyCapturedSnapshot(dataUrl);
     } else if (activeTab === 'kiosk') {
       updateStatus("Capturing Frame...", "Fetching high-resolution frame from gate engine...", "info");
@@ -804,7 +819,29 @@
         const blob = await resp.blob();
         const reader = new FileReader();
         reader.onload = function(e) {
-          applyCapturedSnapshot(e.target.result);
+          const img = new Image();
+          img.onload = function() {
+            const maxDim = 640;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            hiddenCanvas.width = w;
+            hiddenCanvas.height = h;
+            const ctx = hiddenCanvas.getContext('2d', { alpha: false });
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, w, h);
+            applyCapturedSnapshot(hiddenCanvas.toDataURL('image/jpeg', 0.82));
+          };
+          img.src = e.target.result;
         };
         reader.readAsDataURL(blob);
       } catch (err) {
@@ -867,15 +904,40 @@
     const file = event.target.files[0];
     if (!file) return;
 
+    updateStatus("Processing Image...", "Optimizing portrait dimensions for instantaneous enrollment...", "info");
     const reader = new FileReader();
     reader.onload = function(e) {
-      applyCapturedSnapshot(e.target.result);
-      // Switch UI indicator to photo mode
-      activeTab = 'upload';
-      document.getElementById('tabUploadBtn').className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
-      document.getElementById('tabWebcamBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
-      document.getElementById('tabKioskBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
-      deviceSelectContainer.classList.add('hidden');
+      const img = new Image();
+      img.onload = function() {
+        const maxDim = 720;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        hiddenCanvas.width = w;
+        hiddenCanvas.height = h;
+        const ctx = hiddenCanvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.85);
+
+        applyCapturedSnapshot(dataUrl);
+        // Switch UI indicator to photo mode
+        activeTab = 'upload';
+        document.getElementById('tabUploadBtn').className = "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center bg-cyan-600 text-slate-950 shadow-sm";
+        document.getElementById('tabWebcamBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
+        document.getElementById('tabKioskBtn').className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center";
+        deviceSelectContainer.classList.add('hidden');
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }

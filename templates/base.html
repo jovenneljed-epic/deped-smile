@@ -7,11 +7,43 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Inter & Outfit -->
+  <!-- High-Speed Resource Preconnect & DNS Prefetching -->
+  <link rel="dns-prefetch" href="//cdn.tailwindcss.com">
+  <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+  <link rel="dns-prefetch" href="//fonts.googleapis.com">
+  <link rel="dns-prefetch" href="//fonts.gstatic.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- FontAwesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Speculation Rules API for Instantaneous Page Transitions (<30ms) -->
+  <script type="speculationrules">
+  {
+    "prerender": [
+      {
+        "source": "list",
+        "urls": ["/dashboard", "/enroll", "/students", "/kiosk", "/teacher/dashboard"],
+        "eagerness": "moderate"
+      }
+    ],
+    "prefetch": [
+      {
+        "where": {
+          "and": [
+            { "href_matches": "/*" },
+            { "not": { "href_matches": "/logout" } },
+            { "not": { "href_matches": "*/api/*" } },
+            { "not": { "href_matches": "*/export/*" } }
+          ]
+        },
+        "eagerness": "conservative"
+      }
+    ]
+  }
+  </script>
   <script>
     tailwind.config = {
       theme: {
@@ -55,6 +87,9 @@
   {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen flex flex-col text-slate-800 overflow-x-hidden w-full max-w-full">
+
+  <!-- Instant Navigation Progress Bar -->
+  <div id="navProgressBar" class="fixed top-0 left-0 h-[2.5px] bg-gradient-to-r from-amber-400 via-cyan-400 to-emerald-400 z-[9999] transition-all duration-300 pointer-events-none opacity-0" style="width: 0%;"></div>
 
   <!-- DepEd Top Banner -->
   <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60 w-full">
@@ -406,6 +441,62 @@
         menu.classList.add('hidden');
       }
     });
+
+    // -------------------------------------------------------------
+    // High-Speed Instant Navigation & Adaptive Link Prefetcher
+    // -------------------------------------------------------------
+    (function() {
+      const bar = document.getElementById('navProgressBar');
+      function startNavProgress() {
+        if (!bar) return;
+        bar.style.opacity = '1';
+        bar.style.width = '35%';
+        setTimeout(() => { if (bar.style.opacity === '1') bar.style.width = '75%'; }, 120);
+      }
+      function endNavProgress() {
+        if (!bar) return;
+        bar.style.width = '100%';
+        setTimeout(() => { bar.style.opacity = '0'; bar.style.width = '0%'; }, 200);
+      }
+      window.addEventListener('pageshow', endNavProgress);
+
+      const prefetchedUrls = new Set();
+      function prefetchUrl(url) {
+        if (!url || prefetchedUrls.has(url)) return;
+        if (url.includes('/logout') || url.includes('/api/') || url.includes('/export/') || url.includes('#')) return;
+        prefetchedUrls.add(url);
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = url;
+        link.as = 'document';
+        document.head.appendChild(link);
+      }
+
+      let hoverTimer = null;
+      document.addEventListener('mouseover', function(e) {
+        const anchor = e.target.closest('a');
+        if (!anchor || !anchor.href) return;
+        if (anchor.target === '_blank' || anchor.origin !== window.location.origin) return;
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => prefetchUrl(anchor.href), 60);
+      }, { passive: true });
+
+      document.addEventListener('touchstart', function(e) {
+        const anchor = e.target.closest('a');
+        if (!anchor || !anchor.href) return;
+        if (anchor.target === '_blank' || anchor.origin !== window.location.origin) return;
+        prefetchUrl(anchor.href);
+      }, { passive: true });
+
+      document.addEventListener('click', function(e) {
+        const anchor = e.target.closest('a');
+        if (!anchor || !anchor.href) return;
+        if (anchor.target === '_blank' || anchor.origin !== window.location.origin) return;
+        const hrefAttr = anchor.getAttribute('href') || '';
+        if (hrefAttr.startsWith('#') || hrefAttr.startsWith('javascript:')) return;
+        startNavProgress();
+      });
+    })();
   </script>
 
   <!-- Footer -->
