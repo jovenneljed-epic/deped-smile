@@ -59,7 +59,7 @@
   <!-- DepEd Top Banner -->
   <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60 w-full">
     <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5">
-      <div class="flex items-center justify-between gap-2 sm:gap-4">
+      <div class="flex items-center justify-between gap-4 w-full">
         
         <!-- Brand / Multi-DepEd Title Header (Left, shrink-0) -->
         <a href="/" class="flex items-center space-x-2 sm:space-x-2.5 group shrink-0" title="DEPED S.M.I.L.E.">
@@ -67,82 +67,76 @@
           <div class="flex flex-col justify-center">
             <span class="font-heading font-black text-sm sm:text-base lg:text-lg tracking-wide text-white drop-shadow-sm leading-tight whitespace-nowrap">DEPED S.M.I.L.E.</span>
             <p class="text-[9px] sm:text-[10px] font-bold text-amber-300 tracking-tight leading-tight drop-shadow-sm whitespace-nowrap hidden sm:block">
-              <span class="hidden xl:inline">Security Monitoring, Incident Logging, and E-notification</span>
-              <span class="xl:hidden">Security & Incident Logging</span>
+              Security Monitoring, Incident Logging, and E-notification
             </p>
           </div>
         </a>
 
-        <!-- Desktop Navigation Links (Middle / min-w-0) -->
-        <nav class="hidden lg:flex items-center gap-1 xl:gap-1.5 flex-nowrap justify-center xl:justify-end min-w-0">
-          <a href="/" class="px-2 py-1.5 rounded-lg text-xs font-semibold transition flex items-center shrink-0 {% if request.path == '/' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
-          </a>
-          <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center shrink-0">
-            <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-200 animate-pulse"></i> Gate Kiosk
-          </a>
-          <a href="/enroll" class="px-2 py-1.5 rounded-lg text-xs font-semibold transition flex items-center shrink-0 {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> Enroll
-          </a>
-          <a href="/students" class="px-2 py-1.5 rounded-lg text-xs font-semibold transition flex items-center shrink-0 {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
-          </a>
-          <a href="/automations" class="hidden xl:flex px-2 py-1.5 rounded-lg text-xs font-semibold transition items-center shrink-0 {% if request.path == '/automations' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-network-wired mr-1 text-[11px] text-amber-400"></i> Automations
-          </a>
-          <a href="/database" class="hidden xl:flex px-2 py-1.5 rounded-lg text-xs font-semibold transition items-center shrink-0 {% if request.path == '/database' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
-            <i class="fa-solid fa-database mr-1 text-[11px]"></i> Database
-          </a>
+        <!-- Right Side: Desktop Navigation Links + User Profile & Log Out (Unified right block, shrink-0, zero overlap) -->
+        <div class="hidden lg:flex items-center gap-1.5 xl:gap-2.5 shrink-0">
+          <nav class="flex items-center gap-1 xl:gap-1.5">
+            <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
+            </a>
+            <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center">
+              <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-200 animate-pulse"></i> Gate Kiosk
+            </a>
+            <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> Enroll
+            </a>
+            <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
+            </a>
 
-          <!-- More / System Dropdown -->
-          <div class="relative group shrink-0" id="systemDropdownContainer">
-            <button id="systemDropdownBtn" onclick="toggleSystemDropdown(event)" type="button" class="px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 text-slate-200 hover:bg-white/10 hover:text-white border {% if request.path.startswith('/admin') or (request.path in ['/automations', '/database'] and 'xl:hidden') %}bg-white/20 text-amber-300 border-amber-400/40{% else %}border-transparent hover:border-white/20{% endif %}">
-              <i class="fa-solid fa-layer-group text-amber-400 text-[11px]"></i>
-              <span class="hidden xl:inline">System</span>
-              <span class="xl:hidden">Tools</span>
-              <i class="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:rotate-180 transition-transform duration-200"></i>
-            </button>
+            <!-- System / Tools Dropdown Menu -->
+            <div class="relative group shrink-0" id="systemDropdownContainer">
+              <button id="systemDropdownBtn" onclick="toggleSystemDropdown(event)" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-slate-200 hover:bg-white/10 hover:text-white border {% if request.path.startswith('/admin') or request.path in ['/automations', '/database'] %}bg-white/20 text-amber-300 border-amber-400/40 shadow-sm{% else %}border-transparent hover:border-white/20{% endif %}">
+                <i class="fa-solid fa-layer-group text-amber-400 text-[11px]"></i>
+                <span>System</span>
+                <i class="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:rotate-180 transition-transform duration-200"></i>
+              </button>
 
-            <!-- Dropdown Flyout Menu -->
-            <div id="systemDropdownMenu" class="absolute right-0 top-full pt-1.5 w-52 hidden group-hover:block z-50">
-              <div class="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl space-y-0.5 text-xs text-slate-200">
-                <!-- Shown in dropdown when hidden on main bar on compact screens -->
-                <a href="/automations" class="xl:hidden flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 hover:text-amber-300 transition font-semibold {% if request.path == '/automations' %}bg-white/15 text-amber-300{% endif %}">
-                  <i class="fa-solid fa-network-wired text-amber-400 w-4 text-center"></i>
-                  <span>Automations</span>
-                </a>
-                <a href="/database" class="xl:hidden flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/10 hover:text-amber-300 transition font-semibold {% if request.path == '/database' %}bg-white/15 text-amber-300{% endif %}">
-                  <i class="fa-solid fa-database text-cyan-400 w-4 text-center"></i>
-                  <span>Database SQL</span>
-                </a>
+              <!-- Dropdown Flyout Menu -->
+              <div id="systemDropdownMenu" class="absolute right-0 top-full pt-1.5 w-56 hidden group-hover:block z-50 animate-in fade-in duration-100">
+                <div class="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl p-1.5 shadow-2xl space-y-0.5 text-xs text-slate-200">
+                  <a href="/automations" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-white/10 hover:text-amber-300 transition font-semibold {% if request.path == '/automations' %}bg-white/15 text-amber-300{% endif %}">
+                    <i class="fa-solid fa-network-wired text-amber-400 w-4 text-center"></i>
+                    <span>Automations</span>
+                  </a>
+                  <a href="/database" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-white/10 hover:text-amber-300 transition font-semibold {% if request.path == '/database' %}bg-white/15 text-amber-300{% endif %}">
+                    <i class="fa-solid fa-database text-cyan-400 w-4 text-center"></i>
+                    <span>Database SQL</span>
+                  </a>
 
-                {% if current_user and current_user.is_admin %}
-                <div class="xl:hidden my-1 border-t border-slate-800"></div>
-                <p class="text-[9px] font-black uppercase tracking-wider text-slate-400 px-3 pt-1">Administration</p>
-                <a href="/admin/billing" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-amber-400/20 hover:text-amber-300 transition font-bold text-amber-400 {% if request.path == '/admin/billing' %}bg-amber-400/20{% endif %}">
-                  <i class="fa-solid fa-coins text-amber-400 w-4 text-center"></i>
-                  <span>Billing & Income</span>
-                </a>
-                <a href="/admin/settings" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-rose-500/20 hover:text-rose-300 transition font-bold text-rose-300 {% if request.path.startswith('/admin/settings') %}bg-rose-500/20{% endif %}">
-                  <i class="fa-solid fa-sliders text-rose-400 w-4 text-center"></i>
-                  <span>System Settings</span>
-                </a>
-                <a href="/admin/users" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-blue-500/20 hover:text-blue-300 transition font-bold text-blue-300 {% if request.path == '/admin/users' %}bg-blue-500/20{% endif %}">
-                  <i class="fa-solid fa-users-gear text-blue-400 w-4 text-center"></i>
-                  <span>Staff Accounts</span>
-                </a>
-                {% endif %}
+                  {% if current_user and current_user.is_admin %}
+                  <div class="my-1 border-t border-slate-800"></div>
+                  <p class="text-[9px] font-black uppercase tracking-wider text-slate-400 px-3 pt-1">Super Admin</p>
+                  <a href="/admin/billing" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-amber-400/20 hover:text-amber-300 transition font-bold text-amber-400 {% if request.path == '/admin/billing' %}bg-amber-400/20{% endif %}">
+                    <i class="fa-solid fa-coins text-amber-400 w-4 text-center"></i>
+                    <span>Billing & Subscriptions</span>
+                  </a>
+                  <a href="/admin/settings" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-rose-500/20 hover:text-rose-300 transition font-bold text-rose-300 {% if request.path.startswith('/admin/settings') %}bg-rose-500/20{% endif %}">
+                    <i class="fa-solid fa-sliders text-rose-400 w-4 text-center"></i>
+                    <span>System Settings</span>
+                  </a>
+                  <a href="/admin/users" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-blue-500/20 hover:text-blue-300 transition font-bold text-blue-300 {% if request.path == '/admin/users' %}bg-blue-500/20{% endif %}">
+                    <i class="fa-solid fa-users-gear text-blue-400 w-4 text-center"></i>
+                    <span>Staff Accounts</span>
+                  </a>
+                  {% endif %}
+                </div>
               </div>
             </div>
-          </div>
-        </nav>
+          </nav>
 
-        <!-- Desktop User Profile & Log Out (Right, shrink-0, always visible) -->
-        <div class="hidden lg:flex items-center gap-2 shrink-0">
+          <!-- Subtle Divider -->
+          <div class="h-4 w-px bg-white/20 mx-0.5"></div>
+
+          <!-- User Profile & Log Out (Always visible, clean, prominent) -->
           {% if current_user %}
           <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs shadow-sm shrink-0">
             <span class="w-2 h-2 rounded-full {% if current_user.is_admin %}bg-amber-400{% else %}bg-emerald-400{% endif %} animate-pulse shrink-0"></span>
-            <span class="font-extrabold text-white text-[11px] max-w-[100px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
+            <span class="font-extrabold text-white text-[11px] max-w-[110px] xl:max-w-[140px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
             <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'TEACHER' %}bg-emerald-400 text-slate-950{% else %}bg-purple-400 text-slate-950{% endif %} shrink-0">
               {{ current_user.role }}
             </span>
