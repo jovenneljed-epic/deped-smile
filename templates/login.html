@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Staff Portal Sign-In | Project S.M.I.L.E.</title>
+  <title>DEPED S.M.I.L.E. | Secure Gateway Sign-In</title>
 
   <!-- PWA & Mobile Meta -->
   <link rel="manifest" href="/static/manifest.json">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple_touch_icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/images/pwa_icon_192.png">
-  <meta name="theme-color" content="#0B192C">
+  <meta name="theme-color" content="#050b14">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Outfit:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
@@ -24,10 +24,11 @@
               blue: '#0038A8',
               red: '#CE1126',
               gold: '#FCD116',
-              darkblue: '#0B192C'
+              darkblue: '#050b14'
             }
           },
           fontFamily: {
+            hud: ['Orbitron', 'monospace'],
             heading: ['Outfit', 'sans-serif'],
             sans: ['Inter', 'sans-serif']
           }
@@ -36,165 +37,276 @@
     }
   </script>
   <style>
-    body { font-family: 'Inter', sans-serif; background-color: #070d18; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #040812;
+      background-image:
+        radial-gradient(circle at 50% 20%, rgba(6, 182, 212, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 45%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+    }
+    .font-hud { font-family: 'Orbitron', monospace; }
     .font-heading { font-family: 'Outfit', sans-serif; }
-    .glass-panel {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+
+    /* Futuristic HUD Glass Panel */
+    .cyber-card {
+      background: rgba(8, 15, 30, 0.88);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      box-shadow: 0 0 50px rgba(6, 182, 212, 0.12), 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    /* Tech Corner Brackets */
+    .cyber-card::before {
+      content: '';
+      position: absolute;
+      top: -2px; left: -2px;
+      width: 18px; height: 18px;
+      border-top: 2px solid #06b6d4;
+      border-left: 2px solid #06b6d4;
+      pointer-events: none;
+    }
+    .cyber-card::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; right: -2px;
+      width: 18px; height: 18px;
+      border-bottom: 2px solid #f59e0b;
+      border-right: 2px solid #f59e0b;
+      pointer-events: none;
+    }
+
+    /* Cyber Glow Button */
+    .cyber-btn {
+      background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #d97706 100%);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .cyber-btn:hover {
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.5), 0 0 10px rgba(245, 158, 11, 0.4);
+      transform: translateY(-1px);
+    }
+    .cyber-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+      transition: 0.5s;
+    }
+    .cyber-btn:hover::before {
+      left: 100%;
+    }
+
+    /* Scanning Laser Effect */
+    @keyframes cyberScan {
+      0% { transform: translateY(0); opacity: 0; }
+      50% { opacity: 0.7; }
+      100% { transform: translateY(320px); opacity: 0; }
+    }
+    .scan-line {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #06b6d4, #f59e0b, transparent);
+      animation: cyberScan 4s ease-in-out infinite;
+      pointer-events: none;
     }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 relative overflow-x-hidden">
+<body class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-x-hidden select-none">
 
-  <!-- Background Glow FX -->
-  <div class="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-  <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+  <!-- Glowing Cyber Orbs (Background Ambiance) -->
+  <div class="fixed -top-32 -left-32 w-96 h-96 bg-cyan-600/15 rounded-full blur-[110px] pointer-events-none"></div>
+  <div class="fixed -bottom-32 -right-32 w-96 h-96 bg-amber-500/12 rounded-full blur-[110px] pointer-events-none"></div>
 
-  <div class="max-w-md w-full glass-panel rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl relative z-10 text-slate-100 space-y-6">
+  <!-- Futuristic Main Card Container -->
+  <div class="max-w-md w-full cyber-card rounded-3xl p-6 sm:p-8 relative z-10 text-slate-100 space-y-6 overflow-hidden">
+    
+    <!-- Moving Holographic Scan Line -->
+    <div class="scan-line"></div>
 
-    <!-- DepEd Header Brand -->
-    <div class="text-center space-y-2">
-      <div class="inline-flex items-center justify-center gap-3">
-        <img src="/static/images/project_smile_logo.png" alt="Project S.M.I.L.E. Logo" class="w-14 h-14 rounded-2xl object-contain drop-shadow-md border border-amber-400/30">
+    <!-- Top Security Status Bar -->
+    <div class="flex items-center justify-between pb-3 border-b border-cyan-900/40 text-[10px] tracking-wider font-mono">
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span class="text-emerald-400 font-bold">SYSTEM ONLINE</span>
+      </div>
+      <div class="text-cyan-400/80 font-bold flex items-center gap-1.5">
+        <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+        <span>SHA-256 ZERO-TRUST</span>
+      </div>
+    </div>
+
+    <!-- DepEd Futuristic Header Brand -->
+    <div class="text-center space-y-3">
+      <div class="inline-flex items-center justify-center gap-3.5">
+        <div class="relative group">
+          <div class="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-amber-500 rounded-2xl blur-sm opacity-60 group-hover:opacity-100 transition duration-300"></div>
+          <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="relative w-14 h-14 object-contain drop-shadow-lg p-1 bg-slate-950/80 rounded-2xl border border-cyan-400/40">
+        </div>
         <div class="text-left">
-          <span class="font-heading font-black text-xl tracking-tight text-white block">DEPED S.M.I.L.E.</span>
-          <p class="text-[11px] font-bold text-amber-300 tracking-tight leading-tight mt-0.5">
+          <h1 class="font-hud font-extrabold text-xl sm:text-2xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-white to-amber-300">
+            DEPED S.M.I.L.E.
+          </h1>
+          <p class="text-[10px] font-bold text-amber-300 tracking-tight leading-tight mt-0.5">
             Security Monitoring, Incident Logging, and E-notification
           </p>
         </div>
+      </div>
+
+      <!-- Access Level Pill -->
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-[10px] font-mono text-cyan-300">
+        <i class="fa-solid fa-lock text-[9px] text-amber-400"></i>
+        <span>SECURE PERSONNEL ACCESS PORTAL</span>
       </div>
     </div>
 
     <!-- Alert / Feedback Message -->
     {% if error %}
-    <div class="p-3.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-2.5">
-      <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm shrink-0"></i>
-      <span>{{ error }}</span>
+    <div class="p-3.5 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-3 shadow-[0_0_20px_rgba(244,63,94,0.2)] animate-pulse">
+      <div class="w-8 h-8 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0 text-rose-400">
+        <i class="fa-solid fa-triangle-exclamation text-base"></i>
+      </div>
+      <div>
+        <p class="font-bold text-rose-300 text-[11px] font-mono uppercase tracking-wider">Authentication Error</p>
+        <p class="text-xs">{{ error }}</p>
+      </div>
     </div>
     {% endif %}
 
+    <!-- Live Caps Lock Warning -->
+    <div id="capsWarning" class="hidden p-2.5 rounded-xl bg-amber-950/80 border border-amber-500/50 text-amber-300 text-[11px] font-mono flex items-center gap-2">
+      <i class="fa-solid fa-exclamation-circle text-amber-400"></i>
+      <span>WARNING: Caps Lock is active. Passwords are case-sensitive.</span>
+    </div>
+
     <!-- Login Form -->
-    <form method="POST" action="/login" class="space-y-4">
+    <form method="POST" action="/login" class="space-y-4" id="loginForm" onsubmit="handleFormSubmit()">
       <input type="hidden" name="next" value="{{ next_url or '' }}">
 
+      <!-- Username Field -->
       <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-          Username or Email Address
-        </label>
-        <div class="relative">
-          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-sm pointer-events-none">
-            <i class="fa-solid fa-user"></i>
+        <label for="inputUsername" class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-300 mb-1.5">
+          <span class="flex items-center gap-1.5">
+            <i class="fa-solid fa-id-card-clip text-cyan-400"></i> Staff ID / Username
           </span>
-          <input type="text" name="username" id="inputUsername" required placeholder="admin, principal, teacher, or guard"
-                 class="w-full pl-10 pr-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition">
+          <span class="text-[9px] text-slate-400 font-normal">REQUIRED</span>
+        </label>
+        <div class="relative group">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-cyan-400/70 text-sm pointer-events-none group-focus-within:text-cyan-300">
+            <i class="fa-solid fa-user-astronaut"></i>
+          </span>
+          <input type="text" name="username" id="inputUsername" required autofocus autocomplete="username"
+                 placeholder="Enter assigned username"
+                 class="w-full pl-10 pr-4 py-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 transition shadow-inner">
         </div>
       </div>
 
+      <!-- Password Field -->
       <div>
-        <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-          Account Password
-        </label>
-        <div class="relative">
-          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 text-sm pointer-events-none">
-            <i class="fa-solid fa-lock"></i>
+        <label for="inputPassword" class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider text-amber-300 mb-1.5">
+          <span class="flex items-center gap-1.5">
+            <i class="fa-solid fa-key text-amber-400"></i> Security Passphrase
           </span>
-          <input type="password" name="password" id="inputPassword" required placeholder="••••••••"
-                 class="w-full pl-10 pr-10 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition">
-          <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white text-xs">
+          <span class="text-[9px] text-slate-400 font-normal">ENCRYPTED</span>
+        </label>
+        <div class="relative group">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-amber-400/70 text-sm pointer-events-none group-focus-within:text-amber-300">
+            <i class="fa-solid fa-fingerprint"></i>
+          </span>
+          <input type="password" name="password" id="inputPassword" required autocomplete="current-password"
+                 placeholder="••••••••••••"
+                 onkeyup="checkCapsLock(event)"
+                 class="w-full pl-10 pr-10 py-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition shadow-inner font-mono">
+          <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-cyan-300 text-xs transition focus:outline-none" title="Toggle Visibility">
             <i class="fa-solid fa-eye" id="eyeIcon"></i>
           </button>
         </div>
       </div>
 
-      <button type="submit" 
-              class="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black font-heading rounded-xl text-sm shadow-lg shadow-amber-400/20 transition transform active:scale-[0.98] flex items-center justify-center gap-2">
-        <i class="fa-solid fa-right-to-bracket"></i> Sign In to S.M.I.L.E. Portal
+      <!-- Submit Button -->
+      <button type="submit" id="submitBtn"
+              class="w-full py-3.5 cyber-btn text-white font-hud font-bold rounded-xl text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 tracking-wider uppercase border border-cyan-400/40">
+        <i class="fa-solid fa-unlock-keyhole text-cyan-200" id="btnIcon"></i>
+        <span id="btnText">Authenticate & Access Portal</span>
       </button>
     </form>
 
-    <!-- Quick Test Role Logins (Demo Switcher) -->
-    <div class="pt-4 border-t border-slate-800 space-y-2.5">
-      <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block text-center">
-        Quick One-Tap Role Demo Logins:
+    <!-- Biometric & Protocol Trust Badges -->
+    <div class="pt-4 border-t border-cyan-900/30 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+      <span class="flex items-center gap-1">
+        <i class="fa-solid fa-shield text-cyan-400"></i> 256-Bit SSL/TLS
       </span>
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <button onclick="fillLogin('admin', 'admin123')" type="button" 
-                class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-amber-400/30 text-amber-300 flex items-center gap-2 transition text-left">
-          <div class="w-7 h-7 rounded-lg bg-amber-400/20 flex items-center justify-center text-xs shrink-0">
-            <i class="fa-solid fa-crown"></i>
-          </div>
-          <div>
-            <span class="font-extrabold block text-[11px] leading-tight text-white">Super Admin</span>
-            <span class="text-[9px] text-amber-400">Settings & Billing</span>
-          </div>
-        </button>
-
-        <button onclick="fillLogin('principal', 'principal123')" type="button" 
-                class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-blue-400/30 text-blue-300 flex items-center gap-2 transition text-left">
-          <div class="w-7 h-7 rounded-lg bg-blue-400/20 flex items-center justify-center text-xs shrink-0">
-            <i class="fa-solid fa-school"></i>
-          </div>
-          <div>
-            <span class="font-extrabold block text-[11px] leading-tight text-white">Principal</span>
-            <span class="text-[9px] text-blue-300">Academic Operations</span>
-          </div>
-        </button>
-
-        <button onclick="fillLogin('teacher', 'teacher123')" type="button" 
-                class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-emerald-400/30 text-emerald-300 flex items-center gap-2 transition text-left">
-          <div class="w-7 h-7 rounded-lg bg-emerald-400/20 flex items-center justify-center text-xs shrink-0">
-            <i class="fa-solid fa-chalkboard-user"></i>
-          </div>
-          <div>
-            <span class="font-extrabold block text-[11px] leading-tight text-white">Class Adviser</span>
-            <span class="text-[9px] text-emerald-300">Grade 1 Section</span>
-          </div>
-        </button>
-
-        <button onclick="fillLogin('guard', 'guard123')" type="button" 
-                class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-purple-400/30 text-purple-300 flex items-center gap-2 transition text-left">
-          <div class="w-7 h-7 rounded-lg bg-purple-400/20 flex items-center justify-center text-xs shrink-0">
-            <i class="fa-solid fa-shield-halved"></i>
-          </div>
-          <div>
-            <span class="font-extrabold block text-[11px] leading-tight text-white">Campus Guard</span>
-            <span class="text-[9px] text-purple-300">Kiosk Scanner Only</span>
-          </div>
-        </button>
-      </div>
+      <span class="flex items-center gap-1">
+        <i class="fa-solid fa-lock text-emerald-400"></i> RA 10173 Compliant
+      </span>
+      <span class="flex items-center gap-1">
+        <i class="fa-solid fa-microchip text-amber-400"></i> AI Protected
+      </span>
     </div>
 
     <!-- Parent Mobile App Link -->
-    <div class="pt-3 text-center border-t border-slate-800/60">
-      <a href="/apk" class="text-xs text-slate-400 hover:text-amber-300 transition inline-flex items-center gap-1.5">
-        <i class="fa-brands fa-android text-emerald-400"></i>
-        <span>Are you a parent or guardian? <strong>Download Parent Mobile App (APK)</strong></span>
+    <div class="pt-2 text-center border-t border-slate-800/80">
+      <a href="/apk" class="text-xs text-slate-400 hover:text-cyan-300 transition inline-flex items-center gap-2 group">
+        <div class="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs group-hover:scale-110 transition">
+          <i class="fa-brands fa-android"></i>
+        </div>
+        <span>Are you a parent or guardian? <strong class="text-slate-300 group-hover:text-amber-300 transition">Download Parent Mobile App (APK)</strong></span>
       </a>
     </div>
 
   </div>
 
-  <!-- Bottom Footer -->
-  <p class="text-center text-[11px] text-slate-500 mt-4">
-    DEPED S.M.I.L.E. &copy; 2026 &bull; Powered by <strong class="text-slate-300 font-bold">Kezjed Solutions</strong>
-  </p>
+  <!-- Bottom Global Footer -->
+  <footer class="mt-6 text-center text-xs text-slate-500 font-medium space-y-1">
+    <p>
+      DEPED S.M.I.L.E. &copy; 2026 Department of Education.
+    </p>
+    <p class="text-[11px] text-slate-400">
+      <i class="fa-solid fa-bolt text-amber-400 mr-1"></i> Powered by <strong class="text-slate-200 font-bold">Kezjed Solutions</strong>
+    </p>
+  </footer>
 
   <script>
-    function fillLogin(user, pass) {
-      document.getElementById('inputUsername').value = user;
-      document.getElementById('inputPassword').value = pass;
-    }
-
     function togglePasswordVisibility() {
       const pass = document.getElementById('inputPassword');
       const icon = document.getElementById('eyeIcon');
+      if (!pass || !icon) return;
       if (pass.type === 'password') {
         pass.type = 'text';
-        icon.className = 'fa-solid fa-eye-slash';
+        icon.className = 'fa-solid fa-eye-slash text-cyan-300';
       } else {
         pass.type = 'password';
         icon.className = 'fa-solid fa-eye';
+      }
+    }
+
+    function checkCapsLock(event) {
+      const capsWarning = document.getElementById('capsWarning');
+      if (!capsWarning) return;
+      if (event.getModifierState && event.getModifierState("CapsLock")) {
+        capsWarning.classList.remove('hidden');
+      } else {
+        capsWarning.classList.add('hidden');
+      }
+    }
+
+    function handleFormSubmit() {
+      const btn = document.getElementById('submitBtn');
+      const text = document.getElementById('btnText');
+      const icon = document.getElementById('btnIcon');
+      if (btn && text && icon) {
+        btn.classList.add('opacity-80', 'pointer-events-none');
+        icon.className = 'fa-solid fa-circle-notch fa-spin text-cyan-200';
+        text.innerText = 'VERIFYING CREDENTIALS...';
       }
     }
   </script>
