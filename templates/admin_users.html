@@ -71,6 +71,9 @@
         <button onclick="setRoleFilter('TEACHER')" id="filterBtn_TEACHER" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
           Teachers
         </button>
+        <button onclick="setRoleFilter('STAFF')" id="filterBtn_STAFF" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
+          Staff
+        </button>
         <button onclick="setRoleFilter('GUARD')" id="filterBtn_GUARD" class="role-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-slate-100 text-slate-600 hover:bg-slate-200">
           Guards
         </button>
@@ -108,8 +111,8 @@
             <!-- User / Name Column -->
             <td class="py-3 px-4">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %} flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-                  <i class="fa-solid {% if u.role == 'SUPER_ADMIN' %}fa-crown{% elif u.role == 'PRINCIPAL' %}fa-school{% elif u.role == 'TEACHER' %}fa-chalkboard-user{% else %}fa-shield-halved{% endif %}"></i>
+                <div class="w-9 h-9 rounded-xl {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% elif u.role == 'STAFF' %}bg-indigo-100 text-indigo-800 border border-indigo-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %} flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                  <i class="fa-solid {% if u.role == 'SUPER_ADMIN' %}fa-crown{% elif u.role == 'PRINCIPAL' %}fa-school{% elif u.role == 'TEACHER' %}fa-chalkboard-user{% elif u.role == 'STAFF' %}fa-user-tie{% else %}fa-shield-halved{% endif %}"></i>
                 </div>
                 <div>
                   <div class="flex items-center gap-1.5">
@@ -125,7 +128,7 @@
 
             <!-- Role Badge -->
             <td class="py-3 px-4">
-              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %}">
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {% if u.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% elif u.role == 'PRINCIPAL' %}bg-blue-100 text-deped-blue border border-blue-200{% elif u.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-200{% elif u.role == 'STAFF' %}bg-indigo-100 text-indigo-800 border border-indigo-200{% else %}bg-purple-100 text-purple-800 border border-purple-200{% endif %}">
                 {{ u.role }}
               </span>
             </td>
@@ -264,6 +267,7 @@
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
           <select id="addRole" onchange="toggleAddSectionVisibility()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
             <option value="TEACHER">Class Adviser / Teacher</option>
+            <option value="STAFF">DepEd Staff / Non-Teaching</option>
             <option value="PRINCIPAL">Principal / School Head</option>
             <option value="GUARD">Campus Security Guard</option>
             <option value="SUPER_ADMIN">Super Administrator</option>
@@ -356,6 +360,7 @@
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
           <select id="editRole" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
             <option value="TEACHER">Class Adviser / Teacher</option>
+            <option value="STAFF">DepEd Staff / Non-Teaching</option>
             <option value="PRINCIPAL">Principal / School Head</option>
             <option value="GUARD">Campus Security Guard</option>
             <option value="SUPER_ADMIN">Super Administrator</option>

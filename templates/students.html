@@ -24,11 +24,38 @@
     </div>
   </div>
 
+  {% if current_user and current_user.role == 'TEACHER' and current_user.assigned_section_name and current_user.assigned_section_name != 'N/A' %}
+  <!-- Teacher Advisory Quick Filter Banner -->
+  <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow">
+        <i class="fa-solid fa-chalkboard-user"></i>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-emerald-950">
+          Class Adviser Directory: {{ current_user.assigned_section_name }}
+        </p>
+        <p class="text-[11px] text-emerald-800">
+          Enrolled learners directory. You can toggle between your advisory class learners and all school learners.
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button type="button" onclick="filterByAdvisory(true)" id="btnFilterMyAdvisory" class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+        My Advisory
+      </button>
+      <button type="button" onclick="filterByAdvisory(false)" id="btnFilterAll" class="px-3 py-1.5 bg-white text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 transition">
+        All Students ({{ students|length }})
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Students Grid -->
   <div id="studentsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
     {% for s in students %}
     <div class="student-card glass-card rounded-2xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
-         data-name="{{ s.full_name|lower }}" data-lrn="{{ s.lrn }}">
+         data-name="{{ s.full_name|lower }}" data-lrn="{{ s.lrn }}" data-section="{{ (s.grade_section or '')|lower }}">
       
       <div>
         <!-- Card Header: Photo / QR Badge & Name -->
@@ -94,21 +121,45 @@
 
 {% block scripts %}
 <script>
-  // Search Filter
-  const studentSearch = document.getElementById('studentSearch');
-  studentSearch.addEventListener('input', function(e) {
-    const term = e.target.value.toLowerCase();
+  let advisoryOnlyActive = false;
+  const myAdvisorySection = "{{ current_user.assigned_section_name|lower if current_user and current_user.assigned_section_name and current_user.assigned_section_name != 'N/A' else '' }}";
+
+  function filterByAdvisory(active) {
+    advisoryOnlyActive = active;
+    const btnMy = document.getElementById('btnFilterMyAdvisory');
+    const btnAll = document.getElementById('btnFilterAll');
+    if (btnMy && btnAll) {
+      if (active) {
+        btnMy.className = "px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition";
+        btnAll.className = "px-3 py-1.5 bg-white text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 transition";
+      } else {
+        btnAll.className = "px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-sm transition";
+        btnMy.className = "px-3 py-1.5 bg-white text-emerald-800 border border-emerald-300 text-xs font-semibold rounded-xl hover:bg-emerald-50 transition";
+      }
+    }
+    applyStudentFilters();
+  }
+
+  function applyStudentFilters() {
+    const term = (document.getElementById('studentSearch')?.value || '').toLowerCase().trim();
     const cards = document.querySelectorAll('.student-card');
     cards.forEach(card => {
-      const name = card.getAttribute('data-name');
-      const lrn = card.getAttribute('data-lrn');
-      if (name.includes(term) || lrn.includes(term)) {
-        card.style.display = '';
-      } else {
-        card.style.display = 'none';
-      }
+      const name = card.getAttribute('data-name') || '';
+      const lrn = card.getAttribute('data-lrn') || '';
+      const sec = card.getAttribute('data-section') || '';
+
+      const matchesSearch = !term || name.includes(term) || lrn.includes(term) || sec.includes(term);
+      const matchesAdvisory = !advisoryOnlyActive || (myAdvisorySection && sec.includes(myAdvisorySection));
+
+      card.style.display = (matchesSearch && matchesAdvisory) ? '' : 'none';
     });
-  });
+  }
+
+  // Search Filter
+  const studentSearch = document.getElementById('studentSearch');
+  if (studentSearch) {
+    studentSearch.addEventListener('input', applyStudentFilters);
+  }
 
   // Delete Student
   async function deleteStudent(lrn, name) {

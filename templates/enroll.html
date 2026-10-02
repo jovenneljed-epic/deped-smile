@@ -27,6 +27,30 @@
       <!-- Notification Alerts Area -->
       <div id="alertBox" class="hidden mb-6 p-4 rounded-xl text-sm flex items-start space-x-3"></div>
 
+      {% if assigned_section %}
+      <!-- Class Adviser Auto-Lock Banner -->
+      <div class="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-300 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md">
+            <i class="fa-solid fa-chalkboard-user"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-bold text-emerald-950 text-sm">Class Advisory Learner Enrollment</h4>
+              <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-emerald-900 border border-emerald-400">
+                Advisory Mode Active
+              </span>
+            </div>
+            <p class="text-xs text-emerald-800 mt-0.5">
+              Enrolling learner into your advisory section: <strong class="text-emerald-950 font-bold">{{ assigned_section.grade_level }} - {{ assigned_section.section_name }}</strong> &bull; Adviser: <strong class="text-emerald-950">{{ assigned_section.adviser_teacher or current_user.full_name }}</strong>
+            </p>
+          </div>
+        </div>
+        <div class="text-xs font-bold text-emerald-900 bg-white border border-emerald-300 px-3 py-1.5 rounded-xl flex items-center shadow-sm shrink-0">
+          <i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> Section Auto-Assigned
+        </div>
+      </div>
+      {% else %}
       <!-- Real Student Enrollment Guide Banner -->
       <div class="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center space-x-3">
@@ -42,6 +66,7 @@
           <i class="fa-solid fa-shield-halved mr-1.5 text-emerald-600"></i> DepEd Data Privacy Compliant
         </div>
       </div>
+      {% endif %}
 
       <form id="enrollForm" class="space-y-6">
 
@@ -945,13 +970,47 @@
   });
 
   // -----------------------------------------------------------------
-  // 6. Auto-Start Camera on Page Load
+  // 6. Auto-Start Camera & Teacher Advisory Section Pre-selection
   // -----------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', () => {
     // Attempt auto-activation after layout renders
     setTimeout(() => {
       startWebcam();
     }, 400);
+
+    {% if assigned_section %}
+    // Pre-populate teacher's advisory grade & section
+    try {
+      const glSelect = document.getElementById('inputGradeLevel');
+      if (glSelect) {
+        glSelect.value = "{{ assigned_section.grade_level }}";
+        onGradeLevelChange("{{ assigned_section.grade_level }}");
+        
+        const secSelect = document.getElementById('selectSectionName');
+        if (secSelect) {
+          secSelect.value = "{{ assigned_section.section_name }}";
+          onSectionSelect("{{ assigned_section.section_name }}");
+        }
+        
+        const adviserInput = document.getElementById('inputClassAdviser');
+        if (adviserInput) {
+          adviserInput.value = "{{ assigned_section.adviser_teacher or current_user.full_name }}";
+        }
+        
+        const trackSelect = document.getElementById('inputTrack');
+        if (trackSelect) {
+          const gl = "{{ assigned_section.grade_level }}";
+          if (gl === 'Kindergarten') trackSelect.value = 'Early Childhood';
+          else if (['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'].includes(gl)) trackSelect.value = 'Elementary';
+          else if (['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'].includes(gl)) trackSelect.value = 'Junior High';
+        }
+        
+        updateGradeSectionCombined();
+      }
+    } catch(err) {
+      console.warn("Could not pre-select teacher section:", err);
+    }
+    {% endif %}
   });
 </script>
 {% endblock %}

@@ -159,16 +159,21 @@ def role_required(*allowed_roles):
 
 @app.context_processor
 def inject_user_context():
+    role = session.get("role")
     return {
         "current_user": {
             "id": session.get("user_id"),
             "username": session.get("username"),
             "full_name": session.get("full_name"),
-            "role": session.get("role"),
-            "is_admin": session.get("role") == "SUPER_ADMIN",
-            "is_principal": session.get("role") in ["SUPER_ADMIN", "PRINCIPAL"],
-            "is_teacher": session.get("role") in ["SUPER_ADMIN", "PRINCIPAL", "TEACHER"],
-            "is_guard": session.get("role") in ["SUPER_ADMIN", "GUARD"]
+            "role": role,
+            "assigned_section_id": session.get("assigned_section_id"),
+            "assigned_section_name": session.get("assigned_section_name"),
+            "is_admin": role == "SUPER_ADMIN",
+            "is_principal": role in ["SUPER_ADMIN", "PRINCIPAL"],
+            "is_teacher": role == "TEACHER",
+            "is_staff": role in ["STAFF", "NON_TEACHING"],
+            "can_manage_system": role in ["SUPER_ADMIN", "PRINCIPAL"],
+            "is_guard": role in ["SUPER_ADMIN", "GUARD"]
         } if "user_id" in session else None
     }
 
@@ -196,6 +201,8 @@ def login_page():
     session['username'] = user['username']
     session['full_name'] = user['full_name']
     session['role'] = user['role']
+    session['assigned_section_id'] = user.get('assigned_section_id')
+    session['assigned_section_name'] = user.get('assigned_section_name')
 
     # Role-specific smart redirection
     if next_url and next_url != '/login':
@@ -564,9 +571,33 @@ def add_performance_headers(response):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Administrative Attendance Dashboard - High Performance."""
+    """Administrative & Teacher Advisory Attendance Dashboard - High Performance."""
     try:
-        from smile_orm import get_enrolled_students_count_orm
+        from smile_orm import (
+            get_enrolled_students_count_orm,
+            get_teacher_advisory_overview_orm,
+            get_all_sections_orm
+        )
+        
+        user_role = session.get('role', '')
+        user_section_id = session.get('assigned_section_id')
+        user_section_name = session.get('assigned_section_name')
+        user_full_name = session.get('full_name')
+
+        inspect_section_id = request.args.get('section_id')
+        target_section_id = inspect_section_id or user_section_id
+
+        is_teacher_view = (user_role == 'TEACHER') or (inspect_section_id is not None)
+        advisory_overview = None
+
+        if is_teacher_view:
+            advisory_overview = get_teacher_advisory_overview_orm(
+                section_id=target_section_id,
+                section_name=user_section_name if not inspect_section_id else None,
+                adviser_name=user_full_name if not inspect_section_id else None
+            )
+
+        all_sections = get_all_sections_orm()
         summary = get_today_summary()
         total_enrolled = get_enrolled_students_count_orm()
         logs = get_today_attendance_logs_orm(30)
@@ -580,7 +611,11 @@ def dashboard():
             unique_students_today=summary["unique_students"],
             total_sms_today=total_sms_today,
             logs=logs,
-            today_date=pht_now().strftime("%A, %B %d, %Y")
+            today_date=pht_now().strftime("%A, %B %d, %Y"),
+            advisory_overview=advisory_overview,
+            all_sections=all_sections,
+            is_teacher_view=is_teacher_view,
+            selected_section_id=int(target_section_id) if target_section_id and str(target_section_id).isdigit() else target_section_id
         )
     except Exception as e:
         import traceback
@@ -589,7 +624,7 @@ def dashboard():
 
 @app.route('/kiosk')
 @login_required
-@role_required('SUPER_ADMIN', 'GUARD', 'PRINCIPAL')
+@role_required('SUPER_ADMIN', 'GUARD', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def kiosk():
     """Fullscreen DepEd Gate Kiosk Interface with Live AI HUD - High Performance."""
     from smile_orm import get_enrolled_students_count_orm, Session, AttendanceLog, func
@@ -610,22 +645,32 @@ def kiosk():
 
 @app.route('/enroll')
 @login_required
-@role_required('SUPER_ADMIN', 'PRINCIPAL')
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def enroll_page():
     """Interactive Student Registration Form with Live Webcam Capture & Real Database Sections."""
     from smile_orm import get_all_sections_orm
     sections = get_all_sections_orm()
+    
+    assigned_section_id = session.get('assigned_section_id')
+    assigned_section = None
+    if assigned_section_id:
+        for s in sections:
+            if s.get('id') == assigned_section_id:
+                assigned_section = s
+                break
+
     return render_template(
         'enroll.html',
         school_name=SCHOOL_NAME,
         grade_levels=smile_config.GRADE_LEVELS,
         curriculum_strands=smile_config.CURRICULUM_STRANDS,
-        sections=sections
+        sections=sections,
+        assigned_section=assigned_section
     )
 
 @app.route('/students')
 @login_required
-@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER')
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def students_directory():
     """Directory of enrolled students with photos and parent contacts - High Performance."""
     from smile_orm import get_students_directory_orm

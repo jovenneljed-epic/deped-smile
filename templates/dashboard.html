@@ -1,31 +1,346 @@
 {% extends 'base.html' %}
 
-{% block title %}Dashboard | Project S.M.I.L.E. - DepEd{% endblock %}
+{% block title %}
+  {% if is_teacher_view %}
+    Class Advisory Monitor | {{ advisory_overview.section_name if advisory_overview else 'My Section' }} | Project S.M.I.L.E.
+  {% else %}
+    Dashboard | Project S.M.I.L.E. - DepEd
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
   <!-- Header Banner -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-slate-200">
+  <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between pb-3 border-b border-slate-200 gap-4">
     <div>
-      <h1 class="text-2xl sm:text-3xl font-bold font-heading text-deped-darkblue">School Security & Attendance Dashboard</h1>
-      <p class="text-sm text-slate-500 mt-1"><i class="fa-regular fa-calendar-check text-deped-blue mr-1"></i> {{ today_date }} &bull; Gate Activity Overview</p>
+      {% if is_teacher_view %}
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+          <i class="fa-solid fa-chalkboard-user mr-1"></i> Class Adviser Portal
+        </span>
+        {% if current_user and current_user.is_admin %}
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300">
+          Admin Inspection Mode
+        </span>
+        {% endif %}
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold font-heading text-deped-darkblue mt-1">
+        {{ advisory_overview.section_name if advisory_overview else current_user.assigned_section_name or 'My Advisory Class' }}
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+        <i class="fa-solid fa-user-tie text-deped-blue mr-1"></i> Adviser: <strong class="text-slate-700">{{ advisory_overview.adviser_teacher if advisory_overview else current_user.full_name }}</strong>
+        {% if advisory_overview and advisory_overview.room_number %}
+        &bull; <i class="fa-solid fa-door-open text-slate-400 mr-1"></i> Room: {{ advisory_overview.room_number }}
+        {% endif %}
+        &bull; <i class="fa-regular fa-calendar-check text-deped-blue mr-1"></i> {{ today_date }}
+      </p>
+      {% else %}
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-blue-100 text-deped-blue border border-blue-200">
+          DepEd Central System
+        </span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold font-heading text-deped-darkblue mt-1">
+        School Security & Attendance Dashboard
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+        <i class="fa-regular fa-calendar-check text-deped-blue mr-1"></i> {{ today_date }} &bull; Gate Activity Overview
+      </p>
+      {% endif %}
     </div>
-    <div class="mt-4 sm:mt-0 flex items-center gap-2 flex-wrap">
-      <a href="/kiosk" target="_blank" class="inline-flex items-center px-3.5 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition">
+
+    <!-- Header Actions & Section Inspector -->
+    <div class="flex items-center gap-2.5 flex-wrap">
+      {% if current_user and (current_user.is_admin or current_user.is_principal) %}
+      <!-- Section Inspector Dropdown for Admin / Principal -->
+      <div class="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+        <label class="text-[11px] font-bold text-slate-500 pl-1">
+          <i class="fa-solid fa-filter text-deped-blue mr-1"></i> Advisory:
+        </label>
+        <select onchange="window.location.href = this.value ? '/dashboard?section_id=' + this.value : '/dashboard'"
+                class="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <option value="">-- All School (Overview) --</option>
+          {% for sec in all_sections %}
+          <option value="{{ sec.id }}" {% if selected_section_id == sec.id %}selected{% endif %}>
+            {{ sec.grade_level }} - {{ sec.section_name }} ({{ sec.adviser_teacher or 'No Adviser' }})
+          </option>
+          {% endfor %}
+        </select>
+        {% if selected_section_id %}
+        <a href="/dashboard" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition" title="Clear Inspection Filter">
+          <i class="fa-solid fa-xmark"></i>
+        </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if is_teacher_view %}
+      <a href="/enroll" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition">
+        <i class="fa-solid fa-user-plus mr-1.5"></i> + Enroll Learners
+      </a>
+      <a href="/students" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
+        <i class="fa-solid fa-users mr-1.5 text-deped-blue"></i> Class Roster
+      </a>
+      <a href="/kiosk" target="_blank" class="inline-flex items-center px-3 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
+        <i class="fa-solid fa-video mr-1.5 text-emerald-300"></i> Gate Monitor
+      </a>
+      {% else %}
+      <a href="/kiosk" target="_blank" class="inline-flex items-center px-3.5 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
         <i class="fa-solid fa-expand mr-1.5"></i> Launch Gate Kiosk
       </a>
-      <a href="/export/csv" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition">
+      <a href="/export/csv" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
         <i class="fa-solid fa-file-excel mr-1.5"></i> Export DepEd SF2 (CSV)
       </a>
+      {% endif %}
     </div>
   </div>
 
-  <!-- KPI Metric Cards -->
+  {% if is_teacher_view and advisory_overview %}
+  <!-- ============================================================== -->
+  <!-- TEACHER ADVISORY MONITOR VIEW                                  -->
+  <!-- ============================================================== -->
+
+  <!-- Advisory KPI Metric Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+    
+    <!-- Advisory Class Size -->
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-deped-blue flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Advisory Class Size</p>
+        <h3 class="text-3xl font-extrabold text-deped-darkblue mt-1">{{ advisory_overview.total_enrolled }}</h3>
+        <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-users text-deped-blue"></i> Official Enrolled</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-user-graduate"></i>
+      </div>
+    </div>
+
+    <!-- Inside Campus Now (Timed-In) -->
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-emerald-500 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Inside Campus Now</p>
+        <h3 class="text-3xl font-extrabold text-emerald-700 mt-1">{{ advisory_overview.inside_campus }}</h3>
+        <p class="text-xs text-emerald-600 mt-1 flex items-center">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span> Timed-In (Active)
+        </p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-right-to-bracket"></i>
+      </div>
+    </div>
+
+    <!-- Safely Exited Campus (Timed-Out) -->
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-amber-500 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Safely Exited Today</p>
+        <h3 class="text-3xl font-extrabold text-amber-700 mt-1">{{ advisory_overview.timed_out }}</h3>
+        <p class="text-xs text-amber-600 mt-1"><i class="fa-solid fa-person-walking-arrow-right"></i> Timed-Out (Departed)</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-door-open"></i>
+      </div>
+    </div>
+
+    <!-- Absent / Not Yet Arrived -->
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-rose-400 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Not Yet Arrived</p>
+        <h3 class="text-3xl font-extrabold text-rose-700 mt-1">{{ advisory_overview.absent_today }}</h3>
+        <p class="text-xs text-rose-500 mt-1"><i class="fa-regular fa-clock"></i> No Gate Scan Today</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl shadow-inner">
+        <i class="fa-solid fa-user-xmark"></i>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Advisory Students Real-Time IN-OUT Roster -->
+  <div class="glass-card rounded-2xl shadow-sm overflow-hidden border border-slate-200">
+    <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold font-heading text-slate-800 flex items-center">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping mr-2.5"></span>
+          My Advisory Class Roster & Real-Time Presence
+        </h2>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Live IN-OUT status for learners enrolled in {{ advisory_overview.section_name }}.
+        </p>
+      </div>
+      
+      <!-- Search Input -->
+      <div class="relative w-full sm:w-72">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-sm"></i>
+        <input type="text" id="rosterSearchInput" placeholder="Search learner or LRN..." 
+               class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+      </div>
+    </div>
+
+    <!-- Roster Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs" id="advisoryRosterTable">
+        <thead>
+          <tr class="bg-slate-50/80 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-3.5 px-4">Learner Name</th>
+            <th class="py-3.5 px-4">LRN</th>
+            <th class="py-3.5 px-4">Gender</th>
+            <th class="py-3.5 px-4">Parent / Guardian Contact</th>
+            <th class="py-3.5 px-4">Today's Gate Status</th>
+            <th class="py-3.5 px-4 text-right">Quick Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-normal">
+          {% for s in advisory_overview.students %}
+          <tr class="roster-row hover:bg-blue-50/40 transition">
+            <!-- Learner Name -->
+            <td class="py-3 px-4">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl bg-blue-100 text-deped-blue font-bold text-xs flex items-center justify-center shrink-0">
+                  {{ s.first_name[0] }}
+                </div>
+                <div>
+                  <span class="font-bold text-slate-900 block text-xs">{{ s.last_name }}, {{ s.first_name }}</span>
+                  <span class="text-[10px] text-slate-400 font-mono">{{ s.grade_section }}</span>
+                </div>
+              </div>
+            </td>
+
+            <!-- LRN -->
+            <td class="py-3 px-4 font-mono font-semibold text-slate-700">{{ s.lrn }}</td>
+
+            <!-- Gender -->
+            <td class="py-3 px-4 font-medium text-slate-600">{{ s.gender }}</td>
+
+            <!-- Parent -->
+            <td class="py-3 px-4">
+              <span class="font-bold text-slate-800 block">{{ s.parent_name or 'N/A' }}</span>
+              <span class="font-mono text-[11px] text-deped-blue"><i class="fa-solid fa-phone text-[10px] mr-1"></i>{{ s.parent_phone }}</span>
+            </td>
+
+            <!-- Live Status -->
+            <td class="py-3 px-4">
+              {% if s.today_status == 'TIME_IN' %}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1.5"></span>
+                INSIDE CAMPUS
+              </span>
+              {% elif s.today_status == 'TIME_OUT' %}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                <i class="fa-solid fa-person-walking-arrow-right mr-1.5 text-amber-600"></i>
+                SAFELY EXITED
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                <i class="fa-regular fa-clock mr-1.5 text-slate-400"></i>
+                NOT YET ARRIVED
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Print Smart ID -->
+            <td class="py-3 px-4 text-right">
+              <a href="/id-card/{{ s.lrn }}" target="_blank"
+                 class="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-deped-blue text-deped-blue hover:text-white rounded-lg font-bold text-xs transition border border-blue-200 shadow-sm">
+                <i class="fa-solid fa-qrcode mr-1.5"></i> Print Smart ID
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="py-12 text-center text-slate-400">
+              <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-user-plus"></i>
+              </div>
+              <h3 class="font-bold text-slate-700 text-base">No Students Enrolled in This Section Yet</h3>
+              <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                As the class adviser, you can enroll your advisory learners right now to generate their official DepEd QR Smart IDs.
+              </p>
+              <a href="/enroll" class="mt-4 inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition">
+                <i class="fa-solid fa-plus mr-1.5"></i> Enroll Advisory Student
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Advisory Recent Gate Activity Logs -->
+  <div class="glass-card rounded-2xl shadow-sm overflow-hidden border border-slate-200">
+    <div class="p-5 border-b border-slate-100">
+      <h2 class="text-base font-bold font-heading text-slate-800 flex items-center">
+        <i class="fa-solid fa-clock-rotate-left text-deped-blue mr-2"></i>
+        Recent Advisory Gate IN-OUT Logs
+      </h2>
+      <p class="text-xs text-slate-500 mt-0.5">Timestamps and parent SMS notifications for this advisory section</p>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-slate-50/80 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+            <th class="py-3 px-4">Time</th>
+            <th class="py-3 px-4">Learner Name</th>
+            <th class="py-3 px-4">LRN</th>
+            <th class="py-3 px-4">Type</th>
+            <th class="py-3 px-4">Parent Phone</th>
+            <th class="py-3 px-4 text-center">Parent SMS</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for log in advisory_overview.today_logs %}
+          <tr class="hover:bg-blue-50/30 transition">
+            <td class="py-2.5 px-4 font-mono text-slate-500">{{ log.timestamp }}</td>
+            <td class="py-2.5 px-4 font-bold text-slate-900">{{ log.student_name }}</td>
+            <td class="py-2.5 px-4 font-mono text-slate-600">{{ log.lrn }}</td>
+            <td class="py-2.5 px-4">
+              {% if log.scan_type == 'TIME_IN' %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                <i class="fa-solid fa-right-to-bracket mr-1"></i> TIME-IN
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                <i class="fa-solid fa-right-from-bracket mr-1"></i> TIME-OUT
+              </span>
+              {% endif %}
+            </td>
+            <td class="py-2.5 px-4 font-mono text-slate-600">{{ log.parent_phone or 'N/A' }}</td>
+            <td class="py-2.5 px-4 text-center">
+              {% if log.sms_status in ['SENT', 'MOCKED'] %}
+              <span class="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <i class="fa-solid fa-check-double mr-1"></i> Delivered
+              </span>
+              {% else %}
+              <span class="inline-flex items-center text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {{ log.sms_status }}
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="py-8 text-center text-slate-400 text-xs">
+              No gate scans recorded today for students in this advisory class.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ============================================================== -->
+  <!-- SCHOOL-WIDE / ADMINISTRATIVE VIEW                              -->
+  <!-- ============================================================== -->
+
+  <!-- School-Wide KPI Metric Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
     
     <!-- Total Enrolled -->
-    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-deped-blue flex items-center justify-between">
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-deped-blue flex items-center justify-between">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Enrolled</p>
         <h3 id="stat-enrolled" class="text-3xl font-extrabold text-deped-darkblue mt-1">{{ total_enrolled }}</h3>
@@ -37,7 +352,7 @@
     </div>
 
     <!-- Scans Today -->
-    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-emerald-500 flex items-center justify-between">
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-emerald-500 flex items-center justify-between">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Today's Gate Scans</p>
         <h3 id="stat-scans" class="text-3xl font-extrabold text-emerald-700 mt-1">{{ total_scans_today }}</h3>
@@ -49,7 +364,7 @@
     </div>
 
     <!-- Present Today -->
-    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-deped-gold flex items-center justify-between">
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-deped-gold flex items-center justify-between">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Students Present</p>
         <h3 id="stat-unique" class="text-3xl font-extrabold text-amber-700 mt-1">{{ unique_students_today }}</h3>
@@ -61,7 +376,7 @@
     </div>
 
     <!-- SMS Sent Today -->
-    <div class="glass-card rounded-xl p-5 shadow-sm border-l-4 border-indigo-500 flex items-center justify-between">
+    <div class="glass-card rounded-2xl p-5 shadow-sm border-l-4 border-indigo-500 flex items-center justify-between">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Parent SMS Alerts</p>
         <h3 id="stat-sms" class="text-3xl font-extrabold text-indigo-700 mt-1">{{ total_sms_today }}</h3>
@@ -167,22 +482,39 @@
     </div>
 
   </div>
+  {% endif %}
 
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  // Filter table by search term
-  const searchInput = document.getElementById('searchInput');
-  searchInput.addEventListener('input', function(e) {
-    const term = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#attendanceTbody tr');
-    rows.forEach(row => {
-      const text = row.innerText.toLowerCase();
-      row.style.display = text.includes(term) ? '' : 'none';
+  {% if is_teacher_view %}
+  // Filter Advisory Roster by Search Term
+  const rosterSearch = document.getElementById('rosterSearchInput');
+  if (rosterSearch) {
+    rosterSearch.addEventListener('input', function(e) {
+      const term = e.target.value.toLowerCase().trim();
+      const rows = document.querySelectorAll('#advisoryRosterTable tbody tr.roster-row');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(term) ? '' : 'none';
+      });
     });
-  });
+  }
+  {% else %}
+  // Filter School-Wide table by search term
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function(e) {
+      const term = e.target.value.toLowerCase();
+      const rows = document.querySelectorAll('#attendanceTbody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(term) ? '' : 'none';
+      });
+    });
+  }
 
   // Auto-refresh attendance records every 3.5 seconds
   async function pollAttendance() {
@@ -192,7 +524,7 @@
       const logs = await res.json();
       
       const tbody = document.getElementById('attendanceTbody');
-      if (logs.length > 0) {
+      if (tbody && logs.length > 0) {
         tbody.innerHTML = logs.map(log => `
           <tr class="hover:bg-blue-50/40 transition">
             <td class="py-3 px-4 font-mono text-xs text-slate-500 whitespace-nowrap">${log.timestamp}</td>
@@ -225,9 +557,12 @@
       const statsRes = await fetch('/api/stats');
       if (statsRes.ok) {
         const stats = await statsRes.json();
-        document.getElementById('stat-enrolled').innerText = stats.total_enrolled;
-        document.getElementById('stat-scans').innerText = stats.total_scans;
-        document.getElementById('stat-unique').innerText = stats.unique_students;
+        const statEnrolled = document.getElementById('stat-enrolled');
+        const statScans = document.getElementById('stat-scans');
+        const statUnique = document.getElementById('stat-unique');
+        if (statEnrolled) statEnrolled.innerText = stats.total_enrolled;
+        if (statScans) statScans.innerText = stats.total_scans;
+        if (statUnique) statUnique.innerText = stats.unique_students;
       }
     } catch(err) {
       console.error("Polling error:", err);
@@ -297,5 +632,6 @@
     } catch(e) {}
   }
   setInterval(pollLatestVoiceEvent, 1000);
+  {% endif %}
 </script>
 {% endblock %}

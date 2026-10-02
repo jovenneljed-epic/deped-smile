@@ -1534,6 +1534,118 @@ def get_all_attendance_logs_for_export_orm():
     finally:
         session.close()
 
+def get_teacher_advisory_overview_orm(section_id=None, section_name=None, adviser_name=None):
+    """
+    Returns dedicated advisory class metrics, student roster, and today's IN/OUT logs for a Teacher.
+    - Advisory students list with live presence (TIME_IN, TIME_OUT, NOT_ARRIVED)
+    - Total enrolled
+    - Currently inside campus count
+    - Safely exited count
+    - Absent/unrecorded count
+    - Recent gate attendance logs for this advisory section
+    """
+    session = Session()
+    try:
+        from datetime import datetime
+        today_start = datetime.combine(pht_now().date(), datetime.min.time())
+
+        # Resolve target section
+        target_section = None
+        if section_id:
+            try:
+                target_section = session.query(Section).filter_by(id=int(section_id)).first()
+            except (ValueError, TypeError):
+                pass
+        
+        if not target_section and section_name:
+            parts = [p.strip() for p in section_name.split("-") if p.strip()]
+            if len(parts) >= 2:
+                target_section = session.query(Section).filter(
+                    Section.grade_level.ilike(f"%{parts[0]}%"),
+                    Section.section_name.ilike(f"%{parts[1]}%")
+                ).first()
+            if not target_section:
+                target_section = session.query(Section).filter(
+                    (Section.section_name.ilike(f"%{section_name}%")) |
+                    (Section.grade_level.ilike(f"%{section_name}%"))
+                ).first()
+
+        if not target_section and adviser_name:
+            clean_adv = adviser_name.replace("Mrs.", "").replace("Mr.", "").replace("Ms.", "").replace("Dr.", "").strip()
+            target_section = session.query(Section).filter(Section.adviser_teacher.ilike(f"%{clean_adv}%")).first()
+
+        # Query all students in this advisory class
+        std_query = session.query(Student).filter(Student.is_active == True)
+        if target_section:
+            sec_label = f"{target_section.grade_level} - {target_section.section_name}"
+            std_query = std_query.filter(
+                (Student.section_id == target_section.id) |
+                (Student.grade_section == sec_label) |
+                (Student.section_name == target_section.section_name)
+            )
+        elif section_name:
+            std_query = std_query.filter(Student.grade_section.ilike(f"%{section_name}%"))
+        elif adviser_name:
+            clean_adv = adviser_name.replace("Mrs.", "").replace("Mr.", "").replace("Ms.", "").replace("Dr.", "").strip()
+            std_query = std_query.filter(Student.class_adviser.ilike(f"%{clean_adv}%"))
+
+        students = std_query.order_by(Student.last_name.asc(), Student.first_name.asc()).all()
+        student_lrns = [s.lrn for s in students]
+
+        # Query today's attendance logs for these learners
+        today_logs = []
+        present_lrns = set()
+        exited_lrns = set()
+        latest_scan_map = {}
+
+        if student_lrns:
+            logs = session.query(AttendanceLog).filter(
+                AttendanceLog.timestamp >= today_start,
+                AttendanceLog.lrn.in_(student_lrns)
+            ).order_by(desc(AttendanceLog.timestamp)).all()
+
+            for l in logs:
+                today_logs.append(l.to_dict())
+                if l.lrn not in latest_scan_map:
+                    latest_scan_map[l.lrn] = l.scan_type
+                if l.scan_type == "TIME_IN":
+                    present_lrns.add(l.lrn)
+                elif l.scan_type == "TIME_OUT":
+                    exited_lrns.add(l.lrn)
+
+        # Build student roster with today's real-time presence status
+        student_roster = []
+        for s in students:
+            s_dict = s.to_dict()
+            last_status = latest_scan_map.get(s.lrn, "NOT_ARRIVED")
+            s_dict["today_status"] = last_status # TIME_IN, TIME_OUT, NOT_ARRIVED
+            student_roster.append(s_dict)
+
+        total_enrolled = len(students)
+        inside_now = sum(1 for status in latest_scan_map.values() if status == "TIME_IN")
+        timed_out_count = sum(1 for status in latest_scan_map.values() if status == "TIME_OUT")
+        absent_count = max(0, total_enrolled - len(latest_scan_map))
+
+        sec_name_display = f"{target_section.grade_level} - {target_section.section_name}" if target_section else (section_name or "Advisory Class")
+        adv_display = target_section.adviser_teacher if target_section else (adviser_name or "")
+
+        return {
+            "section_id": target_section.id if target_section else None,
+            "section_name": sec_name_display,
+            "room_number": target_section.room_number if target_section else "",
+            "adviser_teacher": adv_display,
+            "total_enrolled": total_enrolled,
+            "inside_campus": inside_now,
+            "timed_out": timed_out_count,
+            "absent_today": absent_count,
+            "present_today": len(present_lrns),
+            "today_logs": today_logs[:50],
+            "students": student_roster
+        }
+    finally:
+        session.close()
+
+
 def get_database_stats_orm():
     session = Session()
     try:
@@ -2129,6 +2241,34 @@ DEFAULT_STUDENTS = [
         "parent_phone": "09173339876",
         "parent_relationship": "Mother",
         "rfid_card_uid": "RFID-8804"
+    },
+    {
+        "lrn": "152008250011",
+        "first_name": "Ethan",
+        "last_name": "Flores",
+        "gender": "Male",
+        "grade_level": "Grade 1",
+        "section_name": "Mabait",
+        "grade_section": "Grade 1 - Mabait",
+        "track_strand": "Elementary",
+        "parent_name": "Elena Flores",
+        "parent_phone": "09171112233",
+        "parent_relationship": "Mother",
+        "rfid_card_uid": "RFID-8805"
+    },
+    {
+        "lrn": "152008250012",
+        "first_name": "Sophia",
+        "last_name": "Reyes",
+        "gender": "Female",
+        "grade_level": "Grade 1",
+        "section_name": "Mabait",
+        "grade_section": "Grade 1 - Mabait",
+        "track_strand": "Elementary",
+        "parent_name": "Mark Reyes",
+        "parent_phone": "09174445566",
+        "parent_relationship": "Father",
+        "rfid_card_uid": "RFID-8806"
     }
 ]
 
@@ -2183,6 +2323,12 @@ def seed_default_users_orm():
     """Seeds default demonstration accounts for each role level."""
     session = Session()
     try:
+        # Find advisory section for demo teacher (Grade 1 - Mabait)
+        mabait_sec = session.query(Section).filter_by(grade_level="Grade 1", section_name="Mabait").first()
+        if not mabait_sec:
+            mabait_sec = session.query(Section).first()
+        advisory_id = mabait_sec.id if mabait_sec else None
+
         default_accounts = [
             {
                 "username": "admin",
@@ -2190,7 +2336,8 @@ def seed_default_users_orm():
                 "password": "admin123",
                 "full_name": "Engr. System Administrator",
                 "role": "SUPER_ADMIN",
-                "phone_number": "09170000001"
+                "phone_number": "09170000001",
+                "assigned_section_id": None
             },
             {
                 "username": "principal",
@@ -2198,7 +2345,8 @@ def seed_default_users_orm():
                 "password": "principal123",
                 "full_name": "Dr. Maria Clara Santos, CESO V",
                 "role": "PRINCIPAL",
-                "phone_number": "09170000002"
+                "phone_number": "09170000002",
+                "assigned_section_id": None
             },
             {
                 "username": "teacher",
@@ -2206,7 +2354,17 @@ def seed_default_users_orm():
                 "password": "teacher123",
                 "full_name": "Mrs. Erlinda Flores (Grade 1 Adviser)",
                 "role": "TEACHER",
-                "phone_number": "09170000003"
+                "phone_number": "09170000003",
+                "assigned_section_id": advisory_id
+            },
+            {
+                "username": "staff",
+                "email": "staff.bautista@donmontano.edu.ph",
+                "password": "staff123",
+                "full_name": "Ms. Andrea Bautista (School Registrar)",
+                "role": "STAFF",
+                "phone_number": "09170000005",
+                "assigned_section_id": None
             },
             {
                 "username": "guard",
@@ -2214,7 +2372,8 @@ def seed_default_users_orm():
                 "password": "guard123",
                 "full_name": "Officer Danilo Ramos (Gate 1)",
                 "role": "GUARD",
-                "phone_number": "09170000004"
+                "phone_number": "09170000004",
+                "assigned_section_id": None
             }
         ]
         for acc in default_accounts:
@@ -2227,11 +2386,16 @@ def seed_default_users_orm():
                     full_name=acc["full_name"],
                     role=acc["role"],
                     is_active=True,
-                    phone_number=acc["phone_number"]
+                    phone_number=acc["phone_number"],
+                    assigned_section_id=acc.get("assigned_section_id")
                 )
                 session.add(u)
             else:
                 existing.is_active = True
+                if acc.get("role"):
+                    existing.role = acc["role"]
+                if acc.get("assigned_section_id") and not existing.assigned_section_id:
+                    existing.assigned_section_id = acc["assigned_section_id"]
                 # Update password hash in case schema refreshed
                 if not check_password_hash(existing.password_hash, acc["password"]):
                     existing.password_hash = generate_password_hash(acc["password"])
@@ -2917,3 +3081,5 @@ get_parent_notifications = get_parent_notifications_orm
 mark_parent_notifications_read = mark_parent_notifications_read_orm
 get_incidents = get_incidents_orm
 save_incident = save_incident_orm
+get_teacher_advisory_overview = get_teacher_advisory_overview_orm
+
