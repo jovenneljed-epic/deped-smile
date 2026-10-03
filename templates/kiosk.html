@@ -77,107 +77,92 @@
 <body class="min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden w-full max-w-full select-none">
 
   <!-- Top HUD Header (Mobile & Desktop Responsive) -->
-  <header class="bg-slate-900/90 border-b border-cyan-900/50 backdrop-blur-md px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-4 z-40 w-full max-w-full overflow-hidden">
+  <!-- Top HUD Header (Clean 2-Column Responsive Layout - Zero Overlap) -->
+  <header class="bg-slate-900/95 border-b border-cyan-900/50 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-3 sm:gap-6 z-40 w-full max-w-full">
     
-    <!-- Top Row on Mobile / Left Side on Desktop: School Branding & Live Clock -->
-    <div class="flex items-center justify-between md:justify-start gap-2 sm:gap-3.5 w-full md:w-auto min-w-0">
-      <div class="flex items-center gap-2 sm:gap-3.5 min-w-0">
-        <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-8 h-8 sm:w-11 sm:h-11 object-contain drop-shadow-md shrink-0">
-        <div class="flex flex-col justify-center min-w-0">
-          <div class="flex items-center gap-1.5">
-            <h1 class="font-hud font-extrabold text-sm sm:text-lg tracking-wider text-cyan-400 whitespace-nowrap">DEPED S.M.I.L.E.</h1>
-            <span class="bg-emerald-500/20 text-emerald-400 text-[9px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center shrink-0">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1"></span> LIVE KIOSK
-            </span>
-          </div>
-          <p class="text-[9px] sm:text-xs font-bold text-amber-300 tracking-tight leading-tight whitespace-nowrap">
-            Security Monitoring, Incident Logging, and E-notification
-          </p>
+    <!-- Left Side: School Branding (shrink-0, pristine, zero overlap) -->
+    <a href="/" class="flex items-center gap-2.5 sm:gap-3.5 shrink-0 group min-w-0" title="Back to Dashboard">
+      <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-9 h-9 sm:w-11 sm:h-11 object-contain drop-shadow-md shrink-0 transition group-hover:scale-105">
+      <div class="flex flex-col justify-center min-w-0">
+        <div class="flex items-center gap-2">
+          <h1 class="font-hud font-extrabold text-sm sm:text-lg tracking-wider text-cyan-400 whitespace-nowrap">DEPED S.M.I.L.E.</h1>
+          <span class="bg-emerald-500/20 text-emerald-400 text-[9px] sm:text-xs px-2 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center shrink-0">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1"></span> LIVE KIOSK
+          </span>
         </div>
+        <p class="text-[9px] sm:text-[10px] font-bold text-amber-300 tracking-tight leading-tight whitespace-nowrap hidden sm:block">
+          Security Monitoring, Incident Logging, and E-notification
+        </p>
       </div>
+    </a>
 
-      <!-- Quick Mobile Clock & Exit Button (Hidden on Desktop) -->
-      <div class="flex items-center gap-1.5 md:hidden shrink-0">
-        <div class="text-right">
-          <div id="liveClockMobile" class="font-hud text-xs font-bold text-white tracking-wider">00:00 AM</div>
-        </div>
-        <a href="/" title="Back to Dashboard" class="w-8 h-8 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition border border-slate-700 shadow">
-          <i class="fa-solid fa-house"></i>
-        </a>
-      </div>
-    </div>
-
-    <!-- Center Status Indicator (Desktop Only) -->
-    <div class="hidden xl:flex items-center space-x-4 text-xs text-slate-300 font-mono">
-      <div class="flex items-center space-x-1.5">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span>Auto-Scanner: <strong id="hudScannerStatus" class="text-emerald-400">ACTIVE</strong></span>
-      </div>
-      <div class="flex items-center space-x-1.5">
-        <i class="fa-solid fa-comment-dots text-amber-400"></i>
-        <span>SMS Dispatch: <strong class="text-emerald-400">LIVE</strong></span>
-      </div>
-      <div class="flex items-center space-x-1.5">
-        <i class="fa-solid fa-bolt text-cyan-400"></i>
-        <span id="hudFpsText">FPS: ~2.5 / 650ms</span>
-      </div>
-    </div>
-
-    <!-- Controls Row: Gate Mode, Camera Switch, Voice, Test Scan, Fullscreen, Exit -->
-    <div class="flex items-center justify-between md:justify-end gap-1.5 sm:gap-2.5 w-full md:w-auto shrink-0 flex-wrap sm:flex-nowrap">
+    <!-- Right Side: Controls Cluster (shrink-0, clean, neatly aligned) -->
+    <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
       
-      <!-- Desktop Clock -->
-      <div class="hidden md:block text-right pr-2">
-        <div id="liveClock" class="font-hud text-base lg:text-lg font-bold text-white tracking-widest leading-none">00:00:00 AM</div>
-        <div id="liveDate" class="text-[11px] text-cyan-300 font-medium mt-0.5">Jan 01, 2026</div>
+      <!-- Live Clock -->
+      <div class="text-right pr-1 sm:pr-2 hidden sm:block">
+        <div id="liveClock" class="font-hud text-sm sm:text-base font-bold text-white tracking-widest leading-none">00:00:00 AM</div>
+        <div id="liveDate" class="text-[10px] text-cyan-300 font-medium mt-0.5">Jan 01, 2026</div>
       </div>
+
+      <!-- Mobile Clock (compact) -->
+      <div id="liveClockMobile" class="font-hud text-xs font-bold text-white tracking-wider sm:hidden">00:00 AM</div>
 
       <!-- Gate Mode Selector -->
-      <select id="gateModeSelect" onchange="changeGateMode(this.value)" title="Switch Gate Attendance Mode" class="flex-1 sm:flex-initial bg-slate-800 border border-cyan-700/60 rounded-lg px-2 sm:px-2.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-hud font-bold text-cyan-300 focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer shadow-md">
+      <select id="gateModeSelect" onchange="changeGateMode(this.value)" title="Switch Gate Attendance Mode" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-hud font-bold text-cyan-300 focus:outline-none focus:ring-1 focus:ring-cyan-400 cursor-pointer shadow-md">
         <option value="AUTO">🔄 AUTO GATE</option>
         <option value="ENTRY">🟢 ENTRY (TIME-IN)</option>
         <option value="EXIT">🟠 EXIT (TIME-OUT)</option>
       </select>
 
-      <!-- Camera Device Switcher (Dropdown for Multi-Camera / USB Gate Camera / V380 CCTV) -->
-      <select id="cameraSelect" onchange="onCameraSelectChange(this.value)" title="Select Video Camera" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 py-1.5 sm:py-2 text-[11px] sm:text-xs font-mono text-cyan-200 focus:outline-none cursor-pointer block">
-        <option value="WEBCAM_DEFAULT" selected>🎥 Device Camera / USB Gate Scanner</option>
-        <option value="CCTV_STREAM">📡 V380 Gate CCTV Camera (RTSP)</option>
+      <!-- Camera Device Switcher (with max-width & truncate to prevent long camera names from breaking layout) -->
+      <select id="cameraSelect" onchange="onCameraSelectChange(this.value)" title="Select Video Camera" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 py-1.5 text-[11px] sm:text-xs font-mono text-cyan-200 focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[190px] xl:max-w-[240px] truncate">
+        <option value="WEBCAM_DEFAULT" selected>🎥 Device Camera</option>
+        <option value="CCTV_STREAM">📡 V380 CCTV (RTSP)</option>
       </select>
 
       <!-- Voice Toggle Button -->
-      <button id="voiceToggleBtn" onclick="toggleVoiceOver()" title="Voice Over Audio Announcement" class="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-[11px] sm:text-xs font-bold font-hud transition flex items-center shadow-lg shrink-0">
+      <button id="voiceToggleBtn" onclick="toggleVoiceOver()" title="Voice Over Audio Announcement" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-[11px] sm:text-xs font-bold font-hud transition flex items-center shadow-lg shrink-0">
         <i class="fa-solid fa-volume-high sm:mr-1.5 text-cyan-300 text-xs"></i>
-        <span class="hidden sm:inline">Voice ON</span>
+        <span class="hidden md:inline">Voice ON</span>
       </button>
 
       <!-- Test Scan Button -->
-      <button onclick="triggerSimulatedScan()" title="Simulate a Student Gate Scan" class="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold font-hud transition flex items-center shadow-lg shrink-0">
+      <button onclick="triggerSimulatedScan()" title="Simulate a Student Gate Scan" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold font-hud transition flex items-center shadow-lg shrink-0">
         <i class="fa-solid fa-bolt sm:mr-1.5 text-amber-300 text-xs"></i>
-        <span class="hidden sm:inline">Test Scan</span>
-        <span class="sm:hidden">Test</span>
+        <span class="hidden md:inline">Test Scan</span>
+        <span class="md:hidden">Test</span>
       </button>
 
       <!-- Desktop Fullscreen & Home -->
       <button onclick="toggleFullscreen()" title="Toggle Fullscreen" class="hidden sm:flex p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition items-center justify-center">
         <i class="fa-solid fa-expand text-sm"></i>
       </button>
-      <a href="/" title="Back to Dashboard" class="hidden md:flex p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition items-center justify-center">
+      <a href="/" title="Back to Dashboard" class="flex p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition items-center justify-center">
         <i class="fa-solid fa-house text-sm"></i>
       </a>
     </div>
   </header>
 
-  <!-- DepEd Strict 4-Session Schedule Bar -->
-  <div class="bg-slate-900/90 border-b border-cyan-800/40 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between text-[11px] sm:text-xs">
-    <div class="flex items-center space-x-2 text-cyan-300 font-hud">
+  <!-- DepEd Strict 4-Session Schedule & HUD Telemetry Bar -->
+  <div class="bg-slate-900/90 border-b border-cyan-800/40 px-3 sm:px-6 py-1.5 sm:py-2 flex flex-wrap items-center justify-between text-[11px] sm:text-xs gap-2">
+    <!-- Left: Schedule & Active Session -->
+    <div class="flex items-center space-x-2 text-cyan-300 font-hud shrink-0">
       <i class="fa-solid fa-clock text-cyan-400"></i>
-      <span class="font-bold">ATTENDANCE SCHEDULE:</span>
+      <span class="font-bold">SCHEDULE:</span>
       <span id="activeSessionBadge" class="px-2.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
         CHECKING...
       </span>
     </div>
-    <div class="flex items-center space-x-1.5 sm:space-x-2 text-[10px] sm:text-[11px] font-mono mt-1 sm:mt-0 text-slate-300 flex-wrap">
+
+    <!-- Center/Right: Live System Telemetry Badges + Schedule Times -->
+    <div class="flex items-center space-x-2 sm:space-x-3 text-[10px] sm:text-[11px] font-mono text-slate-300 flex-wrap">
+      <!-- Live Radar & SMS Indicators -->
+      <div class="hidden lg:flex items-center space-x-3 pr-3 border-r border-slate-700/60">
+        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1"></span>Auto-Scanner: <strong id="hudScannerStatus" class="text-emerald-400 ml-1">ACTIVE</strong></span>
+        <span class="flex items-center"><i class="fa-solid fa-comment-dots text-amber-400 mr-1"></i>SMS: <strong class="text-emerald-400 ml-1">LIVE</strong></span>
+        <span class="flex items-center"><i class="fa-solid fa-bolt text-cyan-400 mr-1"></i><span id="hudFpsText" class="text-cyan-300">FPS: ~2.5</span></span>
+      </div>
       <span id="schedAmIn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">1. AM In: 5:00-10:59 AM</span>
       <span id="schedAmOut" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">2. AM Out: 11:00-12:00 PM</span>
       <span id="schedPmIn" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 transition">3. PM In: 12:01-12:59 PM</span>
