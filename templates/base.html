@@ -25,11 +25,16 @@
     "prerender": [
       {
         "source": "list",
-        "urls": ["/dashboard", "/enroll", "/students", "/kiosk", "/teacher/dashboard"],
+        "urls": ["/dashboard", "/enroll", "/students", "/teacher/dashboard"],
         "eagerness": "moderate"
       }
     ],
     "prefetch": [
+      {
+        "source": "list",
+        "urls": ["/kiosk"],
+        "eagerness": "moderate"
+      },
       {
         "where": {
           "and": [

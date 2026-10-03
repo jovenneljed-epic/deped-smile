@@ -516,12 +516,14 @@
     });
   }
 
-  // Auto-refresh attendance records every 3.5 seconds
+  // Auto-refresh attendance records and stats via single consolidated endpoint
   async function pollAttendance() {
+    if (document.hidden) return; // Pause polling when tab is inactive to preserve bandwidth & CPU
     try {
       const res = await fetch('/api/recent-scans');
       if (!res.ok) return;
-      const logs = await res.json();
+      const data = await res.json();
+      const logs = data.logs || (Array.isArray(data) ? data : []);
       
       const tbody = document.getElementById('attendanceTbody');
       if (tbody && logs.length > 0) {
@@ -553,23 +555,21 @@
         `).join('');
       }
 
-      // Update KPIs
-      const statsRes = await fetch('/api/stats');
-      if (statsRes.ok) {
-        const stats = await statsRes.json();
+      // Update KPI counters from single consolidated response
+      if (data.total_enrolled !== undefined) {
         const statEnrolled = document.getElementById('stat-enrolled');
         const statScans = document.getElementById('stat-scans');
         const statUnique = document.getElementById('stat-unique');
-        if (statEnrolled) statEnrolled.innerText = stats.total_enrolled;
-        if (statScans) statScans.innerText = stats.total_scans;
-        if (statUnique) statUnique.innerText = stats.unique_students;
+        if (statEnrolled) statEnrolled.innerText = data.total_enrolled;
+        if (statScans) statScans.innerText = data.total_scans;
+        if (statUnique) statUnique.innerText = data.unique_students;
       }
     } catch(err) {
-      console.error("Polling error:", err);
+      console.warn("Polling note:", err);
     }
   }
 
-  setInterval(pollAttendance, 3500);
+  setInterval(pollAttendance, 4000);
 
   // Voice Announcement System
   let dashVoiceActive = false;

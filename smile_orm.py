@@ -28,6 +28,7 @@ _EVENTS_CACHE = {"data": None, "ts": 0}
 _SECTIONS_CACHE = {"data": None, "ts": 0}
 _STUDENT_COUNT_CACHE = {"count": None, "ts": 0}
 _PRICING_PLANS_CACHE = {"data": None, "ts": 0}
+_TODAY_SUMMARY_CACHE = {"data": None, "ts": 0}
 
 Base = declarative_base()
 
@@ -1425,6 +1426,7 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
         )
         session.add(log)
         session.commit()
+        _TODAY_SUMMARY_CACHE["data"] = None
         log_id = log.id
 
         # Dispatch background WebPush (wakes mobile device when locked or screen off)
@@ -1505,17 +1507,24 @@ def record_sms_orm(recipient_phone, student_lrn, message_body, status, gateway="
         session.close()
 
 def get_today_summary_orm():
+    """Returns today's gate scan metrics with high-speed 3s in-memory TTL caching."""
+    now = time.time()
+    if _TODAY_SUMMARY_CACHE["data"] is not None and (now - _TODAY_SUMMARY_CACHE["ts"]) < 3.0:
+        return _TODAY_SUMMARY_CACHE["data"]
     session = Session()
     try:
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
         total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
         unique_students = session.query(func.count(func.distinct(AttendanceLog.lrn))).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
         recent_logs = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).order_by(desc(AttendanceLog.id)).limit(10).all()
-        return {
+        res = {
             "total_scans": total_scans,
             "unique_students": unique_students,
             "recent_scans": [r.to_dict() for r in recent_logs]
         }
+        _TODAY_SUMMARY_CACHE["data"] = res
+        _TODAY_SUMMARY_CACHE["ts"] = now
+        return res
     finally:
         session.close()
 

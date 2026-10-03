@@ -4,11 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PROJECT S.M.I.L.E. | Live Smart ID Gate Kiosk</title>
+  <!-- High-Speed Resource Preconnect & DNS Prefetching -->
+  <link rel="dns-prefetch" href="//cdn.tailwindcss.com">
+  <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+  <link rel="dns-prefetch" href="//fonts.googleapis.com">
+  <link rel="dns-prefetch" href="//fonts.gstatic.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
+  <!-- Speculation Rules API for Instantaneous Return to Dashboard -->
+  <script type="speculationrules">
+  {
+    "prerender": [
+      {
+        "source": "list",
+        "urls": ["/dashboard", "/enroll", "/students", "/teacher/dashboard"],
+        "eagerness": "moderate"
+      }
+    ]
+  }
+  </script>
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Orbitron & Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- FontAwesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -121,8 +141,8 @@
 
       <!-- Camera Device Switcher (Dropdown for Multi-Camera / USB Gate Camera / V380 CCTV) -->
       <select id="cameraSelect" onchange="onCameraSelectChange(this.value)" title="Select Video Camera" class="bg-slate-800 border border-cyan-700/60 rounded-lg px-2 py-1.5 sm:py-2 text-[11px] sm:text-xs font-mono text-cyan-200 focus:outline-none cursor-pointer block">
-        <option value="CCTV_STREAM" selected>📡 V380 Gate CCTV Camera (RTSP)</option>
-        <option value="WEBCAM_DEFAULT">🎥 Device Webcam (USB / Built-in)</option>
+        <option value="WEBCAM_DEFAULT" selected>🎥 Device Camera / USB Gate Scanner</option>
+        <option value="CCTV_STREAM">📡 V380 Gate CCTV Camera (RTSP)</option>
       </select>
 
       <!-- Voice Toggle Button -->
@@ -178,7 +198,7 @@
         <canvas id="kioskCanvas" class="hidden"></canvas>
 
         <!-- Fallback Server Image Stream if Webcam Not Permitted -->
-        <img id="kioskStream" src="/video_feed" alt="Gate Camera Stream" class="w-full h-full object-cover hidden">
+        <img id="kioskStream" data-src="/video_feed" src="" alt="Gate Camera Stream" class="w-full h-full object-cover hidden">
 
         <!-- Standby Prompt (Shown if camera requires click-to-activate or permission blocked) -->
         <div id="cameraStandbyPrompt" class="hidden absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-4">
@@ -571,14 +591,16 @@
       }
 
       videoEl.classList.add('hidden');
+      streamImgEl.src = streamImgEl.getAttribute('data-src') || '/video_feed';
       streamImgEl.classList.remove('hidden');
       standbyPrompt.classList.add('hidden');
       const pill = document.getElementById('cameraStatusPill');
       if (pill) pill.innerText = '📡 V380 CCTV LIVE • AUTO-SCAN ON';
 
-      // Poll latest event from GateStreamer every 400ms for instant HUD validation & voice announcements
+      // Poll latest event from GateStreamer every 500ms for instant HUD validation & voice announcements
       if (cctvPollTimer) clearInterval(cctvPollTimer);
       cctvPollTimer = setInterval(async () => {
+        if (document.hidden) return;
         try {
           const res = await fetch('/api/stream-event');
           const data = await res.json();
@@ -606,7 +628,7 @@
             });
           }
         } catch (_) {}
-      }, 400);
+      }, 500);
     }
 
     async function enumerateCameras() {
@@ -615,14 +637,18 @@
         availableVideoDevices = devices.filter(d => d.kind === 'videoinput');
         const select = document.getElementById('cameraSelect');
         if (select) {
-          select.innerHTML = '<option value="CCTV_STREAM">📡 V380 Gate CCTV Camera (RTSP)</option>';
+          select.innerHTML = '<option value="WEBCAM_DEFAULT">🎥 Device Camera / USB Gate Scanner</option>';
           availableVideoDevices.forEach((dev, idx) => {
             const opt = document.createElement('option');
             opt.value = dev.deviceId;
             opt.text = dev.label ? `🎥 ${dev.label}` : `🎥 Camera ${idx + 1}`;
             select.appendChild(opt);
           });
-          select.value = isCctvMode ? 'CCTV_STREAM' : (availableVideoDevices[0]?.deviceId || 'CCTV_STREAM');
+          const cctvOpt = document.createElement('option');
+          cctvOpt.value = 'CCTV_STREAM';
+          cctvOpt.text = '📡 V380 Gate CCTV Camera (RTSP)';
+          select.appendChild(cctvOpt);
+          select.value = isCctvMode ? 'CCTV_STREAM' : (availableVideoDevices[0]?.deviceId || 'WEBCAM_DEFAULT');
         }
       } catch (e) {
         console.warn("Could not enumerate cameras:", e);
@@ -635,6 +661,7 @@
         clearInterval(cctvPollTimer);
         cctvPollTimer = null;
       }
+      streamImgEl.src = ''; // Instantly disconnect any open server MJPEG stream
       streamImgEl.classList.add('hidden');
       videoEl.classList.remove('hidden');
 
@@ -660,7 +687,7 @@
         await enumerateCameras();
         startAutoScanLoop();
       } catch (err) {
-        console.warn("Camera start failed, showing activation prompt:", err);
+        console.warn("Camera start note:", err);
         standbyPrompt.classList.remove('hidden');
       }
     }
@@ -692,17 +719,9 @@
       if (select) select.value = nextDevice.deviceId;
     }
 
-    // Auto-detect and start CCTV Stream or Webcam when page loads
+    // Fast local camera initialization on page load
     window.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const check = await fetch('/api/stream-event');
-        const checkData = await check.json();
-        if (checkData && checkData.success) {
-          startCctvStreamMode();
-          await enumerateCameras();
-          return;
-        }
-      } catch (_) {}
+      await enumerateCameras();
       startKioskCamera();
     });
 
@@ -732,6 +751,7 @@
     }
 
     async function scanTick() {
+      if (document.hidden) return; // Pause frame capture when kiosk tab is in background
       if (isScanInProgress) return;
       if (!videoEl || videoEl.paused || videoEl.ended || !videoEl.videoWidth) return;
 

@@ -632,20 +632,15 @@ def dashboard():
 @role_required('SUPER_ADMIN', 'GUARD', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def kiosk():
     """Fullscreen DepEd Gate Kiosk Interface with Live AI HUD - High Performance."""
-    from smile_orm import get_enrolled_students_count_orm, Session, AttendanceLog, func
+    from smile_orm import get_enrolled_students_count_orm, get_today_summary_orm
     total_enrolled = get_enrolled_students_count_orm()
-    session = Session()
-    try:
-        today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
-    finally:
-        session.close()
+    summary = get_today_summary_orm()
 
     return render_template(
         'kiosk.html',
         school_name=SCHOOL_NAME,
         total_enrolled=total_enrolled,
-        total_scans=total_scans
+        total_scans=summary.get("total_scans", 0)
     )
 
 @app.route('/enroll')
@@ -1184,20 +1179,29 @@ def api_gate_mode():
 
 @app.route('/api/stats')
 def api_stats():
-    """Returns real-time statistics for header/kiosk widgets."""
+    """Returns real-time statistics for header/kiosk widgets (sub-millisecond cached)."""
+    from smile_orm import get_enrolled_students_count_orm
     summary = get_today_summary()
-    enrolled = get_all_enrolled_students()
+    total_enrolled = get_enrolled_students_count_orm()
     return jsonify({
-        "total_enrolled": len(enrolled),
+        "total_enrolled": total_enrolled,
         "total_scans": summary["total_scans"],
         "unique_students": summary["unique_students"]
     })
 
 @app.route('/api/recent-scans')
 def api_recent_scans():
-    """Returns today's recent attendance logs for live auto-updating tables."""
+    """Returns today's recent attendance logs and summary stats for live auto-updating tables."""
+    from smile_orm import get_enrolled_students_count_orm
     logs = get_today_attendance_logs_orm(limit=20)
-    return jsonify(logs)
+    summary = get_today_summary()
+    total_enrolled = get_enrolled_students_count_orm()
+    return jsonify({
+        "logs": logs,
+        "total_enrolled": total_enrolled,
+        "total_scans": summary["total_scans"],
+        "unique_students": summary["unique_students"]
+    })
 
 @app.route('/id-card/<lrn>')
 def view_id_card(lrn):

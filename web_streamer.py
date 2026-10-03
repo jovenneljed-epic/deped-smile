@@ -412,7 +412,7 @@ class GateStreamer:
 
         # Support IP/CCTV Camera RTSP Stream (e.g. V380, Hikvision, Dahua) or Local Webcams
         if isinstance(cam_src, str) and str(cam_src).startswith("rtsp://"):
-            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp'
+            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|stimeout;2000000|max_delay;500000'
             print(f"[*] GateStreamer connecting to CCTV RTSP Stream: {cam_src}...")
             self.cap = cv2.VideoCapture(cam_src, cv2.CAP_FFMPEG)
             if self.cap.isOpened():
