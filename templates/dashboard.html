@@ -51,7 +51,7 @@
     </div>
 
     <!-- Header Actions & Section Inspector -->
-    <div class="flex items-center gap-2.5 flex-wrap">
+    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
       {% if current_user and (current_user.is_admin or current_user.is_principal) %}
       <!-- Section Inspector Dropdown for Admin / Principal -->
       <div class="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
@@ -76,36 +76,36 @@
       {% endif %}
 
       {% if is_teacher_view %}
-      <a href="/faculty-scanner" class="inline-flex items-center px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs sm:text-sm font-black rounded-xl shadow-sm transition" title="Log Faculty Attendance via Facial Recognition & Geotag">
-        <i class="fa-solid fa-camera mr-1.5 text-slate-950"></i> Face DTR
+      <a href="/faculty-scanner" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-black rounded-xl shadow-sm transition whitespace-nowrap" title="Log Faculty Attendance via Facial Recognition & Geotag">
+        <i class="fa-solid fa-camera mr-1 sm:mr-1.5 text-slate-950"></i> Face DTR
       </a>
-      <a href="/faculty/dtr" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition" title="Civil Service Form No. 48 Daily Time Record">
-        <i class="fa-solid fa-clipboard-user mr-1.5 text-deped-blue"></i> My DTR
+      <a href="/faculty/dtr" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap" title="Civil Service Form No. 48 Daily Time Record">
+        <i class="fa-solid fa-clipboard-user mr-1 sm:mr-1.5 text-deped-blue"></i> My DTR
       </a>
-      <a href="/profile" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition" title="Edit Section Name, Grade Level & Profile">
-        <i class="fa-solid fa-pen-to-square mr-1.5 text-emerald-600"></i> Edit Profile
+      <a href="/profile" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap" title="Edit Section Name, Grade Level & Profile">
+        <i class="fa-solid fa-pen-to-square mr-1 sm:mr-1.5 text-emerald-600"></i> Edit Profile
       </a>
-      <a href="/enroll" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-user-plus mr-1.5"></i> + Enroll Learners
+      <a href="/enroll" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-user-plus mr-1 sm:mr-1.5"></i> + Enroll<span class="hidden xl:inline">&nbsp;Learners</span>
       </a>
-      <a href="/students" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-users mr-1.5 text-deped-blue"></i> Class Roster
+      <a href="/students" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-users mr-1 sm:mr-1.5 text-deped-blue"></i> <span class="hidden sm:inline">Class </span>Roster
       </a>
-      <a href="/kiosk" target="_blank" class="inline-flex items-center px-3 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-video mr-1.5 text-emerald-300"></i> Gate Monitor
+      <a href="/kiosk" target="_blank" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-video mr-1 sm:mr-1.5 text-emerald-300"></i> <span class="hidden sm:inline">Gate </span>Monitor
       </a>
       {% else %}
-      <a href="/faculty-scanner" class="inline-flex items-center px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-bold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-camera mr-1.5 text-slate-950"></i> Faculty Face DTR
+      <a href="/faculty-scanner" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-camera mr-1 sm:mr-1.5 text-slate-950"></i> <span class="hidden sm:inline">Faculty </span>Face DTR
       </a>
-      <a href="/faculty/dtr" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-clipboard-user mr-1.5 text-deped-blue"></i> Form 48 DTR
+      <a href="/faculty/dtr" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-clipboard-user mr-1 sm:mr-1.5 text-deped-blue"></i> Form 48 DTR
       </a>
-      <a href="/kiosk" target="_blank" class="inline-flex items-center px-3.5 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-expand mr-1.5"></i> Launch Gate Kiosk
+      <a href="/kiosk" target="_blank" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-expand mr-1 sm:mr-1.5"></i> <span class="hidden sm:inline">Gate </span>Kiosk
       </a>
-      <a href="/export/csv" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
-        <i class="fa-solid fa-file-excel mr-1.5"></i> Export DepEd SF2 (CSV)
+      <a href="/export/csv" class="inline-flex items-center px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap">
+        <i class="fa-solid fa-file-excel mr-1 sm:mr-1.5"></i> Export SF2 (CSV)
       </a>
       {% endif %}
     </div>

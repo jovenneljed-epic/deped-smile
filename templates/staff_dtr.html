@@ -127,7 +127,7 @@
     </div>
 
     <!-- 4-Punch Mini Badges -->
-    <div class="flex items-center gap-2 text-center text-xs">
+    <div class="grid grid-cols-2 sm:flex sm:items-center gap-2 text-center text-xs w-full sm:w-auto">
       <div class="px-2.5 py-1.5 rounded-xl border {% if today_status.has_am_in %}bg-emerald-50 border-emerald-300 text-emerald-800 font-bold{% else %}bg-slate-50 border-slate-200 text-slate-400{% endif %}">
         <span class="text-[9px] uppercase block font-semibold">AM IN</span>
         <span class="font-mono text-xs">{{ today_status.am_in or '--:--' }}</span>
@@ -183,7 +183,7 @@
 
     <!-- DepEd Form 48 31-Day Table -->
     <div class="overflow-x-auto">
-      <table class="dtr-table w-full text-center border-collapse border border-slate-400 text-xs font-sans">
+      <table class="dtr-table w-full min-w-[700px] text-center border-collapse border border-slate-400 text-xs font-sans">
         <thead>
           <tr class="bg-slate-100 text-slate-800 font-bold">
             <th rowspan="2" class="border border-slate-400 px-2 py-1.5 w-12 sm:w-16">Day</th>
