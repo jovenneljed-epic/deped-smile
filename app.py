@@ -15,7 +15,9 @@ from flask import (
 
 from smile_config import (
     SCHOOL_NAME, DB_PATH, PHOTOS_DIR, BASE_DIR, pht_now,
-    get_sms_config, save_sms_settings
+    get_sms_config, save_sms_settings,
+    DEFAULT_SCHOOL_LAT, DEFAULT_SCHOOL_LON, ALLOWED_GEOFENCE_RADIUS_METERS,
+    calculate_haversine_distance, verify_school_geotag
 )
 import smile_config
 from smile_db import (
@@ -30,7 +32,10 @@ from smile_orm import (
     update_pricing_plan_orm, record_payment_transaction_orm,
     get_recent_payment_transactions_orm, get_revenue_statistics_orm,
     get_today_attendance_logs_orm, get_today_sms_count_orm,
-    get_recent_sms_logs_orm, get_all_attendance_logs_for_export_orm
+    get_recent_sms_logs_orm, get_all_attendance_logs_for_export_orm,
+    enroll_staff_face_orm, get_enrolled_staff_faces_orm,
+    record_staff_attendance_orm, get_staff_today_status_orm,
+    get_staff_dtr_logs_orm
 )
 from smile_face_engine import SmileFaceEngine
 from smile_sms import (
@@ -2685,6 +2690,359 @@ def export_attendance_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename=DepEd_Smile_Attendance_{today_str}.csv"}
     )
+
+# -------------------------------------------------------------
+# FACULTY & NON-TEACHING ATTENDANCE & BIOMETRIC DTR MODULE
+# -------------------------------------------------------------
+
+@app.route('/faculty-scanner')
+def faculty_scanner_page():
+    """
+    Dedicated Face Recognition & Geotagged Attendance Scanner for Teaching and Non-Teaching Personnel.
+    Works as a high-security biometric attendance station with GPS geotag enforcement.
+    """
+    current_uid = session.get('user_id')
+    today_status = get_staff_today_status_orm(current_uid) if current_uid else None
+    enrolled_staff = get_enrolled_staff_faces_orm()
+    enrolled_count = len(enrolled_staff)
+    
+    user_obj = None
+    if current_uid:
+        user_obj = get_user_by_id_orm(current_uid)
+        
+    return render_template(
+        'faculty_scanner.html',
+        school_name=SCHOOL_NAME,
+        school_lat=DEFAULT_SCHOOL_LAT,
+        school_lon=DEFAULT_SCHOOL_LON,
+        geofence_radius=ALLOWED_GEOFENCE_RADIUS_METERS,
+        current_user=user_obj,
+        today_status=today_status,
+        enrolled_count=enrolled_count
+    )
+
+@app.route('/api/faculty/verify-scan', methods=['POST'])
+def api_faculty_verify_scan():
+    """
+    Real-time Biometric Face Recognition & GPS Geotag verification for Faculty & Non-Teaching Staff.
+    Matches frame against enrolled staff embeddings, validates campus distance, and writes to staff_attendance_logs.
+    """
+    try:
+        img = decode_image_payload(request)
+        if img is None:
+            return jsonify({"success": False, "message": "No camera frame or image received."}), 400
+
+        # Extract GPS Geotag parameters
+        lat = None
+        lon = None
+        accuracy = None
+        scan_type = "AUTO"
+
+        if request.is_json and request.json:
+            lat = request.json.get("latitude")
+            lon = request.json.get("longitude")
+            accuracy = request.json.get("accuracy")
+            scan_type = request.json.get("scan_type", "AUTO")
+        else:
+            lat = request.form.get("latitude")
+            lon = request.form.get("longitude")
+            accuracy = request.form.get("accuracy")
+            scan_type = request.form.get("scan_type", "AUTO")
+
+        if lat is not None and str(lat).strip():
+            try: lat = float(lat)
+            except: lat = None
+        else:
+            lat = None
+
+        if lon is not None and str(lon).strip():
+            try: lon = float(lon)
+            except: lon = None
+        else:
+            lon = None
+
+        if accuracy is not None and str(accuracy).strip():
+            try: accuracy = float(accuracy)
+            except: accuracy = None
+        else:
+            accuracy = None
+
+        fe = get_face_engine()
+        if fe is None or not fe.available:
+            return jsonify({"success": False, "message": "Biometric face recognition engine is offline or unavailable on server."}), 503
+
+        faces = fe.detect_faces(img)
+        if len(faces) == 0:
+            return jsonify({"success": False, "detected": False, "message": "No face detected in camera view. Please position your face clearly in the circle."}), 200
+
+        best_face = max(faces, key=lambda f: f[2] * f[3])
+        query_emb = fe.extract_face_embedding(img, best_face)
+
+        enrolled_staff = get_enrolled_staff_faces_orm()
+        if not enrolled_staff:
+            return jsonify({
+                "success": False,
+                "detected": True,
+                "matched": False,
+                "message": "No faculty or staff members have enrolled their Face ID yet. Please enroll first in your profile or click '+ Enroll Face ID'."
+            }), 200
+
+        match, score = fe.match_against_enrolled(query_emb, enrolled_staff)
+
+        if not match:
+            pct = f"{score * 100:.1f}%" if score > 0 else "0.0%"
+            return jsonify({
+                "success": False,
+                "detected": True,
+                "matched": False,
+                "score": pct,
+                "message": f"Face Not Recognized ({pct} confidence). Please ensure you have enrolled your facial biometrics or align your face."
+            }), 200
+
+        # Save snapshot thumbnail (optional, 160x160)
+        snapshot_b64 = ""
+        try:
+            h, w = img.shape[:2]
+            scale = 160.0 / max(h, w)
+            thumb = cv2.resize(img, (int(w * scale), int(h * scale)))
+            _, buf = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
+            snapshot_b64 = "data:image/jpeg;base64," + base64.b64encode(buf).decode('utf-8')
+        except Exception as thumb_err:
+            pass
+
+        # Record attendance log
+        ok, msg, log_entry = record_staff_attendance_orm(
+            user_id=match["user_id"],
+            scan_type=scan_type,
+            lat=lat,
+            lon=lon,
+            accuracy=accuracy,
+            method="FACIAL_RECOGNITION",
+            score=score,
+            photo=snapshot_b64
+        )
+
+        today_status = get_staff_today_status_orm(match["user_id"])
+
+        clean_staff = {
+            "id": match["user_id"],
+            "username": match["username"],
+            "full_name": match["full_name"],
+            "role": match["role"],
+            "designation": match.get("designation", ""),
+            "section": match.get("assigned_section_name", ""),
+            "photo_path": match.get("photo_path", "")
+        }
+
+        return jsonify({
+            "success": ok,
+            "matched": True,
+            "detected": True,
+            "score": f"{score * 100:.1f}%",
+            "message": msg,
+            "staff": clean_staff,
+            "log": log_entry,
+            "today_status": today_status
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/faculty/enroll-face', methods=['POST'])
+@login_required
+def api_faculty_enroll_face():
+    """
+    Enrolls or updates facial biometric embedding for teaching / non-teaching personnel.
+    Supports self-enrollment or administrator enrollment.
+    """
+    try:
+        current_uid = session.get('user_id')
+        current_role = session.get('role')
+
+        target_uid = request.form.get('user_id') or (request.json.get('user_id') if request.is_json and request.json else None) or current_uid
+        try:
+            target_uid = int(target_uid)
+        except:
+            target_uid = current_uid
+
+        # Permission check: users can only enroll themselves unless they are Super Admin or Principal
+        if target_uid != current_uid and current_role not in ['SUPER_ADMIN', 'PRINCIPAL']:
+            return jsonify({"success": False, "message": "Access Denied: You may only enroll your own biometric profile."}), 403
+
+        img = decode_image_payload(request)
+        if img is None:
+            return jsonify({"success": False, "message": "No selfie snapshot received. Please allow camera access and capture your photo."}), 400
+
+        fe = get_face_engine()
+        if fe is None or not fe.available:
+            return jsonify({"success": False, "message": "Biometric face engine is currently offline or unavailable on server."}), 503
+
+        faces = fe.detect_faces(img)
+        if len(faces) == 0:
+            return jsonify({"success": False, "message": "No face detected in the captured photo. Please look straight into the camera under good lighting."}), 400
+
+        if len(faces) > 1:
+            return jsonify({"success": False, "message": f"{len(faces)} faces detected in frame. Only ONE person must be in view during facial biometric enrollment."}), 400
+
+        query_emb = fe.extract_face_embedding(img, faces[0])
+
+        # Save photo to disk or uploads
+        photo_rel_path = ""
+        try:
+            save_dir = Path(BASE_DIR) / 'static' / 'uploads' / 'faculty'
+            save_dir.mkdir(parents=True, exist_ok=True)
+            fname = f"staff_{target_uid}_{int(datetime.now().timestamp())}.jpg"
+            save_path = save_dir / fname
+            cv2.imwrite(str(save_path), img)
+            photo_rel_path = f"/static/uploads/faculty/{fname}"
+        except Exception as save_err:
+            print(f"[!] Could not save staff photo to disk: {save_err}")
+
+        ok, user_dict = enroll_staff_face_orm(target_uid, query_emb, photo_path=photo_rel_path)
+
+        if ok:
+            return jsonify({
+                "success": True,
+                "message": f"Biometric Face ID successfully registered for {user_dict.get('full_name')}! You can now use the Faculty Face Scanner.",
+                "user": user_dict
+            })
+        else:
+            return jsonify({"success": False, "message": f"Biometric enrollment failed: {user_dict}"}), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/faculty/dtr')
+@login_required
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING', 'GUARD')
+def faculty_dtr_page():
+    """
+    Civil Service Commission (CSC) / DepEd Form 48 Daily Time Record (DTR) Portal.
+    Displays authentic time logs, campus geotag verifications, and monthly rendered hours.
+    """
+    current_uid = session.get('user_id')
+    current_role = session.get('role')
+
+    target_uid = request.args.get('user_id', type=int) or current_uid
+    # Non-admins can only view their own DTR
+    if current_role not in ['SUPER_ADMIN', 'PRINCIPAL'] and target_uid != current_uid:
+        target_uid = current_uid
+
+    now = pht_now()
+    target_month = request.args.get('month', type=int) or now.month
+    target_year = request.args.get('year', type=int) or now.year
+
+    # List of all staff for Admin / Principal inspector dropdown
+    all_staff = []
+    if current_role in ['SUPER_ADMIN', 'PRINCIPAL']:
+        all_staff = get_all_users_orm()
+        all_staff = [u for u in all_staff if u.get('role') in ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD']]
+
+    target_user = get_user_by_id_orm(target_uid) if target_uid else None
+    logs = get_staff_dtr_logs_orm(user_id=target_uid, month=target_month, year=target_year, limit=500)
+    today_status = get_staff_today_status_orm(target_uid) if target_uid else {}
+
+    # Build Day 1-31 table representation for DepEd Form 48
+    import calendar
+    _, days_in_month = calendar.monthrange(target_year, target_month)
+    month_name = calendar.month_name[target_month]
+
+    # Map logs into calendar days: day -> {am_in, am_out, pm_in, pm_out, geotag_verified, logs: []}
+    dtr_days = {}
+    for d in range(1, days_in_month + 1):
+        dt = date(target_year, target_month, d)
+        day_of_week = dt.strftime("%a")
+        dtr_days[d] = {
+            "day": d,
+            "date": dt.strftime("%Y-%m-%d"),
+            "day_name": day_of_week,
+            "is_weekend": dt.weekday() >= 5,
+            "am_in": "",
+            "am_out": "",
+            "pm_in": "",
+            "pm_out": "",
+            "hours": 0.0,
+            "has_campus_verified": False,
+            "has_off_campus": False,
+            "punches": []
+        }
+
+    for log in logs:
+        try:
+            ts = log["timestamp"]
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts.replace("Z", ""))
+            day_num = ts.day
+            if day_num in dtr_days:
+                t_str = ts.strftime("%I:%M %p")
+                dtr_days[day_num]["punches"].append(log)
+                if log.get("geotag_status") == "CAMPUS_VERIFIED":
+                    dtr_days[day_num]["has_campus_verified"] = True
+                elif log.get("geotag_status") == "OFF_CAMPUS":
+                    dtr_days[day_num]["has_off_campus"] = True
+
+                period = log.get("period", "AM")
+                scan_type = log.get("scan_type")
+
+                if period == "AM":
+                    if scan_type == "TIME_IN" and not dtr_days[day_num]["am_in"]:
+                        dtr_days[day_num]["am_in"] = t_str
+                    elif scan_type == "TIME_OUT":
+                        dtr_days[day_num]["am_out"] = t_str
+                else: # PM
+                    if scan_type == "TIME_IN" and not dtr_days[day_num]["pm_in"]:
+                        dtr_days[day_num]["pm_in"] = t_str
+                    elif scan_type == "TIME_OUT":
+                        dtr_days[day_num]["pm_out"] = t_str
+        except Exception as parse_ex:
+            pass
+
+    return render_template(
+        'staff_dtr.html',
+        school_name=SCHOOL_NAME,
+        target_user=target_user,
+        target_month=target_month,
+        target_year=target_year,
+        month_name=month_name,
+        days_in_month=days_in_month,
+        dtr_days=dtr_days,
+        all_staff=all_staff,
+        today_status=today_status,
+        logs=logs
+    )
+
+@app.route('/api/faculty/dtr-logs')
+@login_required
+def api_faculty_dtr_logs():
+    """Returns JSON log entries for staff DTR view."""
+    target_uid = request.args.get('user_id', type=int) or session.get('user_id')
+    current_role = session.get('role')
+    if current_role not in ['SUPER_ADMIN', 'PRINCIPAL'] and target_uid != session.get('user_id'):
+        target_uid = session.get('user_id')
+
+    month = request.args.get('month', type=int)
+    year = request.args.get('year', type=int)
+
+    logs = get_staff_dtr_logs_orm(user_id=target_uid, month=month, year=year)
+    today_status = get_staff_today_status_orm(target_uid)
+    return jsonify({
+        "success": True,
+        "user_id": target_uid,
+        "logs": logs,
+        "today_status": today_status
+    })
+
+@app.route('/api/faculty/today-status')
+@login_required
+def api_faculty_today_status():
+    """Returns today's punch state for the logged-in staff member."""
+    target_uid = request.args.get('user_id', type=int) or session.get('user_id')
+    status = get_staff_today_status_orm(target_uid)
+    return jsonify({"success": True, "today_status": status})
 
 if __name__ == '__main__':
     print("\n" + "="*65)

@@ -29,6 +29,7 @@ _SECTIONS_CACHE = {"data": None, "ts": 0}
 _STUDENT_COUNT_CACHE = {"count": None, "ts": 0}
 _PRICING_PLANS_CACHE = {"data": None, "ts": 0}
 _TODAY_SUMMARY_CACHE = {"data": None, "ts": 0}
+_STAFF_FACES_CACHE = {"data": None, "ts": 0}
 
 Base = declarative_base()
 
@@ -329,10 +330,13 @@ class User(Base):
     phone_number = Column(String(30), default="")
     designation = Column(String(100), default="") # DepEd Designation / Department (e.g. Registrar, Guidance)
     assigned_section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
+    face_embedding = Column(Text, nullable=True) # JSON list of 128 floats for SFace facial recognition
+    photo_path = Column(Text, default="") # Photo evidence / profile portrait
     created_at = Column(DateTime, default=pht_now)
     last_login = Column(DateTime, nullable=True)
 
     assigned_section = relationship("Section", foreign_keys=[assigned_section_id])
+    staff_attendance_records = relationship("StaffAttendanceLog", back_populates="user_rel", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
@@ -346,8 +350,57 @@ class User(Base):
             "designation": getattr(self, 'designation', '') or "",
             "assigned_section_id": self.assigned_section_id,
             "assigned_section_name": f"{self.assigned_section.grade_level} - {self.assigned_section.section_name}" if self.assigned_section else "N/A",
+            "has_face": bool(self.face_embedding),
+            "photo_path": getattr(self, 'photo_path', '') or "",
             "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else "",
             "last_login": self.last_login.strftime("%Y-%m-%d %I:%M %p") if self.last_login else "Never"
+        }
+
+class StaffAttendanceLog(Base):
+    """
+    Official DepEd Civil Service Form 48 Daily Time Record (DTR) for Teaching and Non-Teaching personnel.
+    Combines AI Facial Biometrics with GPS Geotag verification.
+    """
+    __tablename__ = 'staff_attendance_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    staff_name = Column(String(100), nullable=False)
+    role = Column(String(30), nullable=False) # TEACHER, STAFF, NON_TEACHING, PRINCIPAL, GUARD, SUPER_ADMIN
+    scan_type = Column(String(20), nullable=False) # TIME_IN, TIME_OUT
+    period = Column(String(10), default="AM") # AM, PM
+    timestamp = Column(DateTime, default=pht_now, index=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    accuracy_meters = Column(Float, nullable=True)
+    geotag_status = Column(String(30), default="NO_GPS") # CAMPUS_VERIFIED, OFF_CAMPUS, NO_GPS
+    verification_method = Column(String(50), default="FACIAL_RECOGNITION_GEOTAGGED")
+    face_confidence = Column(Float, default=0.0) # Match score e.g. 0.95
+    photo_snapshot = Column(Text, default="")
+    created_at = Column(DateTime, default=pht_now)
+
+    user_rel = relationship("User", back_populates="staff_attendance_records")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "staff_name": self.staff_name,
+            "role": self.role,
+            "scan_type": self.scan_type,
+            "period": self.period,
+            "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.timestamp else "",
+            "date_formatted": self.timestamp.strftime("%b %d, %Y") if self.timestamp else "",
+            "time_formatted": self.timestamp.strftime("%I:%M:%S %p") if self.timestamp else "",
+            "time_short": self.timestamp.strftime("%I:%M %p") if self.timestamp else "",
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "accuracy_meters": self.accuracy_meters,
+            "geotag_status": self.geotag_status,
+            "verification_method": self.verification_method,
+            "face_confidence": f"{self.face_confidence * 100:.1f}%" if self.face_confidence else "N/A",
+            "photo_snapshot": self.photo_snapshot,
+            "maps_url": f"https://www.google.com/maps?q={self.latitude},{self.longitude}" if self.latitude and self.longitude else None
         }
 
 class PricingPlan(Base):
@@ -879,12 +932,27 @@ def init_orm_db(force=False):
                 except Exception as ex:
                     print(f"[!] parent_device_tokens creation note: {ex}")
 
-            # Safe auto-migration for designation column on existing users table
+            if "staff_attendance_logs" not in existing_tables:
+                try:
+                    StaffAttendanceLog.__table__.create(engine, checkfirst=True)
+                    print("[+] Created staff_attendance_logs table in database.")
+                except Exception as ex:
+                    print(f"[!] staff_attendance_logs creation note: {ex}")
+
+            # Safe auto-migration for columns on existing users table
             try:
                 from sqlalchemy import text
                 with engine.connect() as conn:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN designation VARCHAR(100) DEFAULT '';"))
-                    conn.commit()
+                    for col_sql in [
+                        "ALTER TABLE users ADD COLUMN designation VARCHAR(100) DEFAULT '';",
+                        "ALTER TABLE users ADD COLUMN face_embedding TEXT;",
+                        "ALTER TABLE users ADD COLUMN photo_path TEXT DEFAULT '';"
+                    ]:
+                        try:
+                            conn.execute(text(col_sql))
+                            conn.commit()
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
@@ -2394,6 +2462,235 @@ def update_user_profile_orm(user_id, **kwargs):
     finally:
         session.close()
 
+# -------------------------------------------------------------
+# Faculty & Staff Biometric Face Enrollment & Authentic Geotag DTR
+# -------------------------------------------------------------
+
+def enroll_staff_face_orm(user_id, embedding_array, photo_path=""):
+    """
+    Enrolls or updates a teacher or staff member's 128-dimensional facial embedding
+    and portrait snapshot for AI facial recognition authentication.
+    """
+    global _STAFF_FACES_CACHE
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=int(user_id)).first()
+        if not user:
+            return False, "User account not found."
+
+        if isinstance(embedding_array, np.ndarray):
+            emb_json = json.dumps(embedding_array.tolist())
+        elif isinstance(embedding_array, (list, tuple)):
+            emb_json = json.dumps(list(embedding_array))
+        else:
+            emb_json = str(embedding_array)
+
+        user.face_embedding = emb_json
+        if photo_path:
+            user.photo_path = str(photo_path).strip()
+
+        session.commit()
+        session.refresh(user)
+        _STAFF_FACES_CACHE["data"] = None
+        return True, user.to_dict()
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
+def get_enrolled_staff_faces_orm():
+    """
+    Returns all active faculty and staff members with enrolled facial embeddings
+    for high-speed in-memory cosine similarity matching.
+    """
+    global _STAFF_FACES_CACHE
+    now = time.time()
+    if _STAFF_FACES_CACHE["data"] is not None and (now - _STAFF_FACES_CACHE["ts"]) < 30:
+        return _STAFF_FACES_CACHE["data"]
+
+    session = Session()
+    try:
+        users = session.query(User).filter(
+            User.is_active == True,
+            User.face_embedding != None,
+            User.face_embedding != ""
+        ).all()
+
+        enrolled = []
+        for u in users:
+            try:
+                emb = np.array(json.loads(u.face_embedding), dtype=np.float32)
+                enrolled.append({
+                    "user_id": u.id,
+                    "username": u.username,
+                    "full_name": u.full_name,
+                    "role": u.role,
+                    "designation": getattr(u, 'designation', '') or "",
+                    "assigned_section_name": f"{u.assigned_section.grade_level} - {u.assigned_section.section_name}" if u.assigned_section else "N/A",
+                    "photo_path": getattr(u, 'photo_path', '') or "",
+                    "embedding": emb
+                })
+            except Exception as ex:
+                print(f"[!] Error parsing face embedding for staff {u.id}: {ex}")
+
+        _STAFF_FACES_CACHE["data"] = enrolled
+        _STAFF_FACES_CACHE["ts"] = now
+        return enrolled
+    finally:
+        session.close()
+
+def record_staff_attendance_orm(user_id, scan_type="AUTO", lat=None, lon=None, accuracy=None, method="FACIAL_RECOGNITION", score=0.0, photo=None):
+    """
+    Logs an authentic time-in / time-out entry for teaching or non-teaching personnel.
+    Verifies GPS geotag against school geofence and enforces a 45-second duplicate scan cooldown.
+    """
+    from smile_config import verify_school_geotag
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=int(user_id)).first()
+        if not user:
+            return False, "User account not found.", None
+
+        now = pht_now()
+        today_start = datetime.combine(now.date(), datetime.min.time())
+
+        # Check today's latest scan for cooldown and auto-toggle
+        latest_scan = session.query(StaffAttendanceLog).filter(
+            StaffAttendanceLog.user_id == user.id,
+            StaffAttendanceLog.timestamp >= today_start
+        ).order_by(StaffAttendanceLog.timestamp.desc()).first()
+
+        # Enforce 45-second cooldown to prevent accidental rapid double-scans
+        if latest_scan:
+            time_diff = (now - latest_scan.timestamp).total_seconds()
+            if time_diff < 45:
+                action_word = "Timed-In" if latest_scan.scan_type == "TIME_IN" else "Timed-Out"
+                return False, f"Already {action_word} {int(time_diff)}s ago. Please wait before scanning again.", latest_scan.to_dict()
+
+        # Resolve scan type (AUTO mode)
+        resolved_type = scan_type.upper() if scan_type and scan_type.upper() in ["TIME_IN", "TIME_OUT"] else "AUTO"
+        if resolved_type == "AUTO":
+            if not latest_scan:
+                resolved_type = "TIME_IN"
+            elif latest_scan.scan_type == "TIME_IN":
+                resolved_type = "TIME_OUT"
+            else:
+                resolved_type = "TIME_IN"
+
+        # Determine school period (AM or PM)
+        period = "AM" if now.hour < 12 else "PM"
+
+        # Verify GPS Geotag
+        is_verified, dist_meters, geotag_status = verify_school_geotag(lat, lon)
+
+        log = StaffAttendanceLog(
+            user_id=user.id,
+            staff_name=user.full_name,
+            role=user.role,
+            scan_type=resolved_type,
+            period=period,
+            timestamp=now,
+            latitude=float(lat) if lat is not None else None,
+            longitude=float(lon) if lon is not None else None,
+            accuracy_meters=float(accuracy) if accuracy is not None else None,
+            geotag_status=geotag_status,
+            verification_method=method,
+            face_confidence=float(score) if score else 0.0,
+            photo_snapshot=photo or "",
+            created_at=now
+        )
+        session.add(log)
+        session.commit()
+        session.refresh(log)
+
+        action_label = "Time-In" if resolved_type == "TIME_IN" else "Time-Out"
+        geo_note = " (Campus Verified 📍)" if geotag_status == "CAMPUS_VERIFIED" else (" (Off-Campus Geotag ⚠️)" if geotag_status == "OFF_CAMPUS" else "")
+        msg = f"{action_label} successfully recorded for {user.full_name}{geo_note}."
+
+        return True, msg, log.to_dict()
+    except Exception as e:
+        session.rollback()
+        return False, str(e), None
+    finally:
+        session.close()
+
+def get_staff_today_status_orm(user_id):
+    """
+    Returns today's 4-punch DTR state (AM IN, AM OUT, PM IN, PM OUT) and total rendered hours.
+    """
+    session = Session()
+    try:
+        now = pht_now()
+        today_start = datetime.combine(now.date(), datetime.min.time())
+
+        logs = session.query(StaffAttendanceLog).filter(
+            StaffAttendanceLog.user_id == int(user_id),
+            StaffAttendanceLog.timestamp >= today_start
+        ).order_by(StaffAttendanceLog.timestamp.asc()).all()
+
+        am_in = None
+        am_out = None
+        pm_in = None
+        pm_out = None
+
+        for l in logs:
+            t_str = l.timestamp.strftime("%I:%M %p")
+            if l.period == "AM":
+                if l.scan_type == "TIME_IN" and not am_in:
+                    am_in = t_str
+                elif l.scan_type == "TIME_OUT":
+                    am_out = t_str
+            else: # PM
+                if l.scan_type == "TIME_IN" and not pm_in:
+                    pm_in = t_str
+                elif l.scan_type == "TIME_OUT":
+                    pm_out = t_str
+
+        latest = logs[-1].to_dict() if logs else None
+
+        return {
+            "am_in": am_in or "--:--",
+            "am_out": am_out or "--:--",
+            "pm_in": pm_in or "--:--",
+            "pm_out": pm_out or "--:--",
+            "has_am_in": bool(am_in),
+            "has_am_out": bool(am_out),
+            "has_pm_in": bool(pm_in),
+            "has_pm_out": bool(pm_out),
+            "total_punches": len(logs),
+            "latest_scan": latest,
+            "today_logs": [l.to_dict() for l in logs]
+        }
+    finally:
+        session.close()
+
+def get_staff_dtr_logs_orm(user_id=None, month=None, year=None, limit=100):
+    """
+    Returns civil service DTR logs filterable by user, month, and year.
+    """
+    session = Session()
+    try:
+        q = session.query(StaffAttendanceLog)
+        if user_id:
+            q = q.filter(StaffAttendanceLog.user_id == int(user_id))
+
+        now = pht_now()
+        target_year = int(year) if year and str(year).isdigit() else now.year
+        target_month = int(month) if month and str(month).isdigit() else now.month
+
+        # Month date bounds
+        start_date = datetime(target_year, target_month, 1, 0, 0, 0)
+        import calendar
+        _, last_day = calendar.monthrange(target_year, target_month)
+        end_date = datetime(target_year, target_month, last_day, 23, 59, 59)
+
+        q = q.filter(StaffAttendanceLog.timestamp >= start_date, StaffAttendanceLog.timestamp <= end_date)
+        logs = q.order_by(StaffAttendanceLog.timestamp.desc()).limit(limit).all()
+        return [l.to_dict() for l in logs]
+    finally:
+        session.close()
+
 DEFAULT_STUDENTS = [
     {
         "lrn": "152008250007",
@@ -3292,4 +3589,9 @@ get_incidents = get_incidents_orm
 save_incident = save_incident_orm
 get_teacher_advisory_overview = get_teacher_advisory_overview_orm
 update_user_profile = update_user_profile_orm
+enroll_staff_face = enroll_staff_face_orm
+get_enrolled_staff_faces = get_enrolled_staff_faces_orm
+record_staff_attendance = record_staff_attendance_orm
+get_staff_today_status = get_staff_today_status_orm
+get_staff_dtr_logs = get_staff_dtr_logs_orm
 

@@ -357,3 +357,51 @@ VAPID_CLAIMS = {
     "sub": os.environ.get("VAPID_CLAIM_EMAIL", "mailto:deped.smile.alerts@gmail.com")
 }
 
+# -------------------------------------------------------------
+# Campus GPS Geofence & Authentic Geotag Verification
+# -------------------------------------------------------------
+# Default school GPS coordinates (Configurable via School Settings or ENV)
+DEFAULT_SCHOOL_LAT = float(os.environ.get("SCHOOL_LATITUDE", 14.5995))   # Metro Manila / DepEd central default
+DEFAULT_SCHOOL_LON = float(os.environ.get("SCHOOL_LONGITUDE", 120.9842))
+ALLOWED_GEOFENCE_RADIUS_METERS = int(os.environ.get("GEOFENCE_RADIUS_METERS", 2000)) # 2 km perimeter
+
+def calculate_haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculates great-circle distance between two GPS coordinates in meters
+    using the Haversine formula.
+    """
+    import math
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return float('inf')
+    try:
+        r = 6371000.0 # Earth radius in meters
+        phi1 = math.radians(float(lat1))
+        phi2 = math.radians(float(lat2))
+        delta_phi = math.radians(float(lat2) - float(lat1))
+        delta_lambda = math.radians(float(lon2) - float(lon1))
+
+        a = math.sin(delta_phi / 2.0) ** 2 + \
+            math.cos(phi1) * math.cos(phi2) * (math.sin(delta_lambda / 2.0) ** 2)
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+        return r * c
+    except Exception:
+        return float('inf')
+
+def verify_school_geotag(lat, lon, school_lat=None, school_lon=None, radius_meters=None):
+    """
+    Verifies if a staff member's GPS location is within the authorized school campus geofence.
+    Returns: (is_verified: bool, distance_meters: float, status_label: str)
+    """
+    if lat is None or lon is None:
+        return False, None, "NO_GPS"
+
+    s_lat = school_lat if school_lat is not None else DEFAULT_SCHOOL_LAT
+    s_lon = school_lon if school_lon is not None else DEFAULT_SCHOOL_LON
+    max_radius = radius_meters if radius_meters is not None else ALLOWED_GEOFENCE_RADIUS_METERS
+
+    dist = calculate_haversine_distance(lat, lon, s_lat, s_lon)
+    is_verified = (dist <= max_radius)
+    status_label = "CAMPUS_VERIFIED" if is_verified else "OFF_CAMPUS"
+    return is_verified, round(dist, 1), status_label
+
+

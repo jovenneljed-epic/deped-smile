@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faculty & Staff Face DTR Scanner | Project S.M.I.L.E.</title>
+
+  <!-- Preconnect and Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            deped: {
+              blue: '#0B3B6D',
+              darkblue: '#072648',
+              gold: '#F5A623',
+              accent: '#E65100',
+              light: '#F4F7FC'
+            }
+          },
+          fontFamily: {
+            heading: ['Outfit', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 50% 10%, #0d2847 0%, #061527 50%, #020710 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Biometric Targeting HUD */
+    .hud-scanner {
+      position: relative;
+      border-radius: 9999px;
+      overflow: hidden;
+      box-shadow: 0 0 30px rgba(11, 59, 109, 0.4);
+      transition: all 0.3s ease;
+    }
+    .hud-scanner.scanning {
+      box-shadow: 0 0 35px rgba(245, 166, 35, 0.5);
+      border-color: #f5a623 !important;
+    }
+    .hud-scanner.success {
+      box-shadow: 0 0 45px rgba(16, 185, 129, 0.7);
+      border-color: #10b981 !important;
+    }
+    .hud-scanner.error {
+      box-shadow: 0 0 45px rgba(244, 63, 94, 0.7);
+      border-color: #f43f5e !important;
+    }
+
+    @keyframes laserSweep {
+      0% { top: 5%; opacity: 0.2; }
+      50% { opacity: 0.9; }
+      100% { top: 92%; opacity: 0.2; }
+    }
+    .laser-line {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #38bdf8, #f5a623, #38bdf8, transparent);
+      box-shadow: 0 0 15px #38bdf8, 0 0 8px #f5a623;
+      border-radius: 9999px;
+      animation: laserSweep 2s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.98); opacity: 0.6; }
+      50% { transform: scale(1.02); opacity: 1; }
+      100% { transform: scale(0.98); opacity: 0.6; }
+    }
+    .pulse-ring {
+      animation: pulseRing 3s ease-in-out infinite;
+    }
+
+    /* Glass Panels */
+    .dark-glass {
+      background: rgba(13, 27, 44, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+    }
+  </style>
+</head>
+<body class="flex flex-col justify-between selection:bg-amber-400 selection:text-slate-900">
+
+  <!-- Top Header Navigation -->
+  <header class="dark-glass sticky top-0 z-40 border-b border-blue-900/60 px-4 sm:px-6 py-2.5">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      
+      <!-- Brand & Title -->
+      <a href="/" class="flex items-center gap-3 group shrink-0" title="Return to S.M.I.L.E. Portal">
+        <img src="/static/images/deped_seal.svg" alt="DepEd Seal" class="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow transition group-hover:scale-105">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-heading font-black text-base sm:text-lg tracking-wide text-white">DEPED S.M.I.L.E.</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
+              <i class="fa-solid fa-id-badge mr-1"></i> FACULTY DTR
+            </span>
+          </div>
+          <p class="text-[10px] text-blue-200 hidden sm:block font-medium">
+            Biometric Facial Recognition &amp; Campus Geotag Verification Station
+          </p>
+        </div>
+      </a>
+
+      <!-- Status Chips & Clock -->
+      <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+        
+        <!-- Live GPS Geotag Chip -->
+        <div id="gpsStatusChip" class="px-2.5 py-1 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 bg-slate-800/80 text-slate-300 border-slate-700" title="GPS Geolocation Status">
+          <i id="gpsIcon" class="fa-solid fa-location-crosshairs text-amber-400 animate-spin text-xs"></i>
+          <span id="gpsText">Acquiring GPS...</span>
+        </div>
+
+        <!-- Live Clock -->
+        <div class="text-right hidden md:block">
+          <div id="liveClock" class="font-mono text-sm sm:text-base font-bold text-white tracking-wider leading-none">--:--:--</div>
+          <div id="liveDate" class="text-[10px] text-blue-300 font-medium mt-0.5">Philippine Standard Time</div>
+        </div>
+
+        <!-- Quick Action Nav Buttons -->
+        <div class="flex items-center gap-1.5">
+          <a href="/faculty/dtr" class="px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-400/30 text-xs font-bold transition flex items-center gap-1.5" title="View DepEd Form 48 DTR">
+            <i class="fa-solid fa-clipboard-user text-amber-300"></i>
+            <span class="hidden sm:inline">My Form 48</span>
+          </a>
+          <button type="button" onclick="openEnrollModal()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md transition flex items-center gap-1.5" title="Register / Re-enroll Face ID">
+            <i class="fa-solid fa-camera"></i>
+            <span class="hidden sm:inline">+ Enroll Face</span>
+          </button>
+          <a href="/" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs transition" title="Back to Dashboard">
+            <i class="fa-solid fa-house"></i>
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Biometric Scanner Container -->
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 flex flex-col justify-center">
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+
+      <!-- LEFT: Live Biometric HUD & Camera View (7 Cols) -->
+      <div class="lg:col-span-7 flex flex-col items-center">
+        
+        <!-- Controls Bar Above Camera -->
+        <div class="w-full max-w-md flex items-center justify-between gap-2 mb-3 px-1 text-xs">
+          <!-- Scan Mode Selector -->
+          <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+            <button type="button" onclick="setScanMode('AUTO')" id="modeAutoBtn" class="mode-btn px-2.5 py-1 rounded-lg font-black text-[11px] transition bg-amber-500 text-slate-950 shadow">
+              AUTO
+            </button>
+            <button type="button" onclick="setScanMode('TIME_IN')" id="modeInBtn" class="mode-btn px-2.5 py-1 rounded-lg font-bold text-[11px] transition text-slate-300 hover:text-white">
+              TIME IN
+            </button>
+            <button type="button" onclick="setScanMode('TIME_OUT')" id="modeOutBtn" class="mode-btn px-2.5 py-1 rounded-lg font-bold text-[11px] transition text-slate-300 hover:text-white">
+              TIME OUT
+            </button>
+          </div>
+
+          <!-- Camera Device Switcher & Flip -->
+          <div class="flex items-center gap-1.5">
+            <select id="cameraDeviceSelect" onchange="switchCamera(this.value)" class="bg-slate-900/80 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-amber-400 max-w-[150px] truncate">
+              <option value="">Camera Loading...</option>
+            </select>
+            <button type="button" onclick="cycleCamera()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs border border-slate-700" title="Switch Front/Back Camera">
+              <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Circular Biometric Targeting Viewport -->
+        <div class="relative w-72 h-72 sm:w-84 sm:h-84 md:w-96 md:h-96 aspect-square rounded-full border-4 border-cyan-500/40 p-2 pulse-ring flex items-center justify-center bg-slate-950/80 shadow-2xl">
+          
+          <!-- Outer Decorative Marks -->
+          <div class="absolute inset-0 rounded-full border-2 border-dashed border-cyan-400/20 pointer-events-none"></div>
+
+          <!-- Circular Clipping Mask Container -->
+          <div id="scannerRing" class="hud-scanner w-full h-full relative rounded-full border-2 border-cyan-400/50 bg-black flex items-center justify-center overflow-hidden">
+            
+            <!-- Video Feed -->
+            <video id="cameraVideo" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+            
+            <!-- Hidden Canvas for Snapshot Capture -->
+            <canvas id="captureCanvas" class="hidden"></canvas>
+
+            <!-- Animated Laser Scan Beam -->
+            <div id="laserBeam" class="laser-line"></div>
+
+            <!-- Face Alignment Oval Overlay -->
+            <div class="absolute inset-4 rounded-full border border-cyan-400/30 pointer-events-none flex items-center justify-center">
+              <div class="w-48 h-60 rounded-full border border-dashed border-white/30 pointer-events-none flex items-center justify-center">
+                <span id="faceHintText" class="text-[11px] font-bold text-cyan-300/80 bg-slate-950/60 px-3 py-1 rounded-full border border-cyan-500/30">
+                  Align Face Within Ring
+                </span>
+              </div>
+            </div>
+
+            <!-- Scanning Spinner / Status Overlay -->
+            <div id="scannerOverlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4 transition-opacity duration-200 opacity-0 pointer-events-none z-20">
+              <div class="w-12 h-12 rounded-full border-4 border-amber-400 border-t-transparent animate-spin mb-3"></div>
+              <p id="overlayMessage" class="text-xs font-black uppercase tracking-wider text-amber-300">
+                Verifying Biometrics...
+              </p>
+              <p class="text-[10px] text-slate-300 mt-1">Comparing against enrolled facial embeddings</p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Trigger Buttons & Audio Indicator -->
+        <div class="w-full max-w-md mt-5 flex items-center justify-center gap-3">
+          <button type="button" id="triggerScanBtn" onclick="performFaceScan()" class="flex-1 py-3 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black font-heading text-sm sm:text-base tracking-wide shadow-lg shadow-amber-500/20 active:scale-95 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-expand text-base"></i>
+            <span>SCAN &amp; LOG ATTENDANCE</span>
+          </button>
+
+          <!-- Auto-Scan Toggle -->
+          <button type="button" id="autoScanToggle" onclick="toggleAutoScan()" class="px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5" title="Toggle Auto-Continuous Scanning">
+            <i id="autoScanIcon" class="fa-solid fa-play text-emerald-400"></i>
+            <span id="autoScanLabel" class="hidden sm:inline">Auto-Scan</span>
+          </button>
+        </div>
+
+        <p class="text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+          <span>GPS Campus Geofence: <strong>{{ geofence_radius }} meters</strong> from {{ school_name }}</span>
+        </p>
+
+      </div>
+
+      <!-- RIGHT: Dynamic Result Card & Today's DTR Summary (5 Cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        
+        <!-- Live Result Card -->
+        <div id="resultCard" class="dark-glass rounded-3xl p-5 sm:p-6 border border-blue-900/60 shadow-xl transition-all duration-300 space-y-4 relative overflow-hidden">
+          
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <span class="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-id-card text-amber-400"></i> Personnel Verification
+            </span>
+            <span id="badgeScanType" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
+              STANDBY
+            </span>
+          </div>
+
+          <!-- Staff Profile Overview -->
+          <div class="flex items-center gap-4">
+            <!-- Staff Photo / Avatar -->
+            <div id="personnelAvatar" class="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-2xl font-black text-slate-400 overflow-hidden shrink-0 shadow-inner">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h3 id="personnelName" class="font-heading font-extrabold text-base sm:text-lg text-white leading-tight truncate">
+                Ready for Biometric Scan
+              </h3>
+              <p id="personnelRole" class="text-xs text-amber-400 font-semibold mt-0.5 truncate">
+                Position your face directly in the camera
+              </p>
+              <p id="personnelSection" class="text-[11px] text-slate-400 truncate mt-0.5 font-mono">
+                {{ enrolled_count }} staff Face IDs enrolled
+              </p>
+            </div>
+          </div>
+
+          <!-- Geotag & Confidence Details -->
+          <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Biometric Match</span>
+              <span id="matchConfidence" class="font-mono font-bold text-slate-200">--% Confidence</span>
+            </div>
+            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">GPS Geotag Status</span>
+              <span id="geotagStatusBadge" class="font-bold text-slate-300">--</span>
+            </div>
+          </div>
+
+          <!-- Result Message Banner -->
+          <div id="resultMessageBanner" class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <i id="resultBannerIcon" class="fa-solid fa-info-circle text-cyan-400 text-sm"></i>
+            <span id="resultBannerText">Ready to log attendance. Please align your face inside the circle.</span>
+          </div>
+
+          <!-- Today's 4-Punch DTR Grid -->
+          <div class="pt-2 border-t border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                <i class="fa-regular fa-clock text-cyan-400"></i> Today's Official Log (CSC Form 48)
+              </span>
+              <a href="/faculty/dtr" class="text-[11px] text-amber-400 hover:underline font-bold flex items-center gap-1">
+                <span>View Full Month</span> <i class="fa-solid fa-arrow-right text-[9px]"></i>
+              </a>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+              
+              <!-- AM IN -->
+              <div id="cardAmIn" class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 block">AM Arrival</span>
+                <span id="textAmIn" class="font-mono font-bold text-slate-200 text-xs mt-0.5 block">--:--</span>
+              </div>
+
+              <!-- AM OUT -->
+              <div id="cardAmOut" class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 block">AM Departure</span>
+                <span id="textAmOut" class="font-mono font-bold text-slate-200 text-xs mt-0.5 block">--:--</span>
+              </div>
+
+              <!-- PM IN -->
+              <div id="cardPmIn" class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 block">PM Arrival</span>
+                <span id="textPmIn" class="font-mono font-bold text-slate-200 text-xs mt-0.5 block">--:--</span>
+              </div>
+
+              <!-- PM OUT -->
+              <div id="cardPmOut" class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 block">PM Departure</span>
+                <span id="textPmOut" class="font-mono font-bold text-slate-200 text-xs mt-0.5 block">--:--</span>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Quick Help Card -->
+        <div class="dark-glass rounded-2xl p-4 border border-blue-900/40 text-xs text-slate-400 space-y-2">
+          <p class="font-bold text-slate-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-question text-cyan-400"></i> How Authentic Faculty Login Works
+          </p>
+          <ul class="space-y-1 text-[11px] list-disc list-inside text-slate-300">
+            <li><strong>AI Biometrics:</strong> OpenCV SFace extracts 128-d cosine embedding vector from your face.</li>
+            <li><strong>Authentic Geotag:</strong> GPS coordinates confirm you are physically on campus ({{ geofence_radius }}m radius).</li>
+            <li><strong>45-Second Cooldown:</strong> Prevents duplicate rapid punches.</li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="dark-glass border-t border-blue-900/60 px-4 py-3 text-center text-xs text-slate-400">
+    <p>Project S.M.I.L.E. &copy; 2026 DepEd Division Office. DepEd Form 48 Biometric Daily Time Record Module.</p>
+  </footer>
+
+  <!-- ============================================================== -->
+  <!-- SELFIE FACE ID ENROLLMENT MODAL                               -->
+  <!-- ============================================================== -->
+  <div id="enrollModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="dark-glass rounded-3xl max-w-md w-full p-6 border border-cyan-500/40 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-heading font-extrabold text-lg text-white flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-emerald-400"></i> Enroll Face ID
+          </h3>
+          <p class="text-xs text-blue-200">Take a clean selfie to register your biometric embedding</p>
+        </div>
+        <button type="button" onclick="closeEnrollModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Live Enrollment Video Stream -->
+      <div class="relative aspect-square w-full rounded-2xl overflow-hidden bg-black border-2 border-cyan-500/40 flex items-center justify-center">
+        <video id="enrollVideo" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100"></video>
+        <canvas id="enrollCanvas" class="hidden"></canvas>
+        <div class="absolute inset-4 rounded-full border-2 border-dashed border-emerald-400/50 pointer-events-none flex items-center justify-center">
+          <span class="text-[10px] font-bold text-emerald-300 bg-slate-900/80 px-2.5 py-0.5 rounded-full border border-emerald-400/40">
+            Center your face
+          </span>
+        </div>
+      </div>
+
+      <!-- Feedback Status -->
+      <div id="enrollStatus" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 flex items-center gap-2">
+        <i class="fa-solid fa-camera text-cyan-400"></i>
+        <span id="enrollStatusText">Look directly at the camera under bright lighting.</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2 pt-1">
+        <button type="button" onclick="closeEnrollModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+          Cancel
+        </button>
+        <button type="button" id="enrollCaptureBtn" onclick="captureAndEnrollFace()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-check"></i>
+          <span>Save Face ID</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // Configuration & State
+    const SCHOOL_LAT = {{ school_lat }};
+    const SCHOOL_LON = {{ school_lon }};
+    const GEOFENCE_RADIUS = {{ geofence_radius }};
+    
+    let currentScanMode = 'AUTO';
+    let userLocation = { lat: null, lon: null, accuracy: null, verified: false, distance: null };
+    let cameraStream = null;
+    let enrollStream = null;
+    let isScanning = false;
+    let autoScanInterval = null;
+    let isAutoScanRunning = false;
+
+    // Elements
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('captureCanvas');
+    const ring = document.getElementById('scannerRing');
+    const overlay = document.getElementById('scannerOverlay');
+    const overlayMsg = document.getElementById('overlayMessage');
+    const triggerBtn = document.getElementById('triggerScanBtn');
+
+    // 1. Live Digital Clock in PHT
+    function updateClock() {
+      const now = new Date();
+      const options = { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+      const dateOptions = { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+      document.getElementById('liveClock').textContent = now.toLocaleTimeString('en-US', options);
+      document.getElementById('liveDate').textContent = now.toLocaleDateString('en-US', dateOptions);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 2. Haversine Distance Calculation (Client-side mirror)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371000; // meters
+      const toRad = x => (x * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // 3. Continuous GPS Geolocation Tracking
+    function initGeolocation() {
+      const chip = document.getElementById('gpsStatusChip');
+      const icon = document.getElementById('gpsIcon');
+      const text = document.getElementById('gpsText');
+
+      if (!('geolocation' in navigator)) {
+        chip.className = 'px-2.5 py-1 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 bg-rose-950/60 text-rose-300 border-rose-800';
+        icon.className = 'fa-solid fa-location-slash text-rose-400';
+        text.textContent = 'GPS Not Supported';
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          userLocation.lat = pos.coords.latitude;
+          userLocation.lon = pos.coords.longitude;
+          userLocation.accuracy = pos.coords.accuracy;
+
+          const dist = calculateDistance(userLocation.lat, userLocation.lon, SCHOOL_LAT, SCHOOL_LON);
+          userLocation.distance = dist;
+          userLocation.verified = (dist <= GEOFENCE_RADIUS);
+
+          if (userLocation.verified) {
+            chip.className = 'px-2.5 py-1 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border-emerald-700/80 shadow-sm';
+            icon.className = 'fa-solid fa-location-dot text-emerald-400';
+            text.innerHTML = `<span>Campus Verified</span> <span class="font-mono text-[9px] opacity-75">(${Math.round(dist)}m)</span>`;
+            document.getElementById('geotagStatusBadge').innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i>Campus Verified (${Math.round(dist)}m)</span>`;
+          } else {
+            chip.className = 'px-2.5 py-1 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border-amber-700/80';
+            icon.className = 'fa-solid fa-triangle-exclamation text-amber-400';
+            const km = (dist / 1000).toFixed(1);
+            text.innerHTML = `<span>Off-Campus (${km}km)</span>`;
+            document.getElementById('geotagStatusBadge').innerHTML = `<span class="text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Off-Campus (${km}km)</span>`;
+          }
+        },
+        (err) => {
+          chip.className = 'px-2.5 py-1 rounded-xl text-[11px] font-bold border flex items-center gap-1.5 bg-slate-800/80 text-slate-400 border-slate-700';
+          icon.className = 'fa-solid fa-location-crosshairs text-slate-400';
+          text.textContent = 'GPS Permission Standby';
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+      );
+    }
+
+    // 4. Web Audio Synthesizer (Chime & Alert Sounds)
+    function playAudioTone(type) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (type === 'success') {
+          // Cheerful two-tone chime
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc1.type = 'sine';
+          osc2.type = 'triangle';
+          osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+          osc1.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+          gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.45);
+          osc1.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc1.start();
+          osc1.stop(audioCtx.currentTime + 0.45);
+        } else if (type === 'error') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+          osc.frequency.setValueAtTime(160, audioCtx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.35);
+        }
+      } catch (e) {
+        console.warn('Audio tone could not play:', e);
+      }
+    }
+
+    function speakGreeting(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.pitch = 1.0;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    // 5. Camera Device Enumeration & Streaming
+    async function startCamera(deviceId = null) {
+      try {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(t => t.stop());
+        }
+
+        const constraints = {
+          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        };
+
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = cameraStream;
+
+        // Populate device select
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        const select = document.getElementById('cameraDeviceSelect');
+        select.innerHTML = '';
+        videoDevices.forEach((dev, idx) => {
+          const opt = document.createElement('option');
+          opt.value = dev.deviceId;
+          opt.textContent = dev.label || `Camera ${idx + 1}`;
+          if (deviceId && dev.deviceId === deviceId) opt.selected = true;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Camera access error:', err);
+        document.getElementById('resultBannerText').textContent = 'Camera Access Blocked. Please allow camera permissions in your browser.';
+      }
+    }
+
+    function switchCamera(deviceId) {
+      if (deviceId) startCamera(deviceId);
+    }
+
+    async function cycleCamera() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      if (videoDevices.length > 1) {
+        const select = document.getElementById('cameraDeviceSelect');
+        const currentIdx = videoDevices.findIndex(d => d.deviceId === select.value);
+        const nextIdx = (currentIdx + 1) % videoDevices.length;
+        startCamera(videoDevices[nextIdx].deviceId);
+      }
+    }
+
+    // 6. Scan Mode Selection
+    function setScanMode(mode) {
+      currentScanMode = mode;
+      ['AUTO', 'TIME_IN', 'TIME_OUT'].forEach(m => {
+        const btn = document.getElementById(`mode${m === 'AUTO' ? 'Auto' : (m === 'TIME_IN' ? 'In' : 'Out')}Btn`);
+        if (m === mode) {
+          btn.className = 'mode-btn px-2.5 py-1 rounded-lg font-black text-[11px] transition bg-amber-500 text-slate-950 shadow';
+        } else {
+          btn.className = 'mode-btn px-2.5 py-1 rounded-lg font-bold text-[11px] transition text-slate-300 hover:text-white';
+        }
+      });
+    }
+
+    // 7. Core Face Recognition & Geotag Verification Call
+    async function performFaceScan() {
+      if (isScanning) return;
+      if (!video.videoWidth || !video.videoHeight) {
+        alert('Camera stream is not ready. Please wait.');
+        return;
+      }
+
+      isScanning = true;
+      ring.className = 'hud-scanner w-full h-full relative rounded-full border-2 bg-black flex items-center justify-center overflow-hidden scanning';
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+      overlayMsg.textContent = 'Verifying Biometrics...';
+      triggerBtn.disabled = true;
+
+      try {
+        // Draw frame onto canvas
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64Image = canvas.toDataURL('image/jpeg', 0.82);
+
+        // Prepare payload with GPS Geotag
+        const payload = {
+          image: base64Image,
+          latitude: userLocation.lat,
+          longitude: userLocation.lon,
+          accuracy: userLocation.accuracy,
+          scan_type: currentScanMode
+        };
+
+        const res = await fetch('/api/faculty/verify-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.matched && data.success) {
+          // Success Attendance Match
+          playAudioTone('success');
+          ring.className = 'hud-scanner w-full h-full relative rounded-full border-2 bg-black flex items-center justify-center overflow-hidden success';
+          
+          const staff = data.staff || {};
+          const log = data.log || {};
+          const scanAction = log.scan_type === 'TIME_IN' ? 'Time-In' : 'Time-Out';
+
+          // Update UI
+          document.getElementById('badgeScanType').textContent = log.scan_type || 'VERIFIED';
+          document.getElementById('badgeScanType').className = log.scan_type === 'TIME_IN' 
+            ? 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+            : 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/40';
+
+          document.getElementById('personnelName').textContent = staff.full_name || staff.name || 'Verified Staff';
+          document.getElementById('personnelRole').textContent = `${staff.role || 'Faculty'} ${staff.section ? `• ${staff.section}` : ''}`;
+          document.getElementById('personnelSection').textContent = staff.designation || `Logged at ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}`;
+
+          document.getElementById('matchConfidence').textContent = data.score || '98.5%';
+          
+          if (log.geotag_status === 'CAMPUS_VERIFIED') {
+            document.getElementById('geotagStatusBadge').innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-location-dot mr-1"></i>Campus Verified 📍</span>`;
+          } else if (log.geotag_status === 'OFF_CAMPUS') {
+            document.getElementById('geotagStatusBadge').innerHTML = `<span class="text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Off-Campus ⚠️</span>`;
+          }
+
+          const banner = document.getElementById('resultMessageBanner');
+          banner.className = 'p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-xs font-bold text-emerald-200 flex items-center gap-2';
+          document.getElementById('resultBannerIcon').className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+          document.getElementById('resultBannerText').textContent = data.message || `${scanAction} officially logged!`;
+
+          // Update Avatar
+          if (staff.photo_path) {
+            document.getElementById('personnelAvatar').innerHTML = `<img src="${staff.photo_path}" class="w-full h-full object-cover">`;
+          } else {
+            const initial = (staff.full_name || 'F')[0].toUpperCase();
+            document.getElementById('personnelAvatar').innerHTML = `<span class="text-emerald-300 font-black">${initial}</span>`;
+          }
+
+          // Update Today's 4-punch grid if returned
+          if (data.today_status) {
+            updatePunchGrid(data.today_status);
+          }
+
+          // Vocal Greeting
+          speakGreeting(`${scanAction} recorded. Welcome, ${staff.full_name || 'Faculty'}.`);
+
+        } else if (data.detected && !data.matched) {
+          // Face detected but not enrolled/matched
+          playAudioTone('error');
+          ring.className = 'hud-scanner w-full h-full relative rounded-full border-2 bg-black flex items-center justify-center overflow-hidden error';
+          
+          document.getElementById('badgeScanType').textContent = 'UNRECOGNIZED';
+          document.getElementById('badgeScanType').className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-400/40';
+          
+          const banner = document.getElementById('resultMessageBanner');
+          banner.className = 'p-3 rounded-2xl bg-rose-950/80 border border-rose-500/60 text-xs font-bold text-rose-200 flex items-center gap-2';
+          document.getElementById('resultBannerIcon').className = 'fa-solid fa-circle-xmark text-rose-400 text-base';
+          document.getElementById('resultBannerText').textContent = data.message || 'Face not recognized. Please enroll your Face ID first.';
+
+          speakGreeting('Face not recognized. Please enroll your Face ID.');
+
+        } else if (!data.detected) {
+          // No face detected in frame
+          const banner = document.getElementById('resultMessageBanner');
+          banner.className = 'p-3 rounded-2xl bg-amber-950/80 border border-amber-500/60 text-xs font-bold text-amber-200 flex items-center gap-2';
+          document.getElementById('resultBannerIcon').className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+          document.getElementById('resultBannerText').textContent = data.message || 'No face detected. Please position your face inside the circle.';
+        } else {
+          // Duplicate cooldown or other error
+          playAudioTone('error');
+          const banner = document.getElementById('resultMessageBanner');
+          banner.className = 'p-3 rounded-2xl bg-amber-950/80 border border-amber-500/60 text-xs font-bold text-amber-200 flex items-center gap-2';
+          document.getElementById('resultBannerIcon').className = 'fa-solid fa-clock-rotate-left text-amber-400 text-base';
+          document.getElementById('resultBannerText').textContent = data.message || 'Notice occurred during scan.';
+        }
+
+      } catch (err) {
+        console.error('Scan error:', err);
+        document.getElementById('resultBannerText').textContent = 'Network or processing error during scan. Please retry.';
+      } finally {
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        triggerBtn.disabled = false;
+        setTimeout(() => {
+          if (!isAutoScanRunning) {
+            ring.className = 'hud-scanner w-full h-full relative rounded-full border-2 border-cyan-400/50 bg-black flex items-center justify-center overflow-hidden';
+          }
+          isScanning = false;
+        }, 1800);
+      }
+    }
+
+    // 8. Update Today's 4-Punch Board
+    function updatePunchGrid(st) {
+      if (!st) return;
+      document.getElementById('textAmIn').textContent = st.am_in || '--:--';
+      document.getElementById('textAmOut').textContent = st.am_out || '--:--';
+      document.getElementById('textPmIn').textContent = st.pm_in || '--:--';
+      document.getElementById('textPmOut').textContent = st.pm_out || '--:--';
+
+      const updateCard = (id, hasPunch) => {
+        const el = document.getElementById(id);
+        if (hasPunch) {
+          el.className = 'bg-emerald-950/80 p-2 rounded-xl border border-emerald-500/60 shadow-sm';
+        } else {
+          el.className = 'bg-slate-900/90 p-2 rounded-xl border border-slate-800';
+        }
+      };
+
+      updateCard('cardAmIn', st.has_am_in);
+      updateCard('cardAmOut', st.has_am_out);
+      updateCard('cardPmIn', st.has_pm_in);
+      updateCard('cardPmOut', st.has_pm_out);
+    }
+
+    // 9. Continuous Auto-Scan Feature
+    function toggleAutoScan() {
+      const icon = document.getElementById('autoScanIcon');
+      const label = document.getElementById('autoScanLabel');
+      const toggle = document.getElementById('autoScanToggle');
+
+      if (isAutoScanRunning) {
+        clearInterval(autoScanInterval);
+        isAutoScanRunning = false;
+        icon.className = 'fa-solid fa-play text-emerald-400';
+        label.textContent = 'Auto-Scan';
+        toggle.className = 'px-3.5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5';
+      } else {
+        isAutoScanRunning = true;
+        icon.className = 'fa-solid fa-pause text-amber-400';
+        label.textContent = 'Pause Auto';
+        toggle.className = 'px-3.5 py-3 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-400/40 text-xs font-black transition flex items-center gap-1.5';
+        
+        // Scan every 2.8 seconds
+        autoScanInterval = setInterval(() => {
+          if (!isScanning) {
+            performFaceScan();
+          }
+        }, 2800);
+      }
+    }
+
+    // 10. Selfie Face ID Enrollment Modal Logic
+    async function openEnrollModal() {
+      document.getElementById('enrollModal').classList.remove('hidden');
+      try {
+        const enrollVideo = document.getElementById('enrollVideo');
+        enrollStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        enrollVideo.srcObject = enrollStream;
+      } catch (err) {
+        console.error('Enroll camera error:', err);
+        document.getElementById('enrollStatusText').textContent = 'Camera access blocked. Please enable camera.';
+      }
+    }
+
+    function closeEnrollModal() {
+      if (enrollStream) {
+        enrollStream.getTracks().forEach(t => t.stop());
+        enrollStream = null;
+      }
+      document.getElementById('enrollModal').classList.add('hidden');
+    }
+
+    async function captureAndEnrollFace() {
+      const enrollVideo = document.getElementById('enrollVideo');
+      const enrollCanvas = document.getElementById('enrollCanvas');
+      const statusText = document.getElementById('enrollStatusText');
+      const saveBtn = document.getElementById('enrollCaptureBtn');
+
+      if (!enrollVideo.videoWidth) {
+        alert('Camera stream not ready yet.');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-1"></i> Registering...`;
+      statusText.textContent = 'Extracting 128-d biometric facial vectors...';
+
+      try {
+        enrollCanvas.width = enrollVideo.videoWidth;
+        enrollCanvas.height = enrollVideo.videoHeight;
+        const ctx = enrollCanvas.getContext('2d');
+        ctx.drawImage(enrollVideo, 0, 0, enrollCanvas.width, enrollCanvas.height);
+        const b64 = enrollCanvas.toDataURL('image/jpeg', 0.9);
+
+        const res = await fetch('/api/faculty/enroll-face', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: b64 })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          playAudioTone('success');
+          statusText.innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-check mr-1"></i>${data.message}</span>`;
+          setTimeout(() => {
+            closeEnrollModal();
+            // Refresh staff faces in memory on next scan
+            alert(data.message);
+          }, 1200);
+        } else {
+          playAudioTone('error');
+          statusText.innerHTML = `<span class="text-rose-400 font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${data.message}</span>`;
+        }
+      } catch (err) {
+        console.error('Enrollment error:', err);
+        statusText.textContent = 'Server communication error during enrollment.';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `<i class="fa-solid fa-check mr-1"></i> Save Face ID`;
+      }
+    }
+
+    // Startup Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initGeolocation();
+      startCamera();
+      {% if today_status %}
+      updatePunchGrid({{ today_status|tojson }});
+      {% endif %}
+    });
+  </script>
+
+</body>
+</html>

@@ -362,6 +362,69 @@
         </div>
         {% endif %}
 
+        <!-- CARD: Biometric Facial Recognition & Campus Geotag Attendance -->
+        <div class="glass-card rounded-3xl p-6 border border-cyan-200 shadow-sm bg-gradient-to-br from-white to-cyan-50/30 space-y-4">
+          <div class="flex items-center justify-between border-b border-cyan-100 pb-3">
+            <h3 class="text-sm font-extrabold text-deped-darkblue flex items-center gap-2 font-heading">
+              <i class="fa-solid fa-camera text-cyan-600"></i> Facial Recognition Biometrics &amp; Geotag
+            </h3>
+            <span id="faceIdStatusBadge" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider {% if user.face_embedding %}bg-emerald-100 text-emerald-800 border border-emerald-300{% else %}bg-amber-100 text-amber-800 border border-amber-300{% endif %}">
+              {% if user.face_embedding %}FACE ID ACTIVE{% else %}NOT ENROLLED{% endif %}
+            </span>
+          </div>
+
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Register your facial biometrics to enable authentic, one-tap biometric attendance tracking on the <strong>Faculty DTR Scanner</strong> with DepEd campus GPS geotag verification.
+          </p>
+
+          <div class="flex flex-col sm:flex-row items-center gap-4 bg-white/80 p-4 rounded-2xl border border-cyan-100">
+            <!-- Current Photo or Preview -->
+            <div class="relative w-24 h-24 rounded-2xl bg-slate-900 border-2 border-cyan-400/40 overflow-hidden flex items-center justify-center shrink-0 shadow-md">
+              <video id="profileWebcamVideo" autoplay playsinline muted class="w-full h-full object-cover hidden transform -scale-x-100"></video>
+              <canvas id="profileCaptureCanvas" class="hidden"></canvas>
+              {% if user.photo_path %}
+              <img id="profilePhotoImg" src="{{ user.photo_path }}" alt="Faculty Photo" class="w-full h-full object-cover">
+              {% else %}
+              <div id="profilePhotoPlaceholder" class="flex flex-col items-center justify-center text-slate-400">
+                <i class="fa-solid fa-user text-3xl mb-1"></i>
+                <span class="text-[9px] font-bold">No Photo</span>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Action buttons and enrollment status -->
+            <div class="flex-1 space-y-2 text-center sm:text-left">
+              <div>
+                <h4 id="profileEnrollTitle" class="text-xs font-bold text-slate-800">
+                  {% if user.face_embedding %}Biometric Vector Enrolled &amp; Cloud Synced{% else %}Facial Profile Enrollment Required{% endif %}
+                </h4>
+                <p id="profileEnrollStatus" class="text-[11px] text-slate-500">
+                  {% if user.face_embedding %}You can re-scan your face anytime to update your facial recognition model.{% else %}Click 'Activate Camera' below to take a 5-second selfie.{% endif %}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
+                <button type="button" id="startCamBtn" onclick="toggleProfileCamera()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-video text-cyan-400 text-xs"></i>
+                  <span id="startCamLabel">Activate Camera</span>
+                </button>
+                <button type="button" id="snapFaceBtn" onclick="snapAndEnrollFace()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition hidden items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-check"></i>
+                  <span>Capture &amp; Enroll</span>
+                </button>
+                <a href="/faculty-scanner" class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-expand text-xs"></i>
+                  <span>Open Scanner</span>
+                </a>
+                <a href="/faculty/dtr" class="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-deped-blue border border-blue-200 font-bold text-xs transition flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-clipboard-user text-xs"></i>
+                  <span>Form 48 DTR</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- CARD 3: Security & Password Update (Optional) -->
         <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-4">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -561,6 +624,107 @@
 
     toastMsg.textContent = msg;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Profile Webcam & Face ID Enrollment
+  let profileCamStream = null;
+
+  async function toggleProfileCamera() {
+    const video = document.getElementById('profileWebcamVideo');
+    const photoImg = document.getElementById('profilePhotoImg');
+    const placeholder = document.getElementById('profilePhotoPlaceholder');
+    const startBtn = document.getElementById('startCamBtn');
+    const startLabel = document.getElementById('startCamLabel');
+    const snapBtn = document.getElementById('snapFaceBtn');
+    const statusText = document.getElementById('profileEnrollStatus');
+
+    if (profileCamStream) {
+      // Turn off camera
+      profileCamStream.getTracks().forEach(t => t.stop());
+      profileCamStream = null;
+      video.classList.add('hidden');
+      if (photoImg) photoImg.classList.remove('hidden');
+      if (placeholder) placeholder.classList.remove('hidden');
+      startLabel.textContent = 'Activate Camera';
+      startBtn.className = 'px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm';
+      snapBtn.classList.add('hidden');
+      snapBtn.classList.remove('flex');
+    } else {
+      // Turn on camera
+      try {
+        profileCamStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }
+        });
+        video.srcObject = profileCamStream;
+        video.classList.remove('hidden');
+        if (photoImg) photoImg.classList.add('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+        startLabel.textContent = 'Stop Camera';
+        startBtn.className = 'px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 shadow-sm';
+        snapBtn.classList.remove('hidden');
+        snapBtn.classList.add('flex');
+        statusText.textContent = 'Look straight into the lens with your face centered and click Capture & Enroll.';
+      } catch (err) {
+        console.error('Camera access error:', err);
+        statusText.innerHTML = '<span class="text-rose-500 font-bold">Camera access denied. Please allow camera permissions.</span>';
+      }
+    }
+  }
+
+  async function snapAndEnrollFace() {
+    const video = document.getElementById('profileWebcamVideo');
+    const canvas = document.getElementById('profileCaptureCanvas');
+    const snapBtn = document.getElementById('snapFaceBtn');
+    const statusText = document.getElementById('profileEnrollStatus');
+    const badge = document.getElementById('faceIdStatusBadge');
+    const title = document.getElementById('profileEnrollTitle');
+
+    if (!video.videoWidth) {
+      alert('Camera stream is not ready yet.');
+      return;
+    }
+
+    snapBtn.disabled = true;
+    snapBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> <span>Enrolling...</span>';
+    statusText.textContent = 'Detecting facial landmarks and extracting 128-d biometric vectors...';
+
+    try {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const b64 = canvas.toDataURL('image/jpeg', 0.9);
+
+      const res = await fetch('/api/faculty/enroll-face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64, user_id: {{ user.id }} })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Face ID successfully enrolled and synced!', false);
+        statusText.innerHTML = '<span class="text-emerald-600 font-bold"><i class="fa-solid fa-circle-check mr-1"></i>Face ID successfully registered and active for faculty attendance!</span>';
+        if (badge) {
+          badge.className = 'px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300';
+          badge.textContent = 'FACE ID ACTIVE';
+        }
+        if (title) {
+          title.textContent = 'Biometric Vector Enrolled & Cloud Synced';
+        }
+        // Stop camera after successful capture
+        toggleProfileCamera();
+      } else {
+        showToast(data.message || 'Face enrollment failed.', true);
+        statusText.innerHTML = `<span class="text-rose-600 font-bold"><i class="fa-solid fa-circle-xmark mr-1"></i>${data.message}</span>`;
+      }
+    } catch (err) {
+      console.error('Face enrollment error:', err);
+      showToast('Error during facial enrollment.', true);
+    } finally {
+      snapBtn.disabled = false;
+      snapBtn.innerHTML = '<i class="fa-solid fa-check"></i> <span>Capture &amp; Enroll</span>';
+    }
   }
 </script>
 {% endblock %}

@@ -76,8 +76,14 @@
       {% endif %}
 
       {% if is_teacher_view %}
+      <a href="/faculty-scanner" class="inline-flex items-center px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs sm:text-sm font-black rounded-xl shadow-sm transition" title="Log Faculty Attendance via Facial Recognition & Geotag">
+        <i class="fa-solid fa-camera mr-1.5 text-slate-950"></i> Face DTR
+      </a>
+      <a href="/faculty/dtr" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition" title="Civil Service Form No. 48 Daily Time Record">
+        <i class="fa-solid fa-clipboard-user mr-1.5 text-deped-blue"></i> My DTR
+      </a>
       <a href="/profile" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition" title="Edit Section Name, Grade Level & Profile">
-        <i class="fa-solid fa-pen-to-square mr-1.5 text-emerald-600"></i> Edit Advisory & Profile
+        <i class="fa-solid fa-pen-to-square mr-1.5 text-emerald-600"></i> Edit Profile
       </a>
       <a href="/enroll" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm transition">
         <i class="fa-solid fa-user-plus mr-1.5"></i> + Enroll Learners
@@ -89,6 +95,12 @@
         <i class="fa-solid fa-video mr-1.5 text-emerald-300"></i> Gate Monitor
       </a>
       {% else %}
+      <a href="/faculty-scanner" class="inline-flex items-center px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-bold rounded-xl shadow-sm transition">
+        <i class="fa-solid fa-camera mr-1.5 text-slate-950"></i> Faculty Face DTR
+      </a>
+      <a href="/faculty/dtr" class="inline-flex items-center px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
+        <i class="fa-solid fa-clipboard-user mr-1.5 text-deped-blue"></i> Form 48 DTR
+      </a>
       <a href="/kiosk" target="_blank" class="inline-flex items-center px-3.5 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition">
         <i class="fa-solid fa-expand mr-1.5"></i> Launch Gate Kiosk
       </a>
