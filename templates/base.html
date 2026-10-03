@@ -98,15 +98,15 @@
 
   <!-- DepEd Top Banner -->
   <header class="bg-deped-darkblue text-white shadow-md sticky top-0 z-50 border-b border-blue-900/60 w-full">
-    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5">
-      <div class="flex items-center justify-between gap-4 w-full">
+    <div class="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5">
+      <div class="flex items-center justify-between gap-3 lg:gap-4 w-full">
         
         <!-- Brand / Multi-DepEd Title Header (Left, shrink-0) -->
         <a href="/" class="flex items-center space-x-2 sm:space-x-2.5 group shrink-0" title="DEPED S.M.I.L.E.">
           <img src="/static/images/deped_seal.svg" alt="DepEd Official Seal" class="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow shrink-0 transition group-hover:scale-105">
           <div class="flex flex-col justify-center">
             <span class="font-heading font-black text-sm sm:text-base lg:text-lg tracking-wide text-white drop-shadow-sm leading-tight whitespace-nowrap">DEPED S.M.I.L.E.</span>
-            <p class="text-[9px] sm:text-[10px] font-bold text-amber-300 tracking-tight leading-tight drop-shadow-sm whitespace-nowrap hidden sm:block">
+            <p class="text-[9px] sm:text-[10px] font-bold text-amber-300 tracking-tight leading-tight drop-shadow-sm whitespace-nowrap hidden xl:block">
               Security Monitoring, Incident Logging, and E-notification
             </p>
           </div>
@@ -117,61 +117,61 @@
           <nav class="flex items-center gap-1 xl:gap-1.5">
             {% if current_user and current_user.role == 'TEACHER' %}
               <!-- Teacher / Class Adviser Navigation -->
-              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center whitespace-nowrap {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-chalkboard-user mr-1 text-[11px] text-amber-300"></i> My Advisory
               </a>
-              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center {% if request.path == '/enroll' %}bg-emerald-600 text-white shadow-sm border border-emerald-400/40{% else %}bg-emerald-600/90 hover:bg-emerald-600 text-white shadow-sm{% endif %}">
-                <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> + Enroll Learners
+              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center whitespace-nowrap {% if request.path == '/enroll' %}bg-emerald-600 text-white shadow-sm border border-emerald-400/40{% else %}bg-emerald-600/90 hover:bg-emerald-600 text-white shadow-sm{% endif %}">
+                <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> + Enroll<span class="hidden xl:inline">&nbsp;Learners</span>
               </a>
-              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-users mr-1 text-[11px]"></i> Class Roster
               </a>
-              <a href="/kiosk" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center text-slate-200 hover:bg-white/10 hover:text-white">
-                <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-300"></i> Gate Monitor
+              <a href="/kiosk" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap text-slate-200 hover:bg-white/10 hover:text-white">
+                <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-300"></i> <span class="hidden xl:inline">Gate&nbsp;</span>Monitor
               </a>
 
             {% elif current_user and current_user.role in ['STAFF', 'NON_TEACHING'] %}
               <!-- Non-Teaching Staff Navigation -->
-              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
               </a>
-              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center {% if request.path == '/enroll' %}bg-indigo-600 text-white shadow-sm border border-indigo-400/40{% else %}bg-indigo-600/90 hover:bg-indigo-600 text-white shadow-sm{% endif %}">
-                <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> + Enroll Learners
+              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center whitespace-nowrap {% if request.path == '/enroll' %}bg-indigo-600 text-white shadow-sm border border-indigo-400/40{% else %}bg-indigo-600/90 hover:bg-indigo-600 text-white shadow-sm{% endif %}">
+                <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> + Enroll<span class="hidden xl:inline">&nbsp;Learners</span>
               </a>
-              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
               </a>
-              <a href="/kiosk" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center text-slate-200 hover:bg-white/10 hover:text-white">
-                <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-300"></i> Gate Monitor
+              <a href="/kiosk" target="_blank" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap text-slate-200 hover:bg-white/10 hover:text-white">
+                <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-300"></i> <span class="hidden xl:inline">Gate&nbsp;</span>Monitor
               </a>
 
             {% elif current_user and current_user.role == 'GUARD' %}
               <!-- Gate Security Guard Navigation -->
-              <a href="/kiosk" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center">
+              <a href="/kiosk" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center whitespace-nowrap">
                 <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-200 animate-pulse"></i> Gate Kiosk Scanner
               </a>
-              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center text-slate-200 hover:bg-white/10 hover:text-white">
+              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap text-slate-200 hover:bg-white/10 hover:text-white">
                 <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Activity Log
               </a>
 
             {% else %}
               <!-- Super Admin & Principal Navigation -->
-              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path in ['/', '/dashboard'] %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-chart-pie mr-1 text-[11px]"></i> Dashboard
               </a>
-              <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center">
+              <a href="/kiosk" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center whitespace-nowrap">
                 <i class="fa-solid fa-video mr-1 text-[11px] text-emerald-200 animate-pulse"></i> Gate Kiosk
               </a>
-              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/enroll" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path == '/enroll' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-user-plus mr-1 text-[11px]"></i> Enroll
               </a>
-              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
+              <a href="/students" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center whitespace-nowrap {% if request.path == '/students' %}bg-white/20 text-amber-300 font-bold border border-amber-400/40 shadow-sm{% else %}text-slate-200 hover:bg-white/10 hover:text-white{% endif %}">
                 <i class="fa-solid fa-users mr-1 text-[11px]"></i> Students
               </a>
 
               <!-- System / Tools Dropdown Menu (Admins & Principals) -->
               <div class="relative group shrink-0" id="systemDropdownContainer">
-                <button id="systemDropdownBtn" onclick="toggleSystemDropdown(event)" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-slate-200 hover:bg-white/10 hover:text-white border {% if request.path.startswith('/admin') or request.path in ['/automations', '/database'] %}bg-white/20 text-amber-300 border-amber-400/40 shadow-sm{% else %}border-transparent hover:border-white/20{% endif %}">
+                <button id="systemDropdownBtn" onclick="toggleSystemDropdown(event)" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-slate-200 hover:bg-white/10 hover:text-white border whitespace-nowrap {% if request.path.startswith('/admin') or request.path in ['/automations', '/database'] %}bg-white/20 text-amber-300 border-amber-400/40 shadow-sm{% else %}border-transparent hover:border-white/20{% endif %}">
                   <i class="fa-solid fa-layer-group text-amber-400 text-[11px]"></i>
                   <span>System</span>
                   <i class="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:rotate-180 transition-transform duration-200"></i>
@@ -219,40 +219,40 @@
             {% if current_user.role == 'TEACHER' %}
               <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-400/40 text-xs shadow-sm shrink-0">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                <span class="font-bold text-white text-[11px] max-w-[110px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
+                <span class="font-bold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
                 {% if current_user.assigned_section_name and current_user.assigned_section_name != 'N/A' %}
-                <span class="hidden xl:inline text-[9px] font-black uppercase text-amber-300 font-mono tracking-tight" title="{{ current_user.assigned_section_name }}">
+                <span class="hidden 2xl:inline text-[9px] font-black uppercase text-amber-300 font-mono tracking-tight max-w-[120px] truncate" title="{{ current_user.assigned_section_name }}">
                   [{{ current_user.assigned_section_name }}]
                 </span>
                 {% endif %}
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 shrink-0">
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 shrink-0 whitespace-nowrap">
                   Adviser
                 </span>
               </div>
             {% elif current_user.role in ['STAFF', 'NON_TEACHING'] %}
               <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-950/40 border border-indigo-400/40 text-xs shadow-sm shrink-0">
                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
-                <span class="font-bold text-white text-[11px] max-w-[120px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shrink-0">
+                <span class="font-bold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shrink-0 whitespace-nowrap">
                   DepEd Staff
                 </span>
               </div>
             {% else %}
               <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs shadow-sm shrink-0">
                 <span class="w-2 h-2 rounded-full {% if current_user.is_admin %}bg-amber-400{% else %}bg-blue-400{% endif %} animate-pulse shrink-0"></span>
-                <span class="font-extrabold text-white text-[11px] max-w-[110px] xl:max-w-[140px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'GUARD' %}bg-purple-400 text-slate-950{% else %}bg-slate-200 text-slate-900{% endif %} shrink-0">
+                <span class="font-extrabold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'GUARD' %}bg-purple-400 text-slate-950{% else %}bg-slate-200 text-slate-900{% endif %} shrink-0 whitespace-nowrap">
                   {{ current_user.role }}
                 </span>
               </div>
             {% endif %}
 
-            <a href="/logout" class="px-2.5 py-1.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white flex items-center gap-1.5 text-xs font-black transition border border-rose-500/40 shadow-sm shrink-0" title="Sign Out">
+            <a href="/logout" class="px-2.5 py-1.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white flex items-center gap-1.5 text-xs font-black transition border border-rose-500/40 shadow-sm shrink-0 whitespace-nowrap" title="Sign Out">
               <i class="fa-solid fa-arrow-right-from-bracket text-xs"></i>
               <span>Log Out</span>
             </a>
           {% else %}
-            <a href="/login" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0">
+            <a href="/login" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 shrink-0 whitespace-nowrap">
               <i class="fa-solid fa-key text-[10px]"></i> Staff Sign In
             </a>
           {% endif %}
@@ -406,7 +406,7 @@
   </header>
 
   <!-- Main Content Area -->
-  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
+  <main class="flex-grow max-w-[1560px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
     {% block content %}{% endblock %}
   </main>
 
@@ -506,7 +506,7 @@
 
   <!-- Footer -->
   <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 text-xs py-4">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+    <div class="max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
       <div>
         <span class="font-semibold text-slate-200">DEPED S.M.I.L.E.</span> &copy; 2026 Department of Education. Powered by Kezjed Solutions.
       </div>
