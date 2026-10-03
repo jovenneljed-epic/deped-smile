@@ -214,10 +214,10 @@
           <!-- Subtle Divider -->
           <div class="h-4 w-px bg-white/20 mx-0.5"></div>
 
-          <!-- User Profile & Log Out (Role-Tailored, always visible, clean) -->
+          <!-- User Profile & Log Out (Role-Tailored, clickable to edit profile & section) -->
           {% if current_user %}
             {% if current_user.role == 'TEACHER' %}
-              <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-400/40 text-xs shadow-sm shrink-0">
+              <a href="/profile" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-400/40 text-xs shadow-sm shrink-0 transition group cursor-pointer" title="Edit Profile & Advisory Class">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
                 <span class="font-bold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
                 {% if current_user.assigned_section_name and current_user.assigned_section_name != 'N/A' %}
@@ -228,23 +228,26 @@
                 <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 shrink-0 whitespace-nowrap">
                   Adviser
                 </span>
-              </div>
+                <i class="fa-solid fa-pen-to-square text-[10px] text-amber-300/80 group-hover:text-amber-300 transition shrink-0 ml-0.5" title="Edit Profile"></i>
+              </a>
             {% elif current_user.role in ['STAFF', 'NON_TEACHING'] %}
-              <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-950/40 border border-indigo-400/40 text-xs shadow-sm shrink-0">
+              <a href="/profile" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-400/40 text-xs shadow-sm shrink-0 transition group cursor-pointer" title="Edit Profile & Staff Designation">
                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0"></span>
                 <span class="font-bold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
                 <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shrink-0 whitespace-nowrap">
                   DepEd Staff
                 </span>
-              </div>
+                <i class="fa-solid fa-pen-to-square text-[10px] text-cyan-300/80 group-hover:text-cyan-300 transition shrink-0 ml-0.5" title="Edit Profile"></i>
+              </a>
             {% else %}
-              <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs shadow-sm shrink-0">
+              <a href="/profile" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs shadow-sm shrink-0 transition group cursor-pointer" title="Edit Profile">
                 <span class="w-2 h-2 rounded-full {% if current_user.is_admin %}bg-amber-400{% else %}bg-blue-400{% endif %} animate-pulse shrink-0"></span>
                 <span class="font-extrabold text-white text-[11px] max-w-[95px] xl:max-w-[130px] truncate" title="{{ current_user.full_name }}">{{ current_user.full_name }}</span>
                 <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {% if current_user.is_admin %}bg-amber-400 text-slate-950{% elif current_user.role == 'PRINCIPAL' %}bg-blue-400 text-slate-950{% elif current_user.role == 'GUARD' %}bg-purple-400 text-slate-950{% else %}bg-slate-200 text-slate-900{% endif %} shrink-0 whitespace-nowrap">
                   {{ current_user.role }}
                 </span>
-              </div>
+                <i class="fa-solid fa-pen-to-square text-[10px] text-amber-300/80 group-hover:text-amber-300 transition shrink-0 ml-0.5" title="Edit Profile"></i>
+              </a>
             {% endif %}
 
             <a href="/logout" class="px-2.5 py-1.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white flex items-center gap-1.5 text-xs font-black transition border border-rose-500/40 shadow-sm shrink-0 whitespace-nowrap" title="Sign Out">
@@ -294,10 +297,16 @@
             </div>
           </div>
         </div>
-        <a href="/logout" class="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5 shrink-0">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>Logout</span>
-        </a>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <a href="/profile" class="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition flex items-center gap-1" title="Edit Profile">
+            <i class="fa-solid fa-pen-to-square text-[11px] text-amber-300"></i>
+            <span>Edit</span>
+          </a>
+          <a href="/logout" class="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1">
+            <i class="fa-solid fa-arrow-right-from-bracket text-[11px]"></i>
+            <span>Logout</span>
+          </a>
+        </div>
       </div>
       {% else %}
       <a href="/login" class="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition flex items-center justify-center gap-2">

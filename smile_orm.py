@@ -324,9 +324,10 @@ class User(Base):
     email = Column(String(120), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
-    role = Column(String(30), nullable=False, default="TEACHER") # SUPER_ADMIN, PRINCIPAL, TEACHER, GUARD, PARENT
+    role = Column(String(30), nullable=False, default="TEACHER") # SUPER_ADMIN, PRINCIPAL, TEACHER, GUARD, PARENT, STAFF, NON_TEACHING
     is_active = Column(Boolean, default=True)
     phone_number = Column(String(30), default="")
+    designation = Column(String(100), default="") # DepEd Designation / Department (e.g. Registrar, Guidance)
     assigned_section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
     created_at = Column(DateTime, default=pht_now)
     last_login = Column(DateTime, nullable=True)
@@ -342,6 +343,7 @@ class User(Base):
             "role": self.role,
             "is_active": self.is_active,
             "phone_number": self.phone_number,
+            "designation": getattr(self, 'designation', '') or "",
             "assigned_section_id": self.assigned_section_id,
             "assigned_section_name": f"{self.assigned_section.grade_level} - {self.assigned_section.section_name}" if self.assigned_section else "N/A",
             "created_at": self.created_at.strftime("%Y-%m-%d %I:%M %p") if self.created_at else "",
@@ -877,6 +879,14 @@ def init_orm_db(force=False):
                 except Exception as ex:
                     print(f"[!] parent_device_tokens creation note: {ex}")
 
+            # Safe auto-migration for designation column on existing users table
+            try:
+                from sqlalchemy import text
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN designation VARCHAR(100) DEFAULT '';"))
+                    conn.commit()
+            except Exception:
+                pass
 
             _db_initialized = True
             return
@@ -1674,7 +1684,18 @@ def get_teacher_advisory_overview_orm(section_id=None, section_name=None, advise
         absent_count = max(0, total_enrolled - len(latest_scan_map))
 
         sec_name_display = f"{target_section.grade_level} - {target_section.section_name}" if target_section else (section_name or "Advisory Class")
-        adv_display = target_section.adviser_teacher if target_section else (adviser_name or "")
+        
+        # Prioritize the logged-in teacher's actual name and auto-sync with section
+        if adviser_name:
+            adv_display = adviser_name
+            if target_section and target_section.adviser_teacher != adviser_name:
+                try:
+                    target_section.adviser_teacher = adviser_name
+                    session.commit()
+                except Exception:
+                    session.rollback()
+        else:
+            adv_display = target_section.adviser_teacher if target_section else ""
 
         return {
             "section_id": target_section.id if target_section else None,
@@ -2226,6 +2247,147 @@ def delete_user_orm(user_id):
         session.delete(user)
         session.commit()
         return True, "User deleted successfully."
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
+def update_user_profile_orm(user_id, **kwargs):
+    """
+    Empowers Teaching and Non-Teaching staff to edit their personal profiles,
+    section assignments, grade level, section name, room number, designation, and credentials.
+    Automatically keeps Section and Student records in sync.
+    """
+    global _SECTIONS_CACHE
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=int(user_id)).first()
+        if not user:
+            return False, "User account not found."
+
+        # 1. Update Full Name
+        if "full_name" in kwargs and kwargs["full_name"]:
+            new_name = str(kwargs["full_name"]).strip()
+            if new_name:
+                user.full_name = new_name
+
+        # 2. Update Username (uniqueness check)
+        if "username" in kwargs and kwargs["username"]:
+            new_u = str(kwargs["username"]).strip().lower()
+            if new_u and new_u != user.username:
+                existing = session.query(User).filter(User.username == new_u, User.id != user.id).first()
+                if existing:
+                    return False, f"Username '{new_u}' is already taken."
+                user.username = new_u
+
+        # 3. Update Email (uniqueness check)
+        if "email" in kwargs and kwargs["email"]:
+            new_e = str(kwargs["email"]).strip().lower()
+            if new_e and new_e != user.email:
+                existing = session.query(User).filter(User.email == new_e, User.id != user.id).first()
+                if existing:
+                    return False, f"Email address '{new_e}' is already registered."
+                user.email = new_e
+
+        # 4. Update Phone Number
+        if "phone_number" in kwargs:
+            user.phone_number = str(kwargs["phone_number"]).strip()
+
+        # 5. Update Designation (for Non-Teaching Staff / Admin)
+        if "designation" in kwargs:
+            try:
+                user.designation = str(kwargs["designation"]).strip()
+            except Exception:
+                pass
+
+        # 6. Update Password (if provided)
+        if "password" in kwargs and kwargs["password"]:
+            pwd = str(kwargs["password"]).strip()
+            if pwd:
+                if len(pwd) < 4:
+                    return False, "Password must be at least 4 characters long."
+                user.password_hash = generate_password_hash(pwd)
+
+        # 7. Section & Grade Level Management (For Teachers / Class Advisers)
+        if user.role == "TEACHER":
+            grade_level = str(kwargs.get("grade_level", "")).strip()
+            section_name = str(kwargs.get("section_name", "")).strip()
+            room_number = str(kwargs.get("room_number", "")).strip()
+            switch_section_id = kwargs.get("switch_section_id")
+
+            # Case A: Switching to an existing section from dropdown
+            if switch_section_id and str(switch_section_id).isdigit() and int(switch_section_id) > 0:
+                target_sec = session.query(Section).filter_by(id=int(switch_section_id)).first()
+                if target_sec:
+                    user.assigned_section_id = target_sec.id
+                    target_sec.adviser_teacher = user.full_name
+                    if grade_level:
+                        target_sec.grade_level = grade_level
+                    if section_name:
+                        target_sec.section_name = section_name
+                    if room_number:
+                        target_sec.room_number = room_number
+                    
+                    new_label = f"{target_sec.grade_level} - {target_sec.section_name}"
+                    # Update students assigned to this section
+                    session.query(Student).filter(Student.section_id == target_sec.id).update({
+                        "grade_level": target_sec.grade_level,
+                        "section_name": target_sec.section_name,
+                        "grade_section": new_label,
+                        "class_adviser": user.full_name
+                    }, synchronize_session=False)
+
+            # Case B: Editing their currently assigned section
+            elif user.assigned_section_id:
+                sec = session.query(Section).filter_by(id=user.assigned_section_id).first()
+                if sec:
+                    old_label = f"{sec.grade_level} - {sec.section_name}"
+                    if grade_level:
+                        sec.grade_level = grade_level
+                    if section_name:
+                        sec.section_name = section_name
+                    if room_number:
+                        sec.room_number = room_number
+                    sec.adviser_teacher = user.full_name
+
+                    new_label = f"{sec.grade_level} - {sec.section_name}"
+                    # Sync students in this section
+                    session.query(Student).filter(
+                        (Student.section_id == sec.id) | (Student.grade_section == old_label)
+                    ).update({
+                        "grade_level": sec.grade_level,
+                        "section_name": sec.section_name,
+                        "grade_section": new_label,
+                        "class_adviser": user.full_name
+                    }, synchronize_session=False)
+
+            # Case C: Teacher had no section yet, creating or finding by name
+            elif grade_level and section_name:
+                existing_sec = session.query(Section).filter(
+                    func.lower(Section.grade_level) == grade_level.lower(),
+                    func.lower(Section.section_name) == section_name.lower()
+                ).first()
+                if existing_sec:
+                    existing_sec.adviser_teacher = user.full_name
+                    if room_number:
+                        existing_sec.room_number = room_number
+                    user.assigned_section_id = existing_sec.id
+                else:
+                    new_sec = Section(
+                        grade_level=grade_level,
+                        section_name=section_name,
+                        room_number=room_number,
+                        adviser_teacher=user.full_name
+                    )
+                    session.add(new_sec)
+                    session.flush()
+                    user.assigned_section_id = new_sec.id
+
+        _SECTIONS_CACHE["data"] = None
+        session.commit()
+        session.refresh(user)
+        return True, user.to_dict()
     except Exception as e:
         session.rollback()
         return False, str(e)
@@ -3129,4 +3291,5 @@ mark_parent_notifications_read = mark_parent_notifications_read_orm
 get_incidents = get_incidents_orm
 save_incident = save_incident_orm
 get_teacher_advisory_overview = get_teacher_advisory_overview_orm
+update_user_profile = update_user_profile_orm
 

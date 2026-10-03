@@ -25,7 +25,7 @@ from smile_db import (
 from smile_orm import (
     authenticate_user_orm, create_user_orm, get_all_users_orm,
     update_user_orm, delete_user_orm, get_user_by_id_orm,
-    get_all_sections_orm,
+    get_all_sections_orm, get_section_by_id_orm, update_user_profile_orm,
     get_all_pricing_plans_orm, get_pricing_plan_by_code_orm,
     update_pricing_plan_orm, record_payment_transaction_orm,
     get_recent_payment_transactions_orm, get_revenue_statistics_orm,
@@ -169,6 +169,7 @@ def inject_user_context():
             "role": role,
             "assigned_section_id": session.get("assigned_section_id"),
             "assigned_section_name": session.get("assigned_section_name"),
+            "designation": session.get("designation", ""),
             "is_admin": role == "SUPER_ADMIN",
             "is_principal": role in ["SUPER_ADMIN", "PRINCIPAL"],
             "is_teacher": role == "TEACHER",
@@ -204,6 +205,7 @@ def login_page():
     session['role'] = user['role']
     session['assigned_section_id'] = user.get('assigned_section_id')
     session['assigned_section_name'] = user.get('assigned_section_name')
+    session['designation'] = user.get('designation', '')
 
     # Role-specific smart redirection
     if next_url and next_url != '/login':
@@ -219,6 +221,92 @@ def logout_page():
     """Terminates staff session."""
     session.clear()
     return redirect(url_for('login_page'))
+
+# -------------------------------------------------------------
+# Staff Profile & Class Advisory Section Management
+# -------------------------------------------------------------
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def user_profile_page():
+    """
+    Empowers Teaching and Non-Teaching staff to view and edit their own profiles,
+    section assignments, grade level, section name, room number, designation, and credentials.
+    """
+    user_id = session.get('user_id')
+
+    if request.method == 'POST':
+        data = request.json if request.is_json else request.form.to_dict()
+        ok, user_or_msg = update_user_profile_orm(user_id, **data)
+        if not ok:
+            if request.is_json or request.headers.get('Accept') == 'application/json':
+                return jsonify({"success": False, "message": user_or_msg}), 400
+            user = get_user_by_id_orm(user_id)
+            sec = get_section_by_id_orm(user.get('assigned_section_id')) if user and user.get('assigned_section_id') else None
+            all_sec = get_all_sections_orm() if user and user.get('role') == 'TEACHER' else []
+            return render_template(
+                'profile.html',
+                user=user,
+                section=sec,
+                all_sections=all_sec,
+                error_msg=user_or_msg,
+                school_name=smile_config.SCHOOL_NAME
+            )
+
+        # Synchronize session state immediately
+        session['full_name'] = user_or_msg['full_name']
+        session['username'] = user_or_msg['username']
+        session['assigned_section_id'] = user_or_msg.get('assigned_section_id')
+        session['assigned_section_name'] = user_or_msg.get('assigned_section_name')
+        session['designation'] = user_or_msg.get('designation', '')
+
+        if request.is_json or request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                "success": True,
+                "message": "Profile and class settings updated successfully.",
+                "user": user_or_msg
+            })
+        return redirect(url_for('user_profile_page', msg="Profile and class section updated successfully!"))
+
+    # GET request
+    user = get_user_by_id_orm(user_id)
+    if not user:
+        session.clear()
+        return redirect(url_for('login_page'))
+
+    sec = get_section_by_id_orm(user.get('assigned_section_id')) if user.get('assigned_section_id') else None
+    all_sec = get_all_sections_orm() if user.get('role') == 'TEACHER' else []
+
+    return render_template(
+        'profile.html',
+        user=user,
+        section=sec,
+        all_sections=all_sec,
+        feedback_msg=request.args.get('msg'),
+        school_name=smile_config.SCHOOL_NAME
+    )
+
+@app.route('/api/profile/update', methods=['POST'])
+@login_required
+def api_update_profile():
+    """AJAX API: Updates user profile, section, and credentials in real-time."""
+    user_id = session.get('user_id')
+    data = request.json if request.is_json else request.form.to_dict()
+    ok, user_or_msg = update_user_profile_orm(user_id, **data)
+    if not ok:
+        return jsonify({"success": False, "message": user_or_msg}), 400
+
+    session['full_name'] = user_or_msg['full_name']
+    session['username'] = user_or_msg['username']
+    session['assigned_section_id'] = user_or_msg.get('assigned_section_id')
+    session['assigned_section_name'] = user_or_msg.get('assigned_section_name')
+    session['designation'] = user_or_msg.get('designation', '')
+
+    return jsonify({
+        "success": True,
+        "message": "Profile and class settings updated successfully.",
+        "user": user_or_msg
+    })
 
 # -------------------------------------------------------------
 # Super Administrator & Monetization Routes (Exclusive Access)

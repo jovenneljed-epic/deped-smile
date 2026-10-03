@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+
+{% block title %}
+  My Profile & Account Settings | {{ user.full_name }} | Project S.M.I.L.E.
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-5xl mx-auto">
+
+  <!-- Top Breadcrumb & Page Header -->
+  <div class="glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-deped-darkblue to-blue-950 text-white relative overflow-hidden">
+    <div class="space-y-1.5 z-10">
+      <div class="flex items-center gap-2 flex-wrap">
+        {% if user.role == 'TEACHER' %}
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+          <i class="fa-solid fa-chalkboard-user mr-1"></i> Class Adviser Portal
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30 font-mono">
+          {{ user.assigned_section_name or 'No Advisory Section' }}
+        </span>
+        {% elif user.role in ['STAFF', 'NON_TEACHING'] %}
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+          <i class="fa-solid fa-id-card-clip mr-1"></i> DepEd Non-Teaching Staff
+        </span>
+        {% elif user.role == 'SUPER_ADMIN' %}
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+          <i class="fa-solid fa-crown mr-1"></i> Super Administrator
+        </span>
+        {% elif user.role == 'PRINCIPAL' %}
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/40">
+          <i class="fa-solid fa-school mr-1"></i> School Principal
+        </span>
+        {% else %}
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/40">
+          <i class="fa-solid fa-shield-halved mr-1"></i> {{ user.role }}
+        </span>
+        {% endif %}
+      </div>
+      <h1 class="text-xl sm:text-2xl font-black font-heading tracking-tight text-white flex items-center gap-2">
+        <span>Account Profile &amp; Settings</span>
+      </h1>
+      <p class="text-xs text-blue-200">
+        Update your personal identity, contact details, security credentials, and advisory class configuration.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 z-10 flex-wrap">
+      <a href="/" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
+        <i class="fa-solid fa-arrow-left"></i> Dashboard
+      </a>
+      {% if user.role == 'TEACHER' %}
+      <a href="/enroll" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-user-plus"></i> + Enroll Learners
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Notification Banner (Dynamic AJAX & Server Flash) -->
+  <div id="statusToast" class="{% if not feedback_msg and not error_msg %}hidden{% endif %} p-4 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-sm transition {% if error_msg %}bg-rose-50 border-rose-300 text-rose-800{% else %}bg-emerald-50 border-emerald-300 text-emerald-800{% endif %}">
+    <div class="flex items-center gap-2.5">
+      <i id="statusToastIcon" class="fa-solid {% if error_msg %}fa-circle-exclamation text-rose-600{% else %}fa-circle-check text-emerald-600{% endif %} text-base"></i>
+      <span id="statusToastMsg">{{ error_msg or feedback_msg or 'Settings updated successfully.' }}</span>
+    </div>
+    <button type="button" onclick="document.getElementById('statusToast').classList.add('hidden')" class="hover:opacity-75 text-xs p-1">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <!-- Two-Column Grid: Summary Card + Edit Form -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT COLUMN: Profile Overview Card -->
+    <div class="space-y-5">
+      <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white text-center space-y-4">
+        
+        <!-- Big Avatar Circle -->
+        <div class="relative mx-auto w-20 h-20 rounded-2xl {% if user.role == 'TEACHER' %}bg-gradient-to-tr from-emerald-600 to-teal-500 text-white{% elif user.role in ['STAFF', 'NON_TEACHING'] %}bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white{% elif user.role == 'SUPER_ADMIN' %}bg-gradient-to-tr from-amber-500 to-orange-500 text-slate-950{% else %}bg-gradient-to-tr from-blue-700 to-deped-blue text-white{% endif %} flex items-center justify-center text-3xl font-black shadow-lg">
+          {{ user.full_name[0]|upper if user.full_name else user.username[0]|upper }}
+          <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-400 border-2 border-white flex items-center justify-center text-[9px] text-slate-950 font-bold" title="Account Active">
+            <i class="fa-solid fa-check"></i>
+          </span>
+        </div>
+
+        <div>
+          <h2 id="summaryFullName" class="text-base font-extrabold text-deped-darkblue leading-tight">{{ user.full_name }}</h2>
+          <p class="text-xs text-slate-500 font-mono mt-0.5">@<span id="summaryUsername">{{ user.username }}</span></p>
+          <div class="mt-2 flex items-center justify-center gap-1.5 flex-wrap">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {% if user.role == 'TEACHER' %}bg-emerald-100 text-emerald-800 border border-emerald-300{% elif user.role in ['STAFF', 'NON_TEACHING'] %}bg-cyan-100 text-cyan-800 border border-cyan-300{% elif user.role == 'SUPER_ADMIN' %}bg-amber-100 text-amber-900 border border-amber-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {% if user.role == 'TEACHER' %}CLASS ADVISER{% elif user.role in ['STAFF', 'NON_TEACHING'] %}DEPED STAFF{% else %}{{ user.role }}{% endif %}
+            </span>
+          </div>
+        </div>
+
+        {% if user.role == 'TEACHER' %}
+        <!-- Teacher Advisory Highlight Box -->
+        <div class="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-left space-y-1.5">
+          <p class="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+            <i class="fa-solid fa-chalkboard text-emerald-600"></i> Assigned Advisory Class
+          </p>
+          <p id="summarySectionName" class="text-sm font-extrabold text-emerald-950 font-heading">
+            {{ user.assigned_section_name or 'No Advisory Section Set' }}
+          </p>
+          {% if section and section.room_number %}
+          <p class="text-[11px] text-emerald-700">
+            <i class="fa-solid fa-door-open mr-1"></i> Room: <strong id="summaryRoomNumber">{{ section.room_number }}</strong>
+          </p>
+          {% endif %}
+          <div class="pt-1.5 flex items-center gap-1.5">
+            <a href="/" class="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline flex items-center gap-1">
+              <span>View Advisory Roster</span> <i class="fa-solid fa-arrow-right text-[9px]"></i>
+            </a>
+          </div>
+        </div>
+        {% elif user.role in ['STAFF', 'NON_TEACHING'] and user.designation %}
+        <!-- Staff Designation Highlight Box -->
+        <div class="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-200 text-left space-y-1">
+          <p class="text-[10px] font-black uppercase tracking-wider text-indigo-800 flex items-center gap-1">
+            <i class="fa-solid fa-briefcase text-indigo-600"></i> DepEd Designation
+          </p>
+          <p id="summaryDesignation" class="text-xs font-bold text-indigo-950">
+            {{ user.designation }}
+          </p>
+        </div>
+        {% endif %}
+
+        <!-- Account Info Details -->
+        <div class="pt-3 border-t border-slate-100 text-left space-y-2 text-xs">
+          <div class="flex items-center justify-between text-slate-500">
+            <span><i class="fa-solid fa-envelope mr-1.5 text-slate-400"></i> Email</span>
+            <span id="summaryEmail" class="font-bold text-slate-700 max-w-[170px] truncate" title="{{ user.email }}">{{ user.email }}</span>
+          </div>
+          <div class="flex items-center justify-between text-slate-500">
+            <span><i class="fa-solid fa-phone mr-1.5 text-slate-400"></i> Phone</span>
+            <span id="summaryPhone" class="font-bold text-slate-700">{{ user.phone_number or 'N/A' }}</span>
+          </div>
+          <div class="flex items-center justify-between text-slate-500">
+            <span><i class="fa-solid fa-clock-rotate-left mr-1.5 text-slate-400"></i> Last Sign In</span>
+            <span class="font-medium text-slate-600 text-[11px]">{{ user.last_login }}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Tips Card -->
+      <div class="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-slate-700 text-xs space-y-1.5">
+        <p class="font-bold text-amber-900 flex items-center gap-1.5">
+          <i class="fa-solid fa-lightbulb text-amber-500"></i> DepEd Account Privacy
+        </p>
+        <p class="text-[11px] text-slate-600 leading-relaxed">
+          Ensure your official DepEd full name is accurate. It is printed on student smart ID badges, gate telemetry passes, and SF2 attendance logs.
+        </p>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Interactive Edit Form -->
+    <div class="lg:col-span-2 space-y-5">
+      
+      <form id="profileForm" onsubmit="handleProfileSubmit(event)" method="POST" action="/profile" class="space-y-5">
+        
+        <!-- CARD 1: Personal & Contact Information -->
+        <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-extrabold text-deped-darkblue flex items-center gap-2 font-heading">
+              <i class="fa-solid fa-user-pen text-deped-blue"></i> Personal Profile Details
+            </h3>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Required Fields</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <!-- Full Name -->
+            <div class="sm:col-span-2">
+              <label for="fullNameInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Full Name (DepEd Official Format) <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="fullNameInput" name="full_name" value="{{ user.full_name }}" required
+                       placeholder="e.g. Mam Jovelyn D. Aviguela or Mrs. Corazon Aquino"
+                       class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-semibold focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">Include your title and full name as it should appear on reports and student profiles.</p>
+            </div>
+
+            <!-- Username -->
+            <div>
+              <label for="usernameInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Account Username <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-at absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="usernameInput" name="username" value="{{ user.username }}" required
+                       placeholder="username"
+                       class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+            </div>
+
+            <!-- Email Address -->
+            <div>
+              <label for="emailInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Official Email Address <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-envelope absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="email" id="emailInput" name="email" value="{{ user.email }}" required
+                       placeholder="name@deped.gov.ph"
+                       class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+            </div>
+
+            <!-- Phone Number -->
+            <div class="{% if user.role in ['STAFF', 'NON_TEACHING'] %}sm:col-span-1{% else %}sm:col-span-2{% endif %}">
+              <label for="phoneInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Contact / Mobile Phone (SMS Notifications)
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-phone absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="phoneInput" name="phone_number" value="{{ user.phone_number or '' }}"
+                       placeholder="09171234567"
+                       class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+              </div>
+            </div>
+
+            {% if user.role in ['STAFF', 'NON_TEACHING'] %}
+            <!-- Non-Teaching Staff Designation -->
+            <div>
+              <label for="designationInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Staff Designation / Office
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-briefcase absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="designationInput" name="designation" value="{{ user.designation or '' }}" list="designationList"
+                       placeholder="e.g. School Registrar, Guidance Office"
+                       class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                <datalist id="designationList">
+                  <option value="School Registrar">
+                  <option value="Administrative Officer II">
+                  <option value="Guidance Counselor">
+                  <option value="School Clinic Nurse">
+                  <option value="Property & Supply Custodian">
+                  <option value="Finance & Accounting Officer">
+                  <option value="School ICT Coordinator">
+                  <option value="Librarian / Learning Resource Custodian">
+                </datalist>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+
+        {% if user.role == 'TEACHER' %}
+        <!-- CARD 2: Class Advisory Section & Grade Level (Teacher Specific) -->
+        <div class="glass-card rounded-3xl p-6 border border-emerald-200 shadow-sm bg-gradient-to-br from-white to-emerald-50/30 space-y-4">
+          <div class="flex items-center justify-between border-b border-emerald-100 pb-3">
+            <h3 class="text-sm font-extrabold text-emerald-950 flex items-center gap-2 font-heading">
+              <i class="fa-solid fa-chalkboard-user text-emerald-600"></i> Class Advisory Section &amp; Grade Level
+            </h3>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+              ADVISER SETTINGS
+            </span>
+          </div>
+
+          <div class="p-3 rounded-2xl bg-emerald-100/60 border border-emerald-200 text-emerald-900 text-xs space-y-1">
+            <p class="font-bold flex items-center gap-1.5 text-[11px]">
+              <i class="fa-solid fa-circle-info text-emerald-700"></i> How Section Synchronization Works:
+            </p>
+            <p class="text-[11px] text-emerald-800 leading-relaxed">
+              Updating your <strong>Grade Level</strong>, <strong>Section Name</strong>, or <strong>Room Number</strong> below will automatically update your Advisory Portal dashboard, gate kiosk scanner telemetry, and all students currently enrolled in your advisory section.
+            </p>
+          </div>
+
+          <!-- Section Edit Fields -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            
+            <!-- Grade Level -->
+            <div>
+              <label for="gradeLevelInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Grade Level <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-graduation-cap absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="gradeLevelInput" name="grade_level" 
+                       value="{{ section.grade_level if section else (user.assigned_section_name.split(' - ')[0] if user.assigned_section_name and ' - ' in user.assigned_section_name else 'Kindergarten') }}"
+                       list="gradeLevelsList" required
+                       placeholder="e.g. Kindergarten, Grade 1, Grade 7"
+                       class="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 font-bold focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500">
+                <datalist id="gradeLevelsList">
+                  <option value="Kindergarten">
+                  <option value="Grade 1">
+                  <option value="Grade 2">
+                  <option value="Grade 3">
+                  <option value="Grade 4">
+                  <option value="Grade 5">
+                  <option value="Grade 6">
+                  <option value="Grade 7">
+                  <option value="Grade 8">
+                  <option value="Grade 9">
+                  <option value="Grade 10">
+                  <option value="Grade 11 STEM">
+                  <option value="Grade 11 ABM">
+                  <option value="Grade 11 HUMSS">
+                  <option value="Grade 11 TVL">
+                  <option value="Grade 12 STEM">
+                  <option value="Grade 12 ABM">
+                  <option value="Grade 12 HUMSS">
+                  <option value="Grade 12 TVL">
+                </datalist>
+              </div>
+            </div>
+
+            <!-- Section Name -->
+            <div>
+              <label for="sectionNameInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Section Name <span class="text-rose-500">*</span>
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-users-rectangle absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="sectionNameInput" name="section_name"
+                       value="{{ section.section_name if section else (user.assigned_section_name.split(' - ')[1] if user.assigned_section_name and ' - ' in user.assigned_section_name else 'Sunflower') }}"
+                       required
+                       placeholder="e.g. Sunflower, Sampaguita, Rizal, Diamond"
+                       class="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 font-bold focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500">
+              </div>
+            </div>
+
+            <!-- Room / Building Number -->
+            <div class="sm:col-span-2">
+              <label for="roomNumberInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Room / Building Location
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-door-open absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="text" id="roomNumberInput" name="room_number"
+                       value="{{ section.room_number if section else 'Kinder Bldg - Room 1' }}"
+                       placeholder="e.g. Kinder Bldg - Room 1 or Bldg 2 - Room 104"
+                       class="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500">
+              </div>
+            </div>
+
+            {% if all_sections and all_sections|length > 0 %}
+            <!-- Quick Option to Switch to an Existing Section -->
+            <div class="sm:col-span-2 pt-2 border-t border-emerald-100">
+              <label for="switchSectionSelect" class="block text-[11px] font-bold text-slate-500 mb-1">
+                <i class="fa-solid fa-arrows-rotate mr-1 text-emerald-600"></i> Or Reassign to an Existing Section in DepEd S.M.I.L.E.:
+              </label>
+              <select id="switchSectionSelect" name="switch_section_id" onchange="onSwitchSectionChange(this)"
+                      class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-700 font-semibold focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500">
+                <option value="">-- Keep Current Section (Edit Fields Above) --</option>
+                {% for sec in all_sections %}
+                <option value="{{ sec.id }}" data-grade="{{ sec.grade_level }}" data-name="{{ sec.section_name }}" data-room="{{ sec.room_number }}" {% if user.assigned_section_id == sec.id %}selected{% endif %}>
+                  {{ sec.grade_level }} - {{ sec.section_name }} {% if sec.room_number %}({{ sec.room_number }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <p class="text-[10px] text-slate-400 mt-1">Selecting an existing section auto-populates the fields above and assigns you as that section's official adviser.</p>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- CARD 3: Security & Password Update (Optional) -->
+        <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-extrabold text-deped-darkblue flex items-center gap-2 font-heading">
+              <i class="fa-solid fa-lock text-amber-500"></i> Security &amp; Password (Optional)
+            </h3>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Leave blank to keep current</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <!-- New Password -->
+            <div>
+              <label for="passwordInput" class="block text-xs font-bold text-slate-700 mb-1">
+                New Password
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-key absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="password" id="passwordInput" name="password" minlength="4"
+                       placeholder="••••••••"
+                       class="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                <button type="button" onclick="togglePasswordVis('passwordInput', 'pwdToggleIcon1')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                  <i id="pwdToggleIcon1" class="fa-solid fa-eye text-xs"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Confirm New Password -->
+            <div>
+              <label for="confirmPasswordInput" class="block text-xs font-bold text-slate-700 mb-1">
+                Confirm New Password
+              </label>
+              <div class="relative">
+                <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input type="password" id="confirmPasswordInput" name="confirm_password" minlength="4"
+                       placeholder="••••••••"
+                       class="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+                <button type="button" onclick="togglePasswordVis('confirmPasswordInput', 'pwdToggleIcon2')" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                  <i id="pwdToggleIcon2" class="fa-solid fa-eye text-xs"></i>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Submit & Action Controls Bar -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <a href="/" class="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-xmark"></i> Cancel
+          </a>
+
+          <button type="submit" id="saveProfileBtn"
+                  class="w-full sm:w-auto px-7 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-deped-blue hover:opacity-95 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-floppy-disk text-amber-300"></i>
+            <span>Save Profile &amp; Class Changes</span>
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  function togglePasswordVis(inputId, iconId) {
+    const inp = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (!inp) return;
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+    } else {
+      inp.type = 'password';
+      if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+    }
+  }
+
+  function onSwitchSectionChange(sel) {
+    if (!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    const grade = opt.getAttribute('data-grade');
+    const name = opt.getAttribute('data-name');
+    const room = opt.getAttribute('data-room');
+    if (grade && document.getElementById('gradeLevelInput')) {
+      document.getElementById('gradeLevelInput').value = grade;
+    }
+    if (name && document.getElementById('sectionNameInput')) {
+      document.getElementById('sectionNameInput').value = name;
+    }
+    if (room && document.getElementById('roomNumberInput')) {
+      document.getElementById('roomNumberInput').value = room;
+    }
+  }
+
+  async function handleProfileSubmit(e) {
+    e.preventDefault();
+    const form = document.getElementById('profileForm');
+    const btn = document.getElementById('saveProfileBtn');
+    const toast = document.getElementById('statusToast');
+    const toastMsg = document.getElementById('statusToastMsg');
+    const toastIcon = document.getElementById('statusToastIcon');
+
+    const pwd = document.getElementById('passwordInput')?.value || '';
+    const confirmPwd = document.getElementById('confirmPasswordInput')?.value || '';
+
+    if (pwd && pwd !== confirmPwd) {
+      showToast('New passwords do not match. Please re-enter carefully.', true);
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving Profile & Section...';
+    }
+
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((val, key) => { payload[key] = val; });
+
+    try {
+      const resp = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+
+      if (res.success && res.user) {
+        showToast(res.message || 'Profile and section settings saved successfully!', false);
+        
+        // Update Left Profile Summary card in real-time
+        if (document.getElementById('summaryFullName')) {
+          document.getElementById('summaryFullName').textContent = res.user.full_name;
+        }
+        if (document.getElementById('summaryUsername')) {
+          document.getElementById('summaryUsername').textContent = res.user.username;
+        }
+        if (document.getElementById('summaryEmail')) {
+          document.getElementById('summaryEmail').textContent = res.user.email;
+        }
+        if (document.getElementById('summaryPhone')) {
+          document.getElementById('summaryPhone').textContent = res.user.phone_number || 'N/A';
+        }
+        if (document.getElementById('summarySectionName') && res.user.assigned_section_name) {
+          document.getElementById('summarySectionName').textContent = res.user.assigned_section_name;
+        }
+        if (document.getElementById('summaryDesignation') && res.user.designation) {
+          document.getElementById('summaryDesignation').textContent = res.user.designation;
+        }
+
+        // Clear password fields
+        if (document.getElementById('passwordInput')) document.getElementById('passwordInput').value = '';
+        if (document.getElementById('confirmPasswordInput')) document.getElementById('confirmPasswordInput').value = '';
+
+        // Reload after 1.2s to refresh global header title and navigation
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } else {
+        showToast(res.message || 'Error updating profile.', true);
+      }
+    } catch (err) {
+      console.error(err);
+      // Fallback: submit standard form
+      form.submit();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk text-amber-300"></i> <span>Save Profile &amp; Class Changes</span>';
+      }
+    }
+  }
+
+  function showToast(msg, isError) {
+    const toast = document.getElementById('statusToast');
+    const toastMsg = document.getElementById('statusToastMsg');
+    const toastIcon = document.getElementById('statusToastIcon');
+    if (!toast) return;
+
+    toast.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-800', 'bg-rose-50', 'border-rose-300', 'text-rose-800');
+    toastIcon.classList.remove('fa-circle-check', 'text-emerald-600', 'fa-circle-exclamation', 'text-rose-600');
+
+    if (isError) {
+      toast.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-800');
+      toastIcon.classList.add('fa-circle-exclamation', 'text-rose-600');
+    } else {
+      toast.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-800');
+      toastIcon.classList.add('fa-circle-check', 'text-emerald-600');
+    }
+
+    toastMsg.textContent = msg;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+{% endblock %}
