@@ -890,6 +890,64 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
     finally:
         session.close()
 
+def auto_migrate_columns_orm():
+    """
+    Guarantees all database columns and tables exist across SQLite and Cloud PostgreSQL (Supabase/Neon).
+    Uses isolated transactions (engine.begin()) per statement so failures never abort subsequent migrations.
+    """
+    from sqlalchemy import text
+    dialect = engine.dialect.name.lower()
+
+    # 1. Staff Attendance Logs table
+    try:
+        StaffAttendanceLog.__table__.create(engine, checkfirst=True)
+    except Exception:
+        pass
+
+    # 2. Users table columns
+    user_cols = [
+        ("designation", "VARCHAR(100) DEFAULT ''"),
+        ("assigned_section_id", "INTEGER"),
+        ("face_embedding", "TEXT"),
+        ("photo_path", "TEXT DEFAULT ''"),
+        ("last_login", "TIMESTAMP")
+    ]
+    for col_name, col_def in user_cols:
+        try:
+            with engine.begin() as conn:
+                if "postgres" in dialect:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_def};"))
+                elif "sqlite" in dialect:
+                    res = conn.execute(text("PRAGMA table_info(users);")).fetchall()
+                    existing = [r[1] for r in res]
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def};"))
+                else:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_def};"))
+        except Exception:
+            pass
+
+    # 3. Students table columns
+    student_cols = [
+        ("grade_level", "VARCHAR(30) DEFAULT ''"),
+        ("section_name", "VARCHAR(60) DEFAULT ''"),
+        ("class_adviser", "VARCHAR(100) DEFAULT ''")
+    ]
+    for col_name, col_def in student_cols:
+        try:
+            with engine.begin() as conn:
+                if "postgres" in dialect:
+                    conn.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col_name} {col_def};"))
+                elif "sqlite" in dialect:
+                    res = conn.execute(text("PRAGMA table_info(students);")).fetchall()
+                    existing = [r[1] for r in res]
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE students ADD COLUMN {col_name} {col_def};"))
+                else:
+                    conn.execute(text(f"ALTER TABLE students ADD COLUMN {col_name} {col_def};"))
+        except Exception:
+            pass
+
 _db_initialized = False
 
 def init_orm_db(force=False):
@@ -905,6 +963,9 @@ def init_orm_db(force=False):
     try:
         # 1. Ensure all core tables exist in database (CREATE TABLE IF NOT EXISTS)
         Base.metadata.create_all(engine)
+
+        # 2. Run isolated column migrations
+        auto_migrate_columns_orm()
 
         from sqlalchemy import inspect
         inspector = inspect(engine)
@@ -931,30 +992,6 @@ def init_orm_db(force=False):
                     print("[+] Created parent_device_tokens table in database.")
                 except Exception as ex:
                     print(f"[!] parent_device_tokens creation note: {ex}")
-
-            if "staff_attendance_logs" not in existing_tables:
-                try:
-                    StaffAttendanceLog.__table__.create(engine, checkfirst=True)
-                    print("[+] Created staff_attendance_logs table in database.")
-                except Exception as ex:
-                    print(f"[!] staff_attendance_logs creation note: {ex}")
-
-            # Safe auto-migration for columns on existing users table
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    for col_sql in [
-                        "ALTER TABLE users ADD COLUMN designation VARCHAR(100) DEFAULT '';",
-                        "ALTER TABLE users ADD COLUMN face_embedding TEXT;",
-                        "ALTER TABLE users ADD COLUMN photo_path TEXT DEFAULT '';"
-                    ]:
-                        try:
-                            conn.execute(text(col_sql))
-                            conn.commit()
-                        except Exception:
-                            pass
-            except Exception:
-                pass
 
             _db_initialized = True
             return
@@ -2190,9 +2227,20 @@ def authenticate_user_orm(username_or_email, password):
     session = Session()
     try:
         ident = username_or_email.strip().lower()
-        user = session.query(User).filter(
-            (User.username == ident) | (User.email == ident)
-        ).first()
+        try:
+            user = session.query(User).filter(
+                (User.username == ident) | (User.email == ident)
+            ).first()
+        except Exception as query_err:
+            # If a missing column caused the query to fail on PostgreSQL, trigger column migration and retry
+            print(f"[!] User query note ({query_err}), running auto_migrate_columns_orm...")
+            session.rollback()
+            session.close()
+            auto_migrate_columns_orm()
+            session = Session()
+            user = session.query(User).filter(
+                (User.username == ident) | (User.email == ident)
+            ).first()
 
         # Auto-seed default accounts on fresh/unseeded cloud database
         if not user and session.query(User).count() == 0:
@@ -2206,9 +2254,17 @@ def authenticate_user_orm(username_or_email, password):
         if not check_password_hash(user.password_hash, password.strip()):
             return None, "Incorrect password."
         
-        user.last_login = pht_now()
-        session.commit()
+        try:
+            user.last_login = pht_now()
+            session.commit()
+        except Exception:
+            session.rollback()
+
         return user.to_dict(), "Authentication successful."
+    except Exception as e:
+        session.rollback()
+        print(f"[!] authenticate_user_orm error: {e}")
+        return None, f"Database sign-in notice: {str(e)}"
     finally:
         session.close()
 
@@ -3594,4 +3650,6 @@ get_enrolled_staff_faces = get_enrolled_staff_faces_orm
 record_staff_attendance = record_staff_attendance_orm
 get_staff_today_status = get_staff_today_status_orm
 get_staff_dtr_logs = get_staff_dtr_logs_orm
+auto_migrate_columns = auto_migrate_columns_orm
+
 

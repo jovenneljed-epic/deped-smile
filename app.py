@@ -95,13 +95,16 @@ def decode_image_payload(req):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Cloud Healthcheck & Diagnostics Endpoint."""
-    from smile_orm import engine, Session, Student
+    from smile_orm import engine, Session, Student, User, auto_migrate_columns_orm
     db_ok = False
     student_count = 0
+    user_count = 0
     err_msg = None
     try:
+        auto_migrate_columns_orm()
         session = Session()
         student_count = session.query(Student).count()
+        user_count = session.query(User).count()
         session.close()
         db_ok = True
     except Exception as e:
@@ -113,6 +116,7 @@ def health_check():
             "connected": db_ok,
             "dialect": engine.dialect.name if engine else "unknown",
             "enrolled_students": student_count,
+            "registered_users": user_count,
             "error": err_msg
         },
         "system": {
@@ -200,7 +204,14 @@ def login_page():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
     
-    user, msg = authenticate_user_orm(username, password)
+    try:
+        user, msg = authenticate_user_orm(username, password)
+    except Exception as auth_err:
+        import traceback
+        traceback.print_exc()
+        user = None
+        msg = f"System Error: {str(auth_err)}"
+
     if not user:
         return render_template('login.html', school_name=smile_config.SCHOOL_NAME, error=msg, next_url=next_url)
 
