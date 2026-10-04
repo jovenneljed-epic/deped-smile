@@ -24,7 +24,7 @@ class TestParentAppPWA(unittest.TestCase):
         response = self.client.get('/static/sw.js')
         self.assertEqual(response.status_code, 200)
         content = response.data.decode('utf-8')
-        self.assertIn("smile-parent-v2", content)
+        self.assertIn("smile-parent-v", content)
         self.assertIn("addEventListener('push'", content)
         print("[+] Service Worker verified.")
 

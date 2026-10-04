@@ -286,6 +286,33 @@ class TestProgressiveAutomationsAndPush(unittest.TestCase):
         self.assertIn("payload", data)
         self.assertIn("sound", data["payload"])
 
+    def test_parent_poll_push_notification_stream(self):
+        """Tests real-time push notification streaming via parent polling endpoint."""
+        from smile_orm import create_parent_notification_orm
+        test_notif = create_parent_notification_orm(
+            lrn="ALL",
+            title="Realtime Stream Test",
+            body="Checking real-time delivery to mobile app.",
+            category="TEST",
+            priority="HIGH",
+            workflow_key="unit_test_stream"
+        )
+        notif_id = test_notif["raw_id"]
+
+        # 1. Polling with an older last_notif_id should immediately return the new notification
+        poll_res = self.client.get(f'/api/parent/poll/152008250007?last_notif_id={notif_id - 1}')
+        self.assertEqual(poll_res.status_code, 200)
+        poll_data = poll_res.get_json()
+        self.assertTrue(poll_data.get("has_new_notification"))
+        self.assertIsNotNone(poll_data.get("notification"))
+        self.assertEqual(poll_data["notification"]["title"], "Realtime Stream Test")
+
+        # 2. Polling with up-to-date last_notif_id should return has_new_notification = False
+        poll_res2 = self.client.get(f'/api/parent/poll/152008250007?last_notif_id={notif_id}')
+        self.assertEqual(poll_res2.status_code, 200)
+        poll_data2 = poll_res2.get_json()
+        self.assertFalse(poll_data2.get("has_new_notification"))
+
 
 if __name__ == '__main__':
     unittest.main()

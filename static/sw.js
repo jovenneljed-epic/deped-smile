@@ -98,7 +98,22 @@ self.addEventListener('push', event => {
     ]
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Broadcast to open clients so active mobile tab reacts immediately with chime, vibration, and banner
+  const broadcastPromise = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'PUSH_NOTIFICATION_RECEIVED',
+        title: title,
+        body: options.body,
+        data: data
+      });
+    });
+  }).catch(() => {});
+
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    broadcastPromise
+  ]));
 });
 
 // 5. Handle Notification Click Navigation

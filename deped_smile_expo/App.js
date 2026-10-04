@@ -129,6 +129,7 @@ export default function App() {
   // Polling tracker & banner anim
   const lastEventIdRef = useRef(0);
   const lastAnnIdRef = useRef(0);
+  const lastNotifIdRef = useRef(0);
   const pollIntervalRef = useRef(null);
   const bannerAnim = useRef(new Animated.Value(-140)).current;
 
@@ -428,8 +429,8 @@ export default function App() {
         const lastAnnId = lastAnnIdRef.current;
         const targetLrn = lrn || activeLrn || "";
 
-        // 1. Poll gate attendance transactions and live announcements synchronously
-        const res = await fetch(`${serverUrl}/api/parent/poll/${targetLrn}?last_id=${lastId}&last_ann_id=${lastAnnId}`, {
+        // 1. Poll gate attendance transactions, live announcements, and push alerts synchronously
+        const res = await fetch(`${serverUrl}/api/parent/poll/${targetLrn}?last_id=${lastId}&last_ann_id=${lastAnnId}&last_notif_id=${lastNotifIdRef.current}`, {
           headers: { 'Accept': 'application/json' }
         });
         const data = await res.json();
@@ -448,12 +449,31 @@ export default function App() {
           if (targetLrn) fetchDashboardData(targetLrn);
         }
 
+        // Handle new push notification & progressive automation alert in real time!
+        if (data.has_new_notification && data.notification) {
+          lastNotifIdRef.current = Math.max(lastNotifIdRef.current, data.notification.raw_id || data.latest_notification_id || 0);
+          if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
+          if (pushEnabled) {
+            showFloatingBanner({
+              icon: "🔔",
+              title: data.notification.title || "E-NOTIFICATION ALERT",
+              body: data.notification.body || "New alert from school administration.",
+              time: "Just now",
+              color: "#FCD116"
+            });
+          }
+          if (targetLrn) fetchNotifications(targetLrn);
+        }
+
         // Align baseline IDs if server reports higher pointers
         if (data.latest_log_id && data.latest_log_id > lastEventIdRef.current) {
           if (lastEventIdRef.current === 0) lastEventIdRef.current = data.latest_log_id;
         }
         if (data.latest_announcement_id && data.latest_announcement_id > lastAnnIdRef.current) {
           if (lastAnnIdRef.current === 0) lastAnnIdRef.current = data.latest_announcement_id;
+        }
+        if (data.latest_notification_id && data.latest_notification_id > lastNotifIdRef.current) {
+          if (lastNotifIdRef.current === 0) lastNotifIdRef.current = data.latest_notification_id;
         }
 
         if (data.status) {

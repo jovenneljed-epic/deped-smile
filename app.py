@@ -922,6 +922,11 @@ def parent_portal(lrn=None):
         # Real Database School Events & Activities (cached in memory)
         events = get_all_events_orm()
 
+        # Real Progressive Push Notifications for Learner
+        from smile_orm import get_parent_notifications_orm
+        notifications = get_parent_notifications_orm(lrn=target_lrn, limit=25)
+        latest_notif_id = notifications[0].get('raw_id', 0) if notifications else 0
+
         resp = Response(render_template(
             'parent/app.html',
             school_name=SCHOOL_NAME,
@@ -933,6 +938,8 @@ def parent_portal(lrn=None):
             excuse_notes=excuse_notes,
             announcements=announcements,
             events=events,
+            notifications=notifications,
+            latest_notif_id=latest_notif_id,
             vapid_public_key=smile_config.VAPID_PUBLIC_KEY,
             today_date=pht_now().strftime("%A, %B %d, %Y"),
             today_iso=pht_now().date().isoformat()
@@ -1380,13 +1387,17 @@ def api_parent_poll(lrn):
     Synchronously monitors:
     1. New gate attendance transactions recorded since last_id
     2. New DepEd school announcements & advisories published since last_ann_id
-    3. Child's real-time campus status (INSIDE_CAMPUS / SAFELY_EXITED / AWAITING_ARRIVAL)
+    3. New push notifications & progressive workflow alerts published since last_notif_id
+    4. Child's real-time campus status (INSIDE_CAMPUS / SAFELY_EXITED / AWAITING_ARRIVAL)
     """
-    from smile_orm import AttendanceLog, Announcement, Session, Student
-    last_id_param = request.args.get('last_id')
+    from smile_orm import AttendanceLog, Announcement, Session, Student, ParentNotification
+    last_id_param = request.args.get('last_id') or request.args.get('last_scan_id')
     last_ann_id_param = request.args.get('last_ann_id')
-    last_id = int(last_id_param) if last_id_param is not None else None
-    last_ann_id = int(last_ann_id_param) if last_ann_id_param is not None else None
+    last_notif_id_param = request.args.get('last_notif_id')
+    
+    last_id = int(last_id_param) if last_id_param is not None and str(last_id_param).isdigit() else None
+    last_ann_id = int(last_ann_id_param) if last_ann_id_param is not None and str(last_ann_id_param).isdigit() else None
+    last_notif_id = int(last_notif_id_param) if last_notif_id_param is not None and str(last_notif_id_param).isdigit() else None
     clean_lrn = str(lrn).strip()
 
     session = Session()
@@ -1432,14 +1443,37 @@ def api_parent_poll(lrn):
         elif request.args.get('initial') == '1':
             new_ann = latest_ann_val
 
+        # Check progressive push notifications published since last_notif_id
+        notif_query = session.query(ParentNotification).filter(
+            (ParentNotification.lrn == clean_lrn) |
+            (ParentNotification.lrn == "ALL") |
+            (ParentNotification.lrn == "") |
+            (ParentNotification.lrn.is_(None))
+        )
+        latest_notif_val = notif_query.order_by(ParentNotification.id.desc()).first()
+        latest_notif_id_val = latest_notif_val.id if latest_notif_val else 0
+
+        new_notif = None
+        if last_notif_id is not None:
+            new_notif = notif_query.filter(
+                ParentNotification.id > last_notif_id
+            ).order_by(ParentNotification.id.asc()).first()
+        elif request.args.get('initial') == '1':
+            new_notif = latest_notif_val
+
         res_data = {
             "has_new": (new_log is not None),
+            "has_update": (new_log is not None),
             "event": new_log.to_dict() if new_log else None,
+            "latest_scan": new_log.to_dict() if new_log else None,
             "status": status_text,
             "latest_log_id": latest_id_val,
             "has_new_announcement": (new_ann is not None),
             "announcement": new_ann.to_dict() if new_ann else None,
             "latest_announcement_id": latest_ann_id_val,
+            "has_new_notification": (new_notif is not None),
+            "notification": new_notif.to_dict() if new_notif else None,
+            "latest_notification_id": latest_notif_id_val,
             "server_time": pht_now().strftime("%I:%M %p")
         }
         return jsonify(res_data)
@@ -1522,10 +1556,10 @@ def api_parent_qr_code():
 
 @app.route('/api/parent/test-notification', methods=['POST'])
 def api_parent_test_notification():
-    """Generates a test push & alert payload for the active learner and dispatches real WebPush."""
-    data = request.json or {}
+    """Generates a test push & alert payload for the active learner and dispatches real WebPush & Expo."""
+    data = request.get_json(silent=True) or {}
     lrn = data.get('lrn', '').strip()
-    from smile_orm import Student, Session, dispatch_web_push_notification
+    from smile_orm import Student, Session, dispatch_web_push_notification, dispatch_expo_push_notification, create_parent_notification_orm
     session = Session()
     try:
         student = session.query(Student).filter_by(lrn=str(lrn)).first() if lrn else session.query(Student).first()
@@ -1546,6 +1580,17 @@ def api_parent_test_notification():
                 import time
                 time.sleep(delay_seconds)
                 try:
+                    create_parent_notification_orm(
+                        lrn=student_lrn,
+                        title=notif_title,
+                        body=notif_body,
+                        category="ATTENDANCE",
+                        priority="HIGH",
+                        workflow_key="test_gate_scan"
+                    )
+                except Exception as _ne:
+                    print(f"[Push] Delayed DB record error: {_ne}")
+                try:
                     dispatch_web_push_notification(
                         lrn=student_lrn,
                         title=notif_title,
@@ -1555,8 +1600,27 @@ def api_parent_test_notification():
                     )
                 except Exception as _pe:
                     print(f"[Push] Delayed test dispatch error: {_pe}")
+                try:
+                    dispatch_expo_push_notification(
+                        title=notif_title,
+                        body=notif_body,
+                        lrn=student_lrn,
+                        data={"type": "GATE_SCAN", "lrn": student_lrn}
+                    )
+                except Exception as _ee:
+                    print(f"[Push] Delayed Expo test error: {_ee}")
             threading.Thread(target=delayed_push, daemon=True).start()
         else:
+            # Insert real ParentNotification in DB so all polling mobile apps see it instantly!
+            create_parent_notification_orm(
+                lrn=student_lrn,
+                title=notif_title,
+                body=notif_body,
+                category="ATTENDANCE",
+                priority="HIGH",
+                workflow_key="test_gate_scan"
+            )
+
             # Dispatch real background WebPush immediately
             try:
                 pushed_count = dispatch_web_push_notification(
@@ -1568,6 +1632,17 @@ def api_parent_test_notification():
                 )
             except Exception as _pe:
                 print(f"[Push] Test dispatch error: {_pe}")
+
+            # Dispatch real background Expo notification immediately
+            try:
+                dispatch_expo_push_notification(
+                    title=notif_title,
+                    body=notif_body,
+                    lrn=student_lrn,
+                    data={"type": "GATE_SCAN", "lrn": student_lrn}
+                )
+            except Exception as _ee:
+                print(f"[Push] Expo dispatch error: {_ee}")
 
         return jsonify({
             "success": True,
@@ -2045,17 +2120,58 @@ def api_automations_executions():
 
 @app.route('/api/automations/test-push', methods=['POST'])
 def api_automations_test_push():
-    """Sends a quick test push notification payload to verify browser integration."""
+    """Sends a real test push notification to all registered browser & mobile devices."""
+    from smile_orm import create_parent_notification_orm, dispatch_web_push_notification, dispatch_expo_push_notification
+    import time
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or "DepEd S.M.I.L.E. Push Notification Test").strip()
+    body = (data.get('body') or "Official Push Alert: Real-time notification, phone vibration, and audio chime verified at Don Montano CIS.").strip()
+
+    # 1. Create real ParentNotification in DB so all active mobile apps see it instantly in their polling loop
+    notif = create_parent_notification_orm(
+        lrn="ALL",
+        title=title,
+        body=body,
+        category="ADVISORY",
+        priority="HIGH",
+        workflow_key="wf_test_push"
+    )
+
+    # 2. Dispatch real WebPush to registered browsers and PWA mobile app service workers
+    webpush_count = 0
+    try:
+        webpush_count = dispatch_web_push_notification(
+            lrn="ALL",
+            title=title,
+            body=body,
+            tag=f"test-push-{int(time.time())}"
+        )
+    except Exception as _wp_err:
+        print(f"[Push Test] WebPush notice: {_wp_err}")
+
+    # 3. Dispatch real Expo push notification to native mobile companion apps
+    expo_count = 0
+    try:
+        expo_count = dispatch_expo_push_notification(
+            title=title,
+            body=body,
+            lrn="ALL",
+            data={"type": "TEST_PUSH", "timestamp": pht_now().isoformat()}
+        )
+    except Exception as _exp_err:
+        print(f"[Push Test] Expo notice: {_exp_err}")
+
     return jsonify({
         "success": True,
-        "message": "Push notification payload generated successfully.",
+        "message": f"Push notification dispatched! Delivered to {webpush_count} browser(s) and {expo_count} mobile device(s).",
+        "notification": notif,
         "payload": {
-            "title": "DepEd S.M.I.L.E. Push Notification Test",
-            "body": "System notifications are active and connected to Don Montano Central Integrated School.",
+            "title": title,
+            "body": body,
             "icon": "/static/images/pwa_icon_192.png",
             "badge": "/static/images/apple_touch_icon.png",
             "sound": "gate_alert.wav",
-            "vibrate": [300, 100, 300],
+            "vibrate": [500, 150, 500, 150, 500],
             "timestamp": pht_now().strftime("%I:%M %p")
         }
     })
@@ -2063,7 +2179,8 @@ def api_automations_test_push():
 @app.route('/api/mobile/broadcast', methods=['POST'])
 def api_mobile_broadcast():
     """Broadcasts a manual push alert to parent mobile apps."""
-    from smile_orm import get_all_enrolled_students_orm, create_parent_notification_orm
+    from smile_orm import get_all_enrolled_students_orm, create_parent_notification_orm, dispatch_web_push_notification, dispatch_expo_push_notification
+    import time
     data = request.json or {}
     title = data.get('title', '').strip()
     body = data.get('body', '').strip()
@@ -2079,7 +2196,7 @@ def api_mobile_broadcast():
         if not targets:
             # Broadcast to all
             create_parent_notification_orm(
-                lrn=None,
+                lrn="ALL",
                 title=title,
                 body=body,
                 category=category,
@@ -2099,9 +2216,19 @@ def api_mobile_broadcast():
                 )
             count = len(targets)
 
-        # Dispatch real-time Expo push notification to parent devices
+        # 1. Dispatch real WebPush to parent browser & PWA devices
         try:
-            from smile_orm import dispatch_expo_push_notification
+            dispatch_web_push_notification(
+                lrn="ALL",
+                title=f"📢 {title}",
+                body=body,
+                tag=f"broadcast-{int(time.time())}"
+            )
+        except Exception as _wp_err:
+            print(f"[!] Broadcast WebPush notice: {_wp_err}")
+
+        # 2. Dispatch real Expo push notification to parent devices
+        try:
             dispatch_expo_push_notification(
                 title=f"📢 {title}",
                 body=body,
@@ -2109,7 +2236,7 @@ def api_mobile_broadcast():
                 data={"type": "ANNOUNCEMENT", "title": title, "category": category}
             )
         except Exception as _b_err:
-            print(f"[!] Broadcast push notice: {_b_err}")
+            print(f"[!] Broadcast Expo push notice: {_b_err}")
 
         return jsonify({"success": True, "message": f"Broadcast sent to {count} parent recipient channel(s) successfully!"})
     except Exception as e:

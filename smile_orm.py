@@ -4290,7 +4290,7 @@ def get_parent_notifications_orm(lrn=None, limit=25):
         query = session.query(ParentNotification)
         if lrn:
             clean_lrn = str(lrn).strip()
-            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == None) | (ParentNotification.lrn == ''))
+            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == 'ALL') | (ParentNotification.lrn == None) | (ParentNotification.lrn == ''))
         items = query.order_by(ParentNotification.id.desc()).limit(limit).all()
         return [i.to_dict() for i in items]
     except Exception as e:
@@ -4306,7 +4306,7 @@ def mark_parent_notifications_read_orm(lrn=None):
         query = session.query(ParentNotification).filter_by(is_read=False)
         if lrn:
             clean_lrn = str(lrn).strip()
-            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == None))
+            query = query.filter((ParentNotification.lrn == clean_lrn) | (ParentNotification.lrn == 'ALL') | (ParentNotification.lrn == None))
         updated = query.update({ParentNotification.is_read: True})
         session.commit()
         return updated

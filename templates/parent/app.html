@@ -164,7 +164,7 @@
         <div class="flex items-center gap-2.5">
           <img src="/static/images/project_smile_logo.png" alt="Project S.M.I.L.E." class="w-9 h-9 rounded-lg object-contain drop-shadow shrink-0 border border-amber-400/30">
           <div>
-            <span class="text-[10px] font-black uppercase tracking-wider text-amber-300 block">S.M.I.L.E. Parent</span>
+            <span class="text-[10px] font-black uppercase tracking-wider text-amber-300 block">DepEd Parent App</span>
             <h1 class="text-xs font-bold text-white truncate max-w-[170px]">{{ school_name }}</h1>
           </div>
         </div>
@@ -490,7 +490,27 @@
         </div>
         {% endfor %}
 
-        {% if not logs and not (announcements|selectattr('is_urgent')|list) %}
+        {% for n in notifications %}
+        <div class="p-3.5 rounded-2xl bg-white border border-amber-200/80 shadow-sm flex items-start gap-3">
+          <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+            <i class="fa-solid {{ n.icon or 'fa-bell' }}"></i>
+          </div>
+          <div class="flex-grow">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-slate-900">{{ n.title }}</span>
+              <span class="text-[10px] font-mono text-slate-400">{{ n.timestamp }}</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-0.5 leading-snug">
+              {{ n.body }}
+            </p>
+            <span class="inline-flex items-center gap-1 text-[9px] text-amber-600 font-semibold mt-1">
+              <i class="fa-solid fa-bolt text-[8px]"></i> Progressive Push Alert
+            </span>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% if not logs and not (announcements|selectattr('is_urgent')|list) and not notifications %}
         <div class="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
           <i class="fa-solid fa-bell-slash text-3xl text-slate-300"></i>
           <p class="text-xs font-medium">No alerts recorded yet today.</p>
@@ -1067,6 +1087,7 @@
     const parentName = "{{ active_student.parent_name if active_student else 'Parent' }}";
     let lastEventId = {% if latest_log %}{{ latest_log.id }}{% else %}0{% endif %};
     let lastAnnId = {% if announcements and announcements|length > 0 %}{{ announcements[0].id }}{% else %}0{% endif %};
+    let lastNotifId = {{ latest_notif_id or 0 }};
 
     // -------------------------------------------------------------
     // PWA Native Installation Engine
@@ -1615,6 +1636,32 @@
           registerDevicePushSubscription(reg);
         }
       });
+
+      // React immediately to push messages broadcast by Service Worker
+      navigator.serviceWorker.addEventListener('message', event => {
+        const msg = event.data || {};
+        if (msg.type === 'PUSH_NOTIFICATION_RECEIVED') {
+          playChime(true);
+          vibratePhone();
+          showFloatingPushBanner(
+            msg.title || "DepEd Push Alert",
+            msg.body || "New push notification received.",
+            "Just Now",
+            true,
+            "fa-solid fa-bell",
+            "w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-teal-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md"
+          );
+          if (msg.title || msg.body) {
+            prependNotificationCard({
+              title: msg.title || "DepEd Alert",
+              body: msg.body || "",
+              timestamp: "Just Now",
+              color: "amber",
+              icon: "fa-bell"
+            });
+          }
+        }
+      });
     }
 
     // Child Switcher
@@ -1735,6 +1782,84 @@
         alertsFeed.insertBefore(notifCard, alertsFeed.firstChild);
         setTimeout(() => notifCard.classList.remove('animate-pulse'), 3000);
       }
+
+      // Increment badge counts
+      const unreadBadge = document.getElementById('unreadNotifBadge');
+      const navBadge = document.getElementById('navAlertBadge');
+      [unreadBadge, navBadge].forEach(badge => {
+        if (badge) {
+          const currentCount = parseInt(badge.innerText || '0') + 1;
+          badge.innerText = currentCount;
+          badge.classList.remove('hidden');
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Real-Time Progressive Push Notification & Broadcast Alert Handler
+    // -------------------------------------------------------------
+    function triggerPushNotificationAlert(notif) {
+      if (!notif) return;
+
+      // 1. Audio chime feedback
+      playChime(true);
+
+      // 2. Real phone vibration
+      vibratePhone();
+
+      // 3. Shopee / TikTok style floating heads-up banner at top of mobile screen
+      showFloatingPushBanner(
+        notif.title || "DepEd Push Notification",
+        notif.body || "New alert from school administration.",
+        notif.timestamp || "Just Now",
+        true,
+        notif.icon ? `fa-solid ${notif.icon}` : "fa-solid fa-bell",
+        notif.is_urgent
+          ? "w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-700 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md animate-bounce"
+          : "w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-md"
+      );
+
+      // 4. Native system lockscreen / desktop notification
+      showSystemNotification(
+        notif.title || "DepEd S.M.I.L.E. Alert",
+        notif.body || "New notification received.",
+        `wf-${notif.raw_id || Date.now()}`,
+        { url: `/parent?lrn=${studentLrn}` }
+      );
+
+      // 5. Prepend to Notifications tab list and update unread badges
+      prependNotificationCard(notif);
+    }
+
+    function prependNotificationCard(n) {
+      const alertsFeed = document.getElementById('alertsFeedList');
+      if (!alertsFeed) return;
+
+      const card = document.createElement('div');
+      card.className = "p-3.5 rounded-2xl bg-white border border-amber-300 dark:border-amber-400 shadow-md flex items-start gap-3 transition-all animate-pulse";
+      const icon = n.icon || 'fa-bell';
+      const color = n.color || 'amber';
+
+      card.innerHTML = `
+        <div class="w-9 h-9 rounded-xl bg-${color}-50 text-${color}-600 border border-${color}-200 flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">
+          <i class="fa-solid ${icon}"></i>
+        </div>
+        <div class="flex-grow">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black uppercase text-slate-900">${n.title}</span>
+            <span class="text-[10px] font-mono text-slate-400">${n.timestamp || 'Just Now'}</span>
+          </div>
+          <p class="text-xs text-slate-600 mt-0.5 leading-snug">
+            ${n.body}
+          </p>
+          <span class="inline-flex items-center gap-1 text-[9px] text-amber-600 font-semibold mt-1">
+            <i class="fa-solid fa-bolt text-[8px]"></i> Real-Time Progressive Push Alert
+          </span>
+        </div>
+      `;
+
+      alertsFeed.insertBefore(card, alertsFeed.firstChild);
+      setTimeout(() => card.classList.remove('animate-pulse'), 3000);
 
       // Increment badge counts
       const unreadBadge = document.getElementById('unreadNotifBadge');
@@ -1882,11 +2007,11 @@
     }
 
     // -------------------------------------------------------------
-    // Polling for Live Gate Scans & School Advisories
+    // Polling for Live Gate Scans, School Advisories & Push Alerts
     // -------------------------------------------------------------
     setInterval(async () => {
       try {
-        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}&last_ann_id=${lastAnnId}`);
+        const res = await fetch(`/api/parent/poll/${studentLrn}?last_id=${lastEventId}&last_ann_id=${lastAnnId}&last_notif_id=${lastNotifId}`);
         const data = await res.json();
         if (data.has_new && data.event) {
           lastEventId = data.event.id;
@@ -1905,6 +2030,10 @@
           );
           playChime(true);
           vibratePhone();
+        }
+        if (data.has_new_notification && data.notification) {
+          lastNotifId = data.notification.raw_id || data.latest_notification_id || (lastNotifId + 1);
+          triggerPushNotificationAlert(data.notification);
         }
       } catch(e) {}
     }, 2500);

@@ -3,6 +3,27 @@ const API_BASE = "https://deped-smile.vercel.app";
 let currentLrn = localStorage.getItem("smile_parent_lrn") || "";
 let pollTimer = null;
 let lastScanId = null;
+let lastAnnId = null;
+let lastNotifId = null;
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) audioCtx = new AudioCtx();
+  }
+  return audioCtx;
+}
+
+// User-interaction unlock for mobile audio autoplay policies
+['click', 'touchstart', 'touchend', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    try {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    } catch(e) {}
+  }, { once: false });
+});
 
 // Initialize App
 document.addEventListener("DOMContentLoaded", () => {
@@ -301,44 +322,130 @@ function startPolling() {
   pollTimer = setInterval(async () => {
     if (!currentLrn) return;
     try {
-      const res = await fetch(`${API_BASE}/api/parent/poll/${currentLrn}?last_scan_id=${lastScanId || 0}`);
+      const scanParam = (lastScanId !== null) ? `last_scan_id=${lastScanId}&last_id=${lastScanId}` : 'initial=1';
+      const annParam = (lastAnnId !== null) ? `&last_ann_id=${lastAnnId}` : '';
+      const notifParam = (lastNotifId !== null) ? `&last_notif_id=${lastNotifId}` : '';
+
+      const res = await fetch(`${API_BASE}/api/parent/poll/${currentLrn}?${scanParam}${annParam}${notifParam}`);
       const data = await res.json();
+
+      // Initialize baselines on initial poll
+      if (lastScanId === null && data.latest_log_id !== undefined) lastScanId = data.latest_log_id;
+      if (lastAnnId === null && data.latest_announcement_id !== undefined) lastAnnId = data.latest_announcement_id;
+      if (lastNotifId === null && data.latest_notification_id !== undefined) lastNotifId = data.latest_notification_id;
+
       if (data.has_update && data.latest_scan) {
         lastScanId = data.latest_scan.id;
         triggerGateAlert(data.latest_scan);
         loadDashboardData();
       }
+
+      if (data.has_new_announcement && data.announcement) {
+        lastAnnId = data.announcement.id;
+        triggerAnnouncementAlert(data.announcement);
+        loadAnnouncements();
+      }
+
+      if (data.has_new_notification && data.notification) {
+        lastNotifId = data.notification.raw_id || data.latest_notification_id || ((lastNotifId || 0) + 1);
+        triggerNotificationAlert(data.notification);
+        loadNotifications();
+      }
     } catch (e) {}
-  }, 8000);
+  }, 2500);
 }
 
 function triggerGateAlert(scan) {
-  testAppChime();
+  testAppChime(false);
+  vibratePhone([400, 150, 400]);
   const banner = document.getElementById("liveBanner");
   const title = document.getElementById("bannerTitle");
   const desc = document.getElementById("bannerDesc");
 
-  title.innerText = scan.scan_type === "TIME_IN" ? "STUDENT ENTERED CAMPUS" : "STUDENT SAFELY EXITED";
-  desc.innerText = `Verified at ${scan.time_formatted} (${scan.verification_method || 'AI Gate'}).`;
-  banner.classList.remove("hidden");
-  setTimeout(() => banner.classList.add("hidden"), 8000);
+  if (banner && title && desc) {
+    banner.className = "mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce transition-all";
+    title.innerText = scan.scan_type === "TIME_IN" ? "STUDENT ENTERED CAMPUS" : "STUDENT SAFELY EXITED";
+    desc.innerText = `Verified at ${scan.time_formatted} (${scan.verification_method || 'AI Gate'}).`;
+    banner.classList.remove("hidden");
+    setTimeout(() => banner.classList.add("hidden"), 8000);
+  }
 }
 
-function testAppChime() {
+function triggerAnnouncementAlert(ann) {
+  testAppChime(ann.is_urgent);
+  vibratePhone([500, 100, 500]);
+  const banner = document.getElementById("liveBanner");
+  const title = document.getElementById("bannerTitle");
+  const desc = document.getElementById("bannerDesc");
+
+  if (banner && title && desc) {
+    banner.className = ann.is_urgent
+      ? "mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-lg animate-bounce transition-all"
+      : "mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-blue-700 text-white shadow-lg animate-bounce transition-all";
+    title.innerText = ann.is_urgent ? "🚨 URGENT SCHOOL ADVISORY" : "📢 DEPED ANNOUNCEMENT";
+    desc.innerText = `${ann.title}: ${ann.content || ''}`;
+    banner.classList.remove("hidden");
+    setTimeout(() => banner.classList.add("hidden"), 8000);
+  }
+}
+
+function triggerNotificationAlert(notif) {
+  testAppChime(true);
+  vibratePhone([400, 150, 400, 150, 400]);
+  const banner = document.getElementById("liveBanner");
+  const title = document.getElementById("bannerTitle");
+  const desc = document.getElementById("bannerDesc");
+
+  if (banner && title && desc) {
+    banner.className = "mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-indigo-700 text-white shadow-lg animate-bounce transition-all";
+    title.innerText = notif.title || "DEPED PUSH NOTIFICATION";
+    desc.innerText = notif.body || "New alert from school administration.";
+    banner.classList.remove("hidden");
+    setTimeout(() => {
+      banner.classList.add("hidden");
+      banner.className = "hidden mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg animate-bounce transition-all";
+    }, 8000);
+  }
+}
+
+function vibratePhone(pattern = [300, 100, 300]) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(587.33, now);
-    osc.frequency.setValueAtTime(880.00, now + 0.15);
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.7);
+    if ("vibrate" in navigator) {
+      navigator.vibrate(pattern);
+    }
+  } catch (e) {}
+}
+
+function testAppChime(isUrgent = false) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const play = () => {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      if (isUrgent) {
+        osc.frequency.setValueAtTime(880.00, now);
+        osc.frequency.setValueAtTime(1174.66, now + 0.12);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      } else {
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.15);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+      }
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.7);
+    };
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(play).catch(play);
+    } else {
+      play();
+    }
   } catch (e) {}
 }
 
