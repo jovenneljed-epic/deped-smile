@@ -452,7 +452,7 @@ export default function App() {
         // Handle new push notification & progressive automation alert in real time!
         if (data.has_new_notification && data.notification) {
           lastNotifIdRef.current = Math.max(lastNotifIdRef.current, data.notification.raw_id || data.latest_notification_id || 0);
-          if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
+          if (vibrateEnabled) Vibration.vibrate([0, 500, 150, 500]);
           if (pushEnabled) {
             showFloatingBanner({
               icon: "🔔",
@@ -462,6 +462,23 @@ export default function App() {
               color: "#FCD116"
             });
           }
+          try {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: data.notification.title || "🔔 DepEd S.M.I.L.E. Alert",
+                body: data.notification.body || "New alert from school administration.",
+                sound: 'default',
+                channelId: 'gate-attendance-channel',
+                priority: Notifications.AndroidNotificationPriority.MAX,
+                vibrate: [0, 500, 200, 500],
+                data: {
+                  type: "PUSH_NOTIFICATION",
+                  ...data.notification
+                }
+              },
+              trigger: null,
+            });
+          } catch (_) {}
           if (targetLrn) fetchNotifications(targetLrn);
         }
 
@@ -558,7 +575,8 @@ export default function App() {
         content: {
           title: isEntry ? "🟢 CAMPUS ARRIVAL ALERT" : "🟠 CAMPUS DEPARTURE ALERT",
           body: `${eventData.student_name || "Student"} safely ${isEntry ? "entered" : "safely exited from"} Don Montano CIS Gate 1 (${eventData.time_formatted || "Just now"}).`,
-          sound: true,
+          sound: 'default',
+          channelId: 'gate-attendance-channel',
           priority: Notifications.AndroidNotificationPriority.MAX,
           vibrate: [0, 500, 250, 500],
           data: {
@@ -608,7 +626,8 @@ export default function App() {
         content: {
           title: ann.is_urgent ? "🚨 URGENT DepEd School Advisory" : "📢 DepEd School Announcement",
           body: `${ann.title}: ${ann.content || ann.message || ann.body || ""}`,
-          sound: true,
+          sound: 'default',
+          channelId: 'gate-attendance-channel',
           priority: Notifications.AndroidNotificationPriority.MAX,
           vibrate: [0, 600, 200, 600],
           data: {
@@ -676,7 +695,26 @@ export default function App() {
   };
 
   // Quick Test Simulation
-  const handleTestAlert = () => {
+  const handleTestAlert = async () => {
+    // 1. Immediately request / ensure notification permissions on Android 13+
+    try {
+      const { status: permStatus } = await Notifications.getPermissionsAsync();
+      if (permStatus !== 'granted') {
+        const { status: newStatus } = await Notifications.requestPermissionsAsync();
+        if (newStatus !== 'granted') {
+          Alert.alert(
+            "Notification Permission Required",
+            "Please allow Notifications in Android Settings for DepEd Project S.M.I.L.E. to receive sound and vibration alerts."
+          );
+        }
+      }
+    } catch (_) {}
+
+    // 2. Hardware vibration pulse
+    try {
+      Vibration.vibrate(600);
+    } catch (_) {}
+
     const isArrival = status !== "INSIDE_CAMPUS";
     const simulatedEvent = {
       id: Date.now(),
@@ -689,6 +727,15 @@ export default function App() {
       remarks: "Official Gate Verification • Biometric Matched"
     };
     triggerGateAlert(simulatedEvent);
+
+    // 3. Dispatch to backend test notification API so cloud server records it
+    try {
+      fetch(`${serverUrl}/api/parent/test-notification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrn: activeLrn || (student ? student.lrn : "") })
+      }).catch(() => {});
+    } catch (_) {}
   };
 
   // Submit Excuse Note

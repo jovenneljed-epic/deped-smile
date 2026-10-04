@@ -2322,7 +2322,7 @@ def api_mobile_notifications(lrn):
 def api_mobile_notifications_mark_read():
     """Marks all notifications as read for a learner."""
     from smile_orm import mark_parent_notifications_read_orm
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     lrn = str(data.get('lrn', '')).strip()
     try:
         updated = mark_parent_notifications_read_orm(lrn=lrn)
@@ -2335,7 +2335,7 @@ def api_mobile_register_push_token():
     """Registers a native Expo push token for locked-screen push alerts."""
     from smile_orm import save_parent_device_token_orm
     try:
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         token = data.get('token', '').strip()
         lrn = data.get('lrn', '').strip() or None
         platform = data.get('platform', 'android').strip()
