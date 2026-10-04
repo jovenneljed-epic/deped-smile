@@ -16,7 +16,8 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Platform
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -138,6 +139,10 @@ export default function App() {
   const [tempLrn, setTempLrn] = useState(DEFAULT_LRN);
 
   // Dual Portal Mode State: 'PARENT' | 'STAFF'
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginPortal, setLoginPortal] = useState('PARENT'); // 'PARENT' | 'STAFF'
+  const [loginLrnInput, setLoginLrnInput] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const [portalMode, setPortalMode] = useState('PARENT');
   const [staffUser, setStaffUser] = useState(null);
   const [staffEmpNo, setStaffEmpNo] = useState('');
@@ -333,52 +338,45 @@ export default function App() {
         if (data.enrolled_students && data.enrolled_students.length > 0) {
           setEnrolledStudents(data.enrolled_students);
           setSiblings(data.enrolled_students);
+          if (!loginLrnInput) setLoginLrnInput(data.enrolled_students[0].lrn);
         }
 
-        let targetStudent = data.active_student;
-        if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
-          targetStudent = data.enrolled_students[0];
-        }
-
-        if (targetStudent) {
-          setStudent(targetStudent);
-          setActiveLrn(targetStudent.lrn);
-          setTempLrn(targetStudent.lrn);
-
-          if (data.latest_log_id !== undefined) {
-            lastEventIdRef.current = data.latest_log_id;
-          }
-          if (data.latest_announcement_id !== undefined) {
-            lastAnnIdRef.current = data.latest_announcement_id;
+        // Only auto-attach student if user is already logged in or an explicit LRN was requested
+        if (preferredLrn || isLoggedIn) {
+          let targetStudent = data.active_student;
+          if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
+            targetStudent = data.enrolled_students.find(s => s.lrn === lrnParam) || data.enrolled_students[0];
           }
 
-          // Fetch full dashboard data and notifications
-          await fetchDashboardData(targetStudent.lrn);
-          await fetchNotifications(targetStudent.lrn);
+          if (targetStudent) {
+            setStudent(targetStudent);
+            setActiveLrn(targetStudent.lrn);
+            setTempLrn(targetStudent.lrn);
 
-          // Check for pending unacknowledged gate logs today
-          try {
-            const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${targetStudent.lrn}`);
-            const ackData = await ackRes.json();
-            if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
-              const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
-              if (unack.length > 0) {
-                setAckLog(unack[0]);
-                setAckModalVisible(true);
-              }
+            if (data.latest_log_id !== undefined) {
+              lastEventIdRef.current = data.latest_log_id;
             }
-          } catch (_) {}
+            if (data.latest_announcement_id !== undefined) {
+              lastAnnIdRef.current = data.latest_announcement_id;
+            }
 
-          startPolling(targetStudent.lrn);
-        } else {
-          // Zero dummy records fallback
-          setStudent(null);
-          setActiveLrn("");
-          setTempLrn("");
-          setTodayLogs([]);
-          setLatestLog(null);
-          setStatus("AWAITING_ENROLLMENT");
-          startPolling("");
+            await fetchDashboardData(targetStudent.lrn);
+            await fetchNotifications(targetStudent.lrn);
+
+            try {
+              const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${targetStudent.lrn}`);
+              const ackData = await ackRes.json();
+              if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
+                const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+                if (unack.length > 0) {
+                  setAckLog(unack[0]);
+                  setAckModalVisible(true);
+                }
+              }
+            } catch (_) {}
+
+            startPolling(targetStudent.lrn);
+          }
         }
       }
     } catch (err) {
@@ -393,16 +391,21 @@ export default function App() {
             if (localData.enrolled_students) {
               setEnrolledStudents(localData.enrolled_students);
               setSiblings(localData.enrolled_students);
+              if (!loginLrnInput && localData.enrolled_students[0]) {
+                setLoginLrnInput(localData.enrolled_students[0].lrn);
+              }
             }
-            if (localData.active_student) {
-              setStudent(localData.active_student);
-              setActiveLrn(localData.active_student.lrn);
-              setTempLrn(localData.active_student.lrn);
-              if (localData.latest_log_id !== undefined) lastEventIdRef.current = localData.latest_log_id;
-              if (localData.latest_announcement_id !== undefined) lastAnnIdRef.current = localData.latest_announcement_id;
-              fetchDashboardData(localData.active_student.lrn);
-              fetchNotifications(localData.active_student.lrn);
-              startPolling(localData.active_student.lrn);
+            if (preferredLrn || isLoggedIn) {
+              if (localData.active_student) {
+                setStudent(localData.active_student);
+                setActiveLrn(localData.active_student.lrn);
+                setTempLrn(localData.active_student.lrn);
+                if (localData.latest_log_id !== undefined) lastEventIdRef.current = localData.latest_log_id;
+                if (localData.latest_announcement_id !== undefined) lastAnnIdRef.current = localData.latest_announcement_id;
+                fetchDashboardData(localData.active_student.lrn);
+                fetchNotifications(localData.active_student.lrn);
+                startPolling(localData.active_student.lrn);
+              }
             }
           }
         } catch (_) {}
@@ -410,6 +413,110 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleParentLogin = async (preferredLrn) => {
+    const targetLrn = (preferredLrn || loginLrnInput || "").trim();
+    if (!targetLrn) {
+      Alert.alert("LRN Required", "Please enter a 12-digit Learner Reference Number (LRN).");
+      return;
+    }
+    setLoginLoading(true);
+    try {
+      const res = await fetch(`${serverUrl}/api/mobile/bootstrap?lrn=${targetLrn}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        if (data.school_name) setSchoolName(data.school_name);
+        if (data.enrolled_students && data.enrolled_students.length > 0) {
+          setEnrolledStudents(data.enrolled_students);
+          setSiblings(data.enrolled_students);
+        }
+
+        let targetStudent = data.active_student;
+        if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
+          targetStudent = data.enrolled_students.find(s => s.lrn === targetLrn) || data.enrolled_students[0];
+        }
+
+        if (targetStudent) {
+          setStudent(targetStudent);
+          setActiveLrn(targetStudent.lrn);
+          setTempLrn(targetStudent.lrn);
+
+          if (data.latest_log_id !== undefined) lastEventIdRef.current = data.latest_log_id;
+          if (data.latest_announcement_id !== undefined) lastAnnIdRef.current = data.latest_announcement_id;
+
+          await fetchDashboardData(targetStudent.lrn);
+          await fetchNotifications(targetStudent.lrn);
+
+          if (expoPushToken) {
+            sendPushTokenToBackend(expoPushToken, targetStudent.lrn);
+          }
+
+          try {
+            const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${targetStudent.lrn}`);
+            const ackData = await ackRes.json();
+            if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
+              const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+              if (unack.length > 0) {
+                setAckLog(unack[0]);
+                setAckModalVisible(true);
+              }
+            }
+          } catch (_) {}
+
+          startPolling(targetStudent.lrn);
+          setPortalMode('PARENT');
+          setIsLoggedIn(true);
+
+          if (vibrateEnabled) Vibration.vibrate([0, 100, 50, 100]);
+        } else {
+          Alert.alert("Learner Not Found", `No enrolled learner found with LRN: ${targetLrn}`);
+        }
+      } else {
+        Alert.alert("Login Failed", data.message || "Could not retrieve student records.");
+      }
+    } catch (err) {
+      console.warn("Parent login notice:", err.message);
+      const localMatch = enrolledStudents.find(s => s.lrn === targetLrn);
+      if (localMatch) {
+        setStudent(localMatch);
+        setActiveLrn(localMatch.lrn);
+        setTempLrn(localMatch.lrn);
+        fetchDashboardData(localMatch.lrn);
+        fetchNotifications(localMatch.lrn);
+        startPolling(localMatch.lrn);
+        setPortalMode('PARENT');
+        setIsLoggedIn(true);
+      } else {
+        Alert.alert("Connection Note", "Could not reach DepEd server. Check network or Settings.");
+      }
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Sign Out",
+      "Return to the Portal Login screen?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: () => {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            setIsLoggedIn(false);
+            setStaffUser(null);
+            setStaffDtr(null);
+            setStaffSection(null);
+            if (vibrateEnabled) Vibration.vibrate(30);
+          }
+        }
+      ]
+    );
   };
 
   // -------------------------------------------------------------
@@ -976,15 +1083,17 @@ export default function App() {
         setStaffUser(data.staff);
         setStaffDtr(data.today_status || null);
         setStaffActiveTab('dtr');
+        setPortalMode('STAFF');
+        setIsLoggedIn(true);
         if (vibrateEnabled) Vibration.vibrate([0, 150, 80, 150]);
         fetchStaffHome(data.staff.id);
-        showFloatingBanner(
-          "FACULTY PORTAL ACTIVE",
-          `Signed in as ${data.staff.full_name} (${data.staff.employee_number || data.staff.username})`,
-          "Just now",
-          "👨‍🏫",
-          "#10B981"
-        );
+        showFloatingBanner({
+          icon: "👨‍🏫",
+          title: "FACULTY PORTAL ACTIVE",
+          body: `Signed in as ${data.staff.full_name} (${data.staff.employee_number || data.staff.username})`,
+          time: "Just now",
+          color: "#10B981"
+        });
       } else {
         Alert.alert("Login Failed", data.message || "Account not found. Please verify your Employee Number.");
       }
@@ -1169,156 +1278,139 @@ export default function App() {
         </View>
       </Animated.View>
 
-      {/* Top Brand Header */}
-      <View style={styles.header}>
-        <View style={styles.headerBrand}>
-          <Image
-            source={require('./assets/logo.png')}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.headerTitle}>PROJECT S.M.I.L.E.</Text>
-              <View style={styles.depedBadge}>
-                <Text style={styles.depedBadgeText}>DepEd</Text>
-              </View>
-            </View>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {schoolName || "Security Monitoring, Incident Logging, and E-notification"}
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <TouchableOpacity
-            style={styles.portalSwitchButton}
-            onPress={() => {
-              const nextMode = portalMode === 'PARENT' ? 'STAFF' : 'PARENT';
-              setPortalMode(nextMode);
-              if (vibrateEnabled) Vibration.vibrate(30);
-            }}
-          >
-            <Text style={styles.portalSwitchButtonText}>
-              {portalMode === 'PARENT' ? '👨‍🏫 Faculty Portal' : '👨‍👩‍👧 Parent Portal'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.notifBellButton}
-            onPress={() => {
-              setNotifModalVisible(true);
-              if (vibrateEnabled) Vibration.vibrate(25);
-            }}
-          >
-            <Text style={styles.notifBellIcon}>🔔</Text>
-            {unreadNotifCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>
-                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+      {!isLoggedIn ? (
+        renderLoginScreen()
+      ) : (
+        <>
+          {/* Top Brand Header */}
+          <View style={styles.header}>
+            <View style={styles.headerBrand}>
+              <Image
+                source={require('./assets/logo.png')}
+                style={styles.headerLogo}
+                resizeMode="contain"
+              />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.headerTitle} numberOfLines={1}>PROJECT S.M.I.L.E.</Text>
+                  <View style={[styles.roleHeaderPill, portalMode === 'STAFF' && styles.roleHeaderPillStaff]}>
+                    <Text style={[styles.roleHeaderPillText, portalMode === 'STAFF' && styles.roleHeaderPillTextStaff]}>
+                      {portalMode === 'STAFF' ? 'FACULTY' : 'PARENT'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {schoolName || "Don Montano Community Integrated School"}
                 </Text>
               </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.notifBellButton}
+                onPress={() => {
+                  setNotifModalVisible(true);
+                  if (vibrateEnabled) Vibration.vibrate(25);
+                }}
+              >
+                <Text style={styles.notifBellIcon}>🔔</Text>
+                {unreadNotifCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>
+                      {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsModalVisible(true)}>
+                <Text style={styles.settingsButtonText}>⚙️</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <Text style={styles.logoutButtonText}>🚪</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Main Tab Content Body */}
+          <View style={styles.tabContentContainer}>
+            {portalMode === 'STAFF' ? (
+              renderStaffPortal()
+            ) : (
+              <>
+                {activeTab === 'gate' && renderGateTab()}
+                {activeTab === 'incidents' && renderIncidentsTab()}
+                {activeTab === 'bulletins' && renderBulletinsTab()}
+                {activeTab === 'events' && renderEventsTab()}
+                {activeTab === 'security' && renderSecurityTab()}
+              </>
             )}
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.settingsButton} onPress={() => setSettingsModalVisible(true)}>
-            <Text style={styles.settingsButtonText}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          {/* Bottom Navigation Tab Bar (Strictly Separated: Parent vs Faculty) */}
+          {portalMode === 'STAFF' ? (
+            <View style={styles.bottomTabBar}>
+              <TouchableOpacity
+                style={[styles.tabButton, staffActiveTab === 'dtr' && styles.tabButtonActive]}
+                onPress={() => { setStaffActiveTab('dtr'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, staffActiveTab === 'dtr' && styles.tabIconActive]}>⏱️</Text>
+                <Text style={[styles.tabLabel, staffActiveTab === 'dtr' && styles.tabLabelActive]}>Form 48 DTR</Text>
+              </TouchableOpacity>
 
-      {/* Main Tab Content Body */}
-      <View style={styles.tabContentContainer}>
-        {portalMode === 'STAFF' ? (
-          renderStaffPortal()
-        ) : (
-          <>
-            {activeTab === 'gate' && renderGateTab()}
-            {activeTab === 'incidents' && renderIncidentsTab()}
-            {activeTab === 'bulletins' && renderBulletinsTab()}
-            {activeTab === 'events' && renderEventsTab()}
-            {activeTab === 'security' && renderSecurityTab()}
-          </>
-        )}
-      </View>
+              <TouchableOpacity
+                style={[styles.tabButton, staffActiveTab === 'advisory' && styles.tabButtonActive]}
+                onPress={() => { setStaffActiveTab('advisory'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, staffActiveTab === 'advisory' && styles.tabIconActive]}>👥</Text>
+                <Text style={[styles.tabLabel, staffActiveTab === 'advisory' && styles.tabLabelActive]}>Advisory</Text>
+              </TouchableOpacity>
 
-      {/* Bottom Navigation Tab Bar (Dynamic: Parent vs Faculty) */}
-      {portalMode === 'STAFF' ? (
-        <View style={styles.bottomTabBar}>
-          <TouchableOpacity
-            style={[styles.tabButton, staffActiveTab === 'dtr' && styles.tabButtonActive]}
-            onPress={() => { setStaffActiveTab('dtr'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, staffActiveTab === 'dtr' && styles.tabIconActive]}>⏱️</Text>
-            <Text style={[styles.tabLabel, staffActiveTab === 'dtr' && styles.tabLabelActive]}>Form 48 DTR</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, staffActiveTab === 'bulletins' && styles.tabButtonActive]}
+                onPress={() => { setStaffActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, staffActiveTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
+                <Text style={[styles.tabLabel, staffActiveTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.bottomTabBar}>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'gate' && styles.tabButtonActive]}
+                onPress={() => { setActiveTab('gate'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, activeTab === 'gate' && styles.tabIconActive]}>🛡️</Text>
+                <Text style={[styles.tabLabel, activeTab === 'gate' && styles.tabLabelActive]}>Gate</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabButton, staffActiveTab === 'advisory' && styles.tabButtonActive]}
-            onPress={() => { setStaffActiveTab('advisory'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, staffActiveTab === 'advisory' && styles.tabIconActive]}>👥</Text>
-            <Text style={[styles.tabLabel, staffActiveTab === 'advisory' && styles.tabLabelActive]}>Advisory</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'incidents' && styles.tabButtonActive]}
+                onPress={() => { setActiveTab('incidents'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, activeTab === 'incidents' && styles.tabIconActive]}>⚠️</Text>
+                <Text style={[styles.tabLabel, activeTab === 'incidents' && styles.tabLabelActive]}>Incidents</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tabButton, staffActiveTab === 'bulletins' && styles.tabButtonActive]}
-            onPress={() => { setStaffActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, staffActiveTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
-            <Text style={[styles.tabLabel, staffActiveTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'bulletins' && styles.tabButtonActive]}
+                onPress={() => { setActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, activeTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
+                <Text style={[styles.tabLabel, activeTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.tabButton}
-            onPress={() => { setPortalMode('PARENT'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={styles.tabIcon}>👨‍👩‍👧</Text>
-            <Text style={styles.tabLabel}>Parent LRN</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.bottomTabBar}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'gate' && styles.tabButtonActive]}
-            onPress={() => { setActiveTab('gate'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'gate' && styles.tabIconActive]}>🛡️</Text>
-            <Text style={[styles.tabLabel, activeTab === 'gate' && styles.tabLabelActive]}>Gate</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'incidents' && styles.tabButtonActive]}
-            onPress={() => { setActiveTab('incidents'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'incidents' && styles.tabIconActive]}>⚠️</Text>
-            <Text style={[styles.tabLabel, activeTab === 'incidents' && styles.tabLabelActive]}>Incidents</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'bulletins' && styles.tabButtonActive]}
-            onPress={() => { setActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
-            <Text style={[styles.tabLabel, activeTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'events' && styles.tabButtonActive]}
-            onPress={() => { setActiveTab('events'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'events' && styles.tabIconActive]}>📅</Text>
-            <Text style={[styles.tabLabel, activeTab === 'events' && styles.tabLabelActive]}>Events</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabButton}
-            onPress={() => { setPortalMode('STAFF'); if (vibrateEnabled) Vibration.vibrate(25); }}
-          >
-            <Text style={styles.tabIcon}>👨‍🏫</Text>
-            <Text style={styles.tabLabel}>Faculty DTR</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'events' && styles.tabButtonActive]}
+                onPress={() => { setActiveTab('events'); if (vibrateEnabled) Vibration.vibrate(25); }}
+              >
+                <Text style={[styles.tabIcon, activeTab === 'events' && styles.tabIconActive]}>📅</Text>
+                <Text style={[styles.tabLabel, activeTab === 'events' && styles.tabLabelActive]}>Events</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
       )}
 
       {/* ------------------------------------------------------------- */}
@@ -2033,6 +2125,260 @@ export default function App() {
   );
 
   // -------------------------------------------------------------
+  // ROLE-BASED LOGIN & PORTAL SELECTOR
+  // -------------------------------------------------------------
+  function renderLoginScreen() {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.loginScrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Top Bar with DepEd Tag and Settings gear */}
+          <View style={styles.loginTopBar}>
+            <View style={styles.loginDepedTag}>
+              <Text style={styles.loginDepedTagText}>Republic of the Philippines • Department of Education</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.loginSettingsBtn}
+              onPress={() => setSettingsModalVisible(true)}
+            >
+              <Text style={{ fontSize: 16 }}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Brand Logo & Title */}
+          <View style={styles.loginHero}>
+            <View style={styles.loginLogoWrapper}>
+              <Image
+                source={require('./assets/logo.png')}
+                style={styles.loginLogo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.loginAppTitle}>PROJECT S.M.I.L.E.</Text>
+            <Text style={styles.loginAppSubtitle}>
+              Security Monitoring, Incident Logging, and E-notification
+            </Text>
+            <View style={styles.loginSchoolPill}>
+              <Text style={styles.loginSchoolPillText}>
+                {schoolName || "Don Montano Community Integrated School"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Role / Portal Switcher Segmented Control */}
+          <View style={styles.loginSegmentContainer}>
+            <TouchableOpacity
+              style={[styles.loginSegmentTab, loginPortal === 'PARENT' && styles.loginSegmentTabActive]}
+              onPress={() => {
+                setLoginPortal('PARENT');
+                if (vibrateEnabled) Vibration.vibrate(20);
+              }}
+            >
+              <Text style={[styles.loginSegmentText, loginPortal === 'PARENT' && styles.loginSegmentTextActive]}>
+                👨‍👩‍👧 Parent & Guardian
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.loginSegmentTab, loginPortal === 'STAFF' && styles.loginSegmentTabActive]}
+              onPress={() => {
+                setLoginPortal('STAFF');
+                if (vibrateEnabled) Vibration.vibrate(20);
+              }}
+            >
+              <Text style={[styles.loginSegmentText, loginPortal === 'STAFF' && styles.loginSegmentTextActive]}>
+                👨‍🏫 Faculty & Staff
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tab 1: Parent Login View */}
+          {loginPortal === 'PARENT' ? (
+            <View style={styles.loginCard}>
+              <Text style={styles.loginCardTitle}>Parent Portal Access</Text>
+              <Text style={styles.loginCardSubtitle}>
+                Enter the 12-digit Learner Reference Number (LRN) to monitor gate attendance, campus safety, and school announcements.
+              </Text>
+
+              <View style={styles.loginInputGroup}>
+                <Text style={styles.loginInputLabel}>STUDENT LRN (12 DIGITS)</Text>
+                <TextInput
+                  style={styles.loginInput}
+                  placeholder="e.g. 152008250007"
+                  placeholderTextColor="#64748B"
+                  value={loginLrnInput}
+                  onChangeText={setLoginLrnInput}
+                  keyboardType="numeric"
+                  maxLength={12}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.loginSubmitBtn}
+                onPress={() => handleParentLogin(loginLrnInput)}
+                disabled={loginLoading}
+              >
+                {loginLoading ? (
+                  <ActivityIndicator color="#0B192C" size="small" />
+                ) : (
+                  <Text style={styles.loginSubmitBtnText}>Sign In to Parent Portal →</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Quick Select Demo Enrolled Learners */}
+              <View style={styles.demoSection}>
+                <Text style={styles.demoSectionTitle}>QUICK SELECT ENROLLED LEARNER:</Text>
+                <View style={styles.demoChipList}>
+                  {enrolledStudents && enrolledStudents.length > 0 ? (
+                    enrolledStudents.map((s) => (
+                      <TouchableOpacity
+                        key={s.lrn}
+                        style={styles.demoChip}
+                        onPress={() => {
+                          setLoginLrnInput(s.lrn);
+                          handleParentLogin(s.lrn);
+                        }}
+                      >
+                        <Text style={styles.demoChipIcon}>🎓</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.demoChipName}>{s.full_name}</Text>
+                          <Text style={styles.demoChipMeta}>LRN: {s.lrn} • {s.grade_level || "Student"}</Text>
+                        </View>
+                        <Text style={styles.demoChipArrow}>→</Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.demoChip}
+                      onPress={() => {
+                        setLoginLrnInput('152008250007');
+                        handleParentLogin('152008250007');
+                      }}
+                    >
+                      <Text style={styles.demoChipIcon}>🎓</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.demoChipName}>Keziah Aviguetero</Text>
+                        <Text style={styles.demoChipMeta}>LRN: 152008250007 • Grade 7</Text>
+                      </View>
+                      <Text style={styles.demoChipArrow}>→</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+          ) : (
+            /* Tab 2: Faculty & Staff Login View */
+            <View style={styles.loginCard}>
+              <Text style={styles.loginCardTitle}>Faculty & Staff Portal</Text>
+              <Text style={styles.loginCardSubtitle}>
+                Civil Service Form 48 Daily Time Record (DTR), advisory class attendance, and school bulletins.
+              </Text>
+
+              <View style={styles.loginInputGroup}>
+                <Text style={styles.loginInputLabel}>DEPED EMPLOYEE NUMBER OR USERNAME</Text>
+                <TextInput
+                  style={styles.loginInput}
+                  placeholder="e.g. TCH-1001, STF-2001, PRIN-001"
+                  placeholderTextColor="#64748B"
+                  value={staffEmpNo}
+                  onChangeText={setStaffEmpNo}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.loginSubmitBtn}
+                onPress={() => handleStaffLogin(staffEmpNo)}
+                disabled={staffLoggingIn}
+              >
+                {staffLoggingIn ? (
+                  <ActivityIndicator color="#0B192C" size="small" />
+                ) : (
+                  <Text style={styles.loginSubmitBtnText}>Sign In to Faculty Portal →</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Quick Select Demo Accounts */}
+              <View style={styles.demoSection}>
+                <Text style={styles.demoSectionTitle}>QUICK SELECT FACULTY / STAFF ACCOUNT:</Text>
+                <View style={styles.staffGrid}>
+                  <TouchableOpacity
+                    style={styles.staffChipItem}
+                    onPress={() => {
+                      setStaffEmpNo('TCH-1001');
+                      handleStaffLogin('TCH-1001');
+                    }}
+                  >
+                    <Text style={styles.staffChipItemIcon}>👩‍🏫</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffChipItemName}>TCH-1001</Text>
+                      <Text style={styles.staffChipItemDesc}>Teacher / Adviser</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.staffChipItem}
+                    onPress={() => {
+                      setStaffEmpNo('STF-2001');
+                      handleStaffLogin('STF-2001');
+                    }}
+                  >
+                    <Text style={styles.staffChipItemIcon}>📋</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffChipItemName}>STF-2001</Text>
+                      <Text style={styles.staffChipItemDesc}>School Staff</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.staffChipItem}
+                    onPress={() => {
+                      setStaffEmpNo('PRIN-001');
+                      handleStaffLogin('PRIN-001');
+                    }}
+                  >
+                    <Text style={styles.staffChipItemIcon}>🎓</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffChipItemName}>PRIN-001</Text>
+                      <Text style={styles.staffChipItemDesc}>Principal</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.staffChipItem}
+                    onPress={() => {
+                      setStaffEmpNo('ADMIN-001');
+                      handleStaffLogin('ADMIN-001');
+                    }}
+                  >
+                    <Text style={styles.staffChipItemIcon}>💻</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffChipItemName}>ADMIN-001</Text>
+                      <Text style={styles.staffChipItemDesc}>System Admin</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Footer */}
+          <View style={styles.loginFooter}>
+            <Text style={styles.loginFooterText}>DepEd Region IV-A • Division Safety Architecture</Text>
+            <Text style={styles.loginFooterSub}>Project S.M.I.L.E. Mobile App v1.3.0</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // -------------------------------------------------------------
   // TAB 1: GATE MONITORING (ATTENDANCE & CAMPUS PRESENCE)
   // -------------------------------------------------------------
   function renderGateTab() {
@@ -2124,58 +2470,10 @@ export default function App() {
               : "Verified via DepEd S.M.I.L.E. Gate System"}
           </Text>
 
-          {/* Quick Action Buttons */}
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.testAlertButton} onPress={handleTestAlert}>
-              <Text style={styles.testAlertButtonText}>⚡ Test Alert & Vibrate</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.excuseButton} onPress={() => setExcuseModalVisible(true)}>
-              <Text style={styles.excuseButtonText}>📝 File Excuse Note</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Push Notification Center & n8n Automation Engine Card */}
-        <View style={styles.n8nHubCard}>
-          <View style={styles.n8nHubHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.n8nHubTitle}>PUSH NOTIFICATION CENTER</Text>
-              <View style={styles.n8nBadge}>
-                <Text style={styles.n8nBadgeText}>n8n Automation</Text>
-              </View>
-            </View>
-            {unreadNotifCount > 0 ? (
-              <View style={styles.unreadBadgeSmall}>
-                <Text style={styles.unreadBadgeSmallText}>{unreadNotifCount} NEW</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={styles.n8nHubDesc}>
-            Automated notifications notify parents periodically from time to time: biometric gate scans, morning absence sweeps, PAGASA weather, and health updates.
-          </Text>
-
-          <View style={styles.n8nButtonRow}>
-            <TouchableOpacity
-              style={styles.n8nRunButton}
-              onPress={() => runAutomationWorkflow(2, 'Morning Tardy & Safety Check Sweep')}
-              disabled={runningAutomation}
-            >
-              {runningAutomation ? (
-                <ActivityIndicator size="small" color="#0B192C" />
-              ) : (
-                <Text style={styles.n8nRunButtonText}>⚡ Run Automated Check</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.n8nViewCenterButton}
-              onPress={() => {
-                setNotifModalVisible(true);
-                if (vibrateEnabled) Vibration.vibrate(20);
-              }}
-            >
-              <Text style={styles.n8nViewCenterButtonText}>Open Stream ({notifications.length})</Text>
+          {/* Full-Width File Excuse Note Button (Test Alert removed from Dashboard) */}
+          <View style={{ marginTop: 12 }}>
+            <TouchableOpacity style={styles.excuseButtonFull} onPress={() => setExcuseModalVisible(true)}>
+              <Text style={styles.excuseButtonText}>📝 File Student Excuse Note</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -5186,5 +5484,320 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 8,
     textAlign: 'center',
+  },
+
+  // -------------------------------------------------------------
+  // Role Header Badges & Logout Button
+  // -------------------------------------------------------------
+  roleHeaderPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  roleHeaderPillStaff: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#10B981',
+  },
+  roleHeaderPillText: {
+    color: '#60A5FA',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  roleHeaderPillTextStaff: {
+    color: '#34D399',
+  },
+  logoutButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  logoutButtonText: {
+    fontSize: 16,
+  },
+  excuseButtonFull: {
+    width: '100%',
+    backgroundColor: '#1E293B',
+    borderWidth: 1.5,
+    borderColor: '#38BDF8',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // -------------------------------------------------------------
+  // Portal & Role Login Screen Styles
+  // -------------------------------------------------------------
+  loginScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  loginTopBar: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  loginDepedTag: {
+    flex: 1,
+    marginRight: 8,
+  },
+  loginDepedTagText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  loginSettingsBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  loginHero: {
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  loginLogoWrapper: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#101C2E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FCD116',
+    marginBottom: 12,
+    shadowColor: '#FCD116',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  loginLogo: {
+    width: 56,
+    height: 56,
+  },
+  loginAppTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  loginAppSubtitle: {
+    color: '#FCD116',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  loginSchoolPill: {
+    backgroundColor: 'rgba(252, 209, 22, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(252, 209, 22, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    marginTop: 10,
+  },
+  loginSchoolPillText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  loginSegmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#0B192C',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 4,
+    width: '100%',
+    marginBottom: 16,
+  },
+  loginSegmentTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  loginSegmentTabActive: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  loginSegmentText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  loginSegmentTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  loginCard: {
+    width: '100%',
+    backgroundColor: '#0F172A',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1E3A5F',
+    padding: 18,
+    marginBottom: 16,
+  },
+  loginCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  loginCardSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  loginInputGroup: {
+    width: '100%',
+    marginBottom: 14,
+  },
+  loginInputLabel: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  loginInput: {
+    backgroundColor: '#08101E',
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  loginSubmitBtn: {
+    backgroundColor: '#FCD116',
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FCD116',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 6,
+  },
+  loginSubmitBtnText: {
+    color: '#0B192C',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  demoSection: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+    width: '100%',
+  },
+  demoSectionTitle: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  demoChipList: {
+    gap: 8,
+  },
+  demoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 12,
+    padding: 10,
+    gap: 10,
+  },
+  demoChipIcon: {
+    fontSize: 20,
+  },
+  demoChipName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  demoChipMeta: {
+    color: '#94A3B8',
+    fontSize: 11,
+  },
+  demoChipArrow: {
+    color: '#FCD116',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  staffGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  staffChipItem: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  staffChipItemIcon: {
+    fontSize: 18,
+  },
+  staffChipItemName: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  staffChipItemDesc: {
+    color: '#94A3B8',
+    fontSize: 10,
+  },
+  loginFooter: {
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  loginFooterText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  loginFooterSub: {
+    color: '#475569',
+    fontSize: 9,
+    marginTop: 2,
   },
 });
