@@ -698,6 +698,7 @@ def dashboard():
         target_section_id = inspect_section_id or user_section_id
 
         is_teacher_view = (user_role == 'TEACHER') or (inspect_section_id is not None)
+        is_admin_or_principal = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
         advisory_overview = None
 
         if is_teacher_view:
@@ -706,19 +707,27 @@ def dashboard():
                 section_name=user_section_name if not inspect_section_id else None,
                 adviser_name=user_full_name if not inspect_section_id else None
             )
-
-        all_sections = get_all_sections_orm()
-        summary = get_today_summary()
-        total_enrolled = get_enrolled_students_count_orm()
-        logs = get_today_attendance_logs_orm(30)
-        total_sms_today = get_today_sms_count_orm()
+            all_sections = get_all_sections_orm() if is_admin_or_principal else []
+            total_enrolled = advisory_overview.get('total_enrolled', 0) if advisory_overview else 0
+            total_scans_today = 0
+            unique_students_today = 0
+            logs = []
+            total_sms_today = 0
+        else:
+            all_sections = get_all_sections_orm() if is_admin_or_principal else []
+            summary = get_today_summary()
+            total_enrolled = get_enrolled_students_count_orm()
+            total_scans_today = summary.get("total_scans", 0)
+            unique_students_today = summary.get("unique_students", 0)
+            logs = get_today_attendance_logs_orm(30)
+            total_sms_today = get_today_sms_count_orm()
 
         return render_template(
             'dashboard.html',
             school_name=SCHOOL_NAME,
             total_enrolled=total_enrolled,
-            total_scans_today=summary["total_scans"],
-            unique_students_today=summary["unique_students"],
+            total_scans_today=total_scans_today,
+            unique_students_today=unique_students_today,
             total_sms_today=total_sms_today,
             logs=logs,
             today_date=pht_now().strftime("%A, %B %d, %Y"),

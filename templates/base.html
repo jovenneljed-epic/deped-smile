@@ -19,36 +19,6 @@
   <!-- FontAwesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  <!-- Speculation Rules API for Instantaneous Page Transitions (<30ms) -->
-  <script type="speculationrules">
-  {
-    "prerender": [
-      {
-        "source": "list",
-        "urls": ["/dashboard", "/enroll", "/students", "/teacher/dashboard"],
-        "eagerness": "moderate"
-      }
-    ],
-    "prefetch": [
-      {
-        "source": "list",
-        "urls": ["/kiosk"],
-        "eagerness": "moderate"
-      },
-      {
-        "where": {
-          "and": [
-            { "href_matches": "/*" },
-            { "not": { "href_matches": "/logout" } },
-            { "not": { "href_matches": "*/api/*" } },
-            { "not": { "href_matches": "*/export/*" } }
-          ]
-        },
-        "eagerness": "conservative"
-      }
-    ]
-  }
-  </script>
   <script>
     tailwind.config = {
       theme: {

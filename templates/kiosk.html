@@ -13,18 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
-  <!-- Speculation Rules API for Instantaneous Return to Dashboard -->
-  <script type="speculationrules">
-  {
-    "prerender": [
-      {
-        "source": "list",
-        "urls": ["/dashboard", "/enroll", "/students", "/teacher/dashboard"],
-        "eagerness": "moderate"
-      }
-    ]
-  }
-  </script>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -731,8 +719,8 @@
 
     function startAutoScanLoop() {
       if (autoScanTimer) clearInterval(autoScanTimer);
-      // Run continuous scan tick every 500ms for ultra-responsive, snappy face locking
-      autoScanTimer = setInterval(scanTick, 500);
+      // Run continuous scan tick every 1000ms (1s) for responsive face locking without network congestion
+      autoScanTimer = setInterval(scanTick, 1000);
     }
 
     async function scanTick() {
