@@ -1390,7 +1390,7 @@ def api_parent_poll(lrn):
     3. New push notifications & progressive workflow alerts published since last_notif_id
     4. Child's real-time campus status (INSIDE_CAMPUS / SAFELY_EXITED / AWAITING_ARRIVAL)
     """
-    from smile_orm import AttendanceLog, Announcement, Session, Student, ParentNotification
+    from smile_orm import AttendanceLog, Announcement, Session, Student, ParentNotification, or_, acknowledge_attendance_log_orm, get_pending_acknowledgments_orm
     last_id_param = request.args.get('last_id') or request.args.get('last_scan_id')
     last_ann_id_param = request.args.get('last_ann_id')
     last_notif_id_param = request.args.get('last_notif_id')
@@ -1416,18 +1416,13 @@ def api_parent_poll(lrn):
 
         latest_id_val = latest_overall_log.id if latest_overall_log else 0
 
-        # Check gate scan events
+        # Check gate scan events strictly (eliminating repeat loop)
         new_log = None
         if last_id is not None:
-            # Backward-compatibility for legacy APK builds where lastEventIdRef was initialized to 101:
-            if last_id >= 100 and latest_overall_log and latest_overall_log.id < 100:
-                # Deliver latest scan to break deadlock and immediately align mobile app's ref
-                new_log = latest_overall_log
-            else:
-                new_log = session.query(AttendanceLog).filter(
-                    AttendanceLog.lrn == clean_lrn,
-                    AttendanceLog.id > last_id
-                ).order_by(AttendanceLog.id.asc()).first()
+            new_log = session.query(AttendanceLog).filter(
+                AttendanceLog.lrn == clean_lrn,
+                AttendanceLog.id > last_id
+            ).order_by(AttendanceLog.id.asc()).first()
         elif request.args.get('initial') == '1':
             new_log = latest_overall_log
 
@@ -1461,6 +1456,14 @@ def api_parent_poll(lrn):
         elif request.args.get('initial') == '1':
             new_notif = latest_notif_val
 
+        # Pending unacknowledged gate scans today
+        today_start = pht_now().replace(hour=0, minute=0, second=0, microsecond=0)
+        pending_acks = session.query(AttendanceLog).filter(
+            AttendanceLog.lrn == clean_lrn,
+            AttendanceLog.timestamp >= today_start,
+            or_(AttendanceLog.parent_acknowledged.is_(False), AttendanceLog.parent_acknowledged.is_(None))
+        ).order_by(AttendanceLog.id.desc()).all()
+
         res_data = {
             "has_new": (new_log is not None),
             "has_update": (new_log is not None),
@@ -1474,11 +1477,54 @@ def api_parent_poll(lrn):
             "has_new_notification": (new_notif is not None),
             "notification": new_notif.to_dict() if new_notif else None,
             "latest_notification_id": latest_notif_id_val,
+            "pending_acknowledgments": [l.to_dict() for l in pending_acks],
+            "has_pending_acknowledgment": len(pending_acks) > 0,
+            "unacknowledged_count": len(pending_acks),
             "server_time": pht_now().strftime("%I:%M %p")
         }
         return jsonify(res_data)
     finally:
         session.close()
+
+@app.route('/api/parent/acknowledge-alert', methods=['POST'])
+def api_parent_acknowledge_alert():
+    """
+    Mandatory Parent Confirmation Endpoint.
+    Records digital parent confirmation for a gate attendance scan and unlocks mobile lock screen.
+    """
+    from smile_orm import acknowledge_attendance_log_orm
+    try:
+        data = request.get_json(silent=True) or {}
+        log_id = data.get('log_id')
+        lrn = str(data.get('lrn', '')).strip()
+        acknowledged_by = str(data.get('acknowledged_by', 'Parent (Mobile App)')).strip()
+        if not log_id:
+            return jsonify({"success": False, "message": "log_id is required"}), 400
+
+        updated_log = acknowledge_attendance_log_orm(int(log_id), acknowledged_by=acknowledged_by)
+        if updated_log:
+            return jsonify({
+                "success": True,
+                "message": "Gate scan verified and acknowledged successfully.",
+                "log": updated_log
+            })
+        return jsonify({"success": False, "message": "Attendance log not found."}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/parent/pending-acknowledgments/<lrn>')
+def api_parent_pending_acknowledgments(lrn):
+    """Returns all unacknowledged gate scans today for the given student."""
+    from smile_orm import get_pending_acknowledgments_orm
+    try:
+        pending = get_pending_acknowledgments_orm(str(lrn).strip())
+        return jsonify({
+            "success": True,
+            "count": len(pending),
+            "pending_logs": pending
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/parent/status/<lrn>')
 def api_parent_status(lrn):

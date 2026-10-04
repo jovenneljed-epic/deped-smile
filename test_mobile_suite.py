@@ -65,4 +65,36 @@ r_clock = client.post('/api/mobile/staff/dtr-clock', json={
 })
 print("POST /api/mobile/staff/dtr-clock:", r_clock.status_code)
 
+print("--- 6. Testing /api/parent/poll, pending acknowledgments, & /api/parent/acknowledge-alert ---")
+lrn_test = "152008250007"
+r_poll1 = client.get(f'/api/parent/poll/{lrn_test}?initial=1')
+print("GET /api/parent/poll initial:", r_poll1.status_code)
+poll1_json = r_poll1.get_json()
+latest_id = poll1_json.get("latest_log_id", 0)
+
+# Polling with latest_id should NOT return has_new = True (prevents infinite repeat!)
+r_poll2 = client.get(f'/api/parent/poll/{lrn_test}?last_id={latest_id}')
+poll2_json = r_poll2.get_json()
+assert poll2_json.get("has_new") is False, "Poll deadlock! Returned has_new=True when last_id == latest_log_id"
+print(f"Poll check with last_id={latest_id} returned has_new=False (Repeat loop prevented!)")
+
+# Check pending acknowledgments
+r_pending = client.get(f'/api/parent/pending-acknowledgments/{lrn_test}')
+print("GET /api/parent/pending-acknowledgments:", r_pending.status_code)
+pending_json = r_pending.get_json()
+print("Pending unacknowledged count:", pending_json.get("count", 0))
+
+# If there is a log, test acknowledging it
+if latest_id > 0:
+    r_ack = client.post('/api/parent/acknowledge-alert', json={
+        "log_id": latest_id,
+        "lrn": lrn_test,
+        "acknowledged_by": "Parent Automated Test"
+    })
+    print(f"POST /api/parent/acknowledge-alert for log #{latest_id}:", r_ack.status_code)
+    ack_json = r_ack.get_json()
+    assert ack_json.get("success") is True, f"Acknowledgment failed: {ack_json}"
+    assert ack_json["log"]["parent_acknowledged"] is True, "parent_acknowledged flag not True"
+    print("Acknowledged by:", ack_json["log"]["parent_acknowledged_by"], "at", ack_json["log"]["parent_acknowledged_at"])
+
 print("ALL TESTS PASSED SUCCESSFULLY!")

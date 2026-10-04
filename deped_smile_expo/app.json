@@ -2,7 +2,7 @@
   "expo": {
     "name": "DepEd SMILE Mobile",
     "slug": "deped-smile-parent",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,7 +16,7 @@
       "bundleIdentifier": "com.deped.smile.parent"
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#16181b"

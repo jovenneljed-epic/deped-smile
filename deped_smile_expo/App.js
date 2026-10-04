@@ -102,6 +102,17 @@ export default function App() {
   const [alertModalVisible, setAlertModalVisible] = useState(false);
   const [alertData, setAlertData] = useState(null);
 
+  // Mandatory Gate Attendance Lock Screen & Acknowledgment State
+  const [ackModalVisible, setAckModalVisible] = useState(false);
+  const [ackLog, setAckLog] = useState(null);
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
+
+  // Deduplication tracking to prevent repetitive alerts
+  const alertedEventIdsRef = useRef(new Set());
+  const acknowledgedEventIdsRef = useRef(new Set());
+  const alertedAnnIdsRef = useRef(new Set());
+  const alertedNotifIdsRef = useRef(new Set());
+
   // Floating Heads-Up Banner State
   const [floatingBannerData, setFloatingBannerData] = useState({
     icon: "🔔",
@@ -211,13 +222,24 @@ export default function App() {
       Notifications.setNotificationChannelAsync('gate-attendance-channel', {
         name: 'Gate Attendance & DepEd Alerts',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 500, 250, 500],
+        vibrationPattern: [0, 600, 200, 600, 200, 600],
         lightColor: '#2563EB',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: 'default',
         bypassDnd: true,
       }).catch(err => console.warn('Android channel setup note:', err.message));
     }
+
+    // Set notification category for lock screen action
+    Notifications.setNotificationCategoryAsync('GATE_ALERT_CATEGORY', [
+      {
+        identifier: 'ACKNOWLEDGE_ACTION',
+        buttonTitle: '🔓 Acknowledge & Unlock',
+        options: {
+          opensAppToForeground: true,
+        },
+      }
+    ]).catch(err => console.warn('Category setup note:', err.message));
 
     // B. Register Native Device Token with Expo Push Service
     registerForPushNotificationsAsync().then(tok => {
@@ -229,11 +251,16 @@ export default function App() {
 
     // C. Foreground notification listener
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      if (vibrateEnabled) Vibration.vibrate([0, 450, 150, 450]);
+      if (vibrateEnabled) Vibration.vibrate([0, 500, 150, 500]);
     });
 
-    // D. Response listener (when user taps the lock-screen or banner notification)
+    // D. Response listener (when user taps the lock-screen heads-up banner or notification action)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const notifData = response.notification?.request?.content?.data || {};
+      if (notifData.type === 'GATE_SCAN' && notifData.id) {
+        setAckLog(notifData);
+        setAckModalVisible(true);
+      }
       setActiveTab('gate');
     });
 
@@ -328,6 +355,20 @@ export default function App() {
           // Fetch full dashboard data and notifications
           await fetchDashboardData(targetStudent.lrn);
           await fetchNotifications(targetStudent.lrn);
+
+          // Check for pending unacknowledged gate logs today
+          try {
+            const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${targetStudent.lrn}`);
+            const ackData = await ackRes.json();
+            if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
+              const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+              if (unack.length > 0) {
+                setAckLog(unack[0]);
+                setAckModalVisible(true);
+              }
+            }
+          } catch (_) {}
+
           startPolling(targetStudent.lrn);
         } else {
           // Zero dummy records fallback
@@ -445,69 +486,90 @@ export default function App() {
         });
         const data = await res.json();
 
-        // Handle new gate scan event in real time!
-        if (data.has_new && data.event) {
-          lastEventIdRef.current = Math.max(lastEventIdRef.current, data.event.id);
-          triggerGateAlert(data.event);
-          if (targetLrn) fetchDashboardData(targetLrn);
+        // Always advance baseline IDs to latest reported by server (prevents any infinite polling loop)
+        if (data.latest_log_id !== undefined && data.latest_log_id > lastEventIdRef.current) {
+          lastEventIdRef.current = data.latest_log_id;
+        }
+        if (data.latest_announcement_id !== undefined && data.latest_announcement_id > lastAnnIdRef.current) {
+          lastAnnIdRef.current = data.latest_announcement_id;
+        }
+        if (data.latest_notification_id !== undefined && data.latest_notification_id > lastNotifIdRef.current) {
+          lastNotifIdRef.current = data.latest_notification_id;
         }
 
-        // Handle new school announcement advisory in real time!
-        if (data.has_new_announcement && data.announcement) {
-          lastAnnIdRef.current = Math.max(lastAnnIdRef.current, data.announcement.id);
-          triggerAnnouncementAlert(data.announcement);
-          if (targetLrn) fetchDashboardData(targetLrn);
-        }
-
-        // Handle new push notification & progressive automation alert in real time!
-        if (data.has_new_notification && data.notification) {
-          lastNotifIdRef.current = Math.max(lastNotifIdRef.current, data.notification.raw_id || data.latest_notification_id || 0);
-          if (vibrateEnabled) Vibration.vibrate([0, 500, 150, 500]);
-          if (pushEnabled) {
-            showFloatingBanner({
-              icon: "🔔",
-              title: data.notification.title || "E-NOTIFICATION ALERT",
-              body: data.notification.body || "New alert from school administration.",
-              time: "Just now",
-              color: "#FCD116"
-            });
+        // Handle new gate scan event strictly once (Deduplicated)
+        if (data.has_new && data.event && data.event.id) {
+          const evId = data.event.id;
+          lastEventIdRef.current = Math.max(lastEventIdRef.current, evId);
+          if (!alertedEventIdsRef.current.has(evId)) {
+            alertedEventIdsRef.current.add(evId);
+            triggerGateAlert(data.event);
+            if (targetLrn) fetchDashboardData(targetLrn);
           }
-          try {
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: data.notification.title || "🔔 DepEd S.M.I.L.E. Alert",
-                body: data.notification.body || "New alert from school administration.",
-                sound: 'default',
-                channelId: 'gate-attendance-channel',
-                priority: Notifications.AndroidNotificationPriority.MAX,
-                vibrate: [0, 500, 200, 500],
-                data: {
-                  type: "PUSH_NOTIFICATION",
-                  ...data.notification
-                }
-              },
-              trigger: null,
-            });
-          } catch (_) {}
-          if (targetLrn) fetchNotifications(targetLrn);
         }
 
-        // Align baseline IDs if server reports higher pointers
-        if (data.latest_log_id && data.latest_log_id > lastEventIdRef.current) {
-          if (lastEventIdRef.current === 0) lastEventIdRef.current = data.latest_log_id;
+        // Check if there are unacknowledged gate scans today requiring parent confirmation
+        if (data.pending_acknowledgments && data.pending_acknowledgments.length > 0) {
+          const unack = data.pending_acknowledgments.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+          if (unack.length > 0 && !ackModalVisible) {
+            setAckLog(unack[0]);
+            setAckModalVisible(true);
+          }
         }
-        if (data.latest_announcement_id && data.latest_announcement_id > lastAnnIdRef.current) {
-          if (lastAnnIdRef.current === 0) lastAnnIdRef.current = data.latest_announcement_id;
+
+        // Handle new school announcement advisory in real time (Deduplicated)
+        if (data.has_new_announcement && data.announcement && data.announcement.id) {
+          const annId = data.announcement.id;
+          lastAnnIdRef.current = Math.max(lastAnnIdRef.current, annId);
+          if (!alertedAnnIdsRef.current.has(annId)) {
+            alertedAnnIdsRef.current.add(annId);
+            triggerAnnouncementAlert(data.announcement);
+            if (targetLrn) fetchDashboardData(targetLrn);
+          }
         }
-        if (data.latest_notification_id && data.latest_notification_id > lastNotifIdRef.current) {
-          if (lastNotifIdRef.current === 0) lastNotifIdRef.current = data.latest_notification_id;
+
+        // Handle new push notification & progressive automation alert in real time (Deduplicated)
+        if (data.has_new_notification && data.notification) {
+          const notifId = data.notification.raw_id || data.notification.id || data.latest_notification_id || 0;
+          lastNotifIdRef.current = Math.max(lastNotifIdRef.current, notifId);
+          if (notifId && !alertedNotifIdsRef.current.has(notifId)) {
+            alertedNotifIdsRef.current.add(notifId);
+            if (vibrateEnabled) Vibration.vibrate([0, 500, 150, 500]);
+            if (pushEnabled) {
+              showFloatingBanner({
+                icon: "🔔",
+                title: data.notification.title || "E-NOTIFICATION ALERT",
+                body: data.notification.body || "New alert from school administration.",
+                time: "Just now",
+                color: "#FCD116"
+              });
+            }
+            try {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: data.notification.title || "🔔 DepEd S.M.I.L.E. Alert",
+                  body: data.notification.body || "New alert from school administration.",
+                  sound: 'default',
+                  channelId: 'gate-attendance-channel',
+                  priority: Notifications.AndroidNotificationPriority.MAX,
+                  vibrate: [0, 500, 200, 500],
+                  data: {
+                    type: "PUSH_NOTIFICATION",
+                    ...data.notification
+                  }
+                },
+                trigger: null,
+              });
+            } catch (_) {}
+            if (targetLrn) fetchNotifications(targetLrn);
+          }
         }
 
         if (data.status) {
           setStatus(data.status);
         }
 
-        // 2. Poll push notification workflow pipeline
+        // 2. Poll push notification workflow pipeline without repeating vibration
         if (targetLrn) {
           const notifRes = await fetch(`${serverUrl}/api/mobile/notifications/${targetLrn}`, {
             headers: { 'Accept': 'application/json' }
@@ -516,19 +578,6 @@ export default function App() {
           if (notifData && notifData.success) {
             setNotifications(notifData.notifications || []);
             const unread = notifData.unread_count || 0;
-            if (unread > lastNotifCountRef.current && lastNotifCountRef.current > 0) {
-              if (vibrateEnabled) Vibration.vibrate([0, 350, 100, 350]);
-              const latest = notifData.notifications[0];
-              if (latest && pushEnabled) {
-                showFloatingBanner({
-                  icon: "🔔",
-                  title: latest.title || "E-NOTIFICATION ALERT",
-                  body: latest.body || "New alert from school administration.",
-                  time: "Just now",
-                  color: "#FCD116"
-                });
-              }
-            }
             lastNotifCountRef.current = unread;
             setUnreadNotifCount(unread);
           }
@@ -558,15 +607,9 @@ export default function App() {
   // Real-Time Gate Scan Alert Handler
   const triggerGateAlert = (eventData) => {
     if (vibrateEnabled) {
-      // Dual haptic pulse
-      Vibration.vibrate([0, 450, 120, 450]);
+      // Dual high-intensity haptic pulses
+      Vibration.vibrate([0, 500, 150, 500]);
     }
-
-    setAlertData({
-      ...eventData,
-      alert_kind: 'GATE_SCAN'
-    });
-    setAlertModalVisible(true);
 
     const isEntry = eventData.scan_type === "TIME_IN";
     if (pushEnabled) {
@@ -579,16 +622,21 @@ export default function App() {
       });
     }
 
-    // Native Android Lock-Screen Notification: Wakes screen, plays sound, vibrates, displays Heads-Up banner
+    // Immediately pop Mandatory Acknowledgment Screen
+    setAckLog(eventData);
+    setAckModalVisible(true);
+
+    // Native Android Lock-Screen Heads-Up Notification (Wakes screen, plays sound, displays over lock screen)
     try {
       Notifications.scheduleNotificationAsync({
         content: {
           title: isEntry ? "🟢 CAMPUS ARRIVAL ALERT" : "🟠 CAMPUS DEPARTURE ALERT",
-          body: `${eventData.student_name || "Student"} safely ${isEntry ? "entered" : "safely exited from"} Don Montano CIS Gate 1 (${eventData.time_formatted || "Just now"}).`,
+          body: `MANDATORY PARENT NOTICE: ${eventData.student_name || "Student"} safely ${isEntry ? "entered" : "safely exited from"} Don Montano CIS Gate 1 (${eventData.time_formatted || "Just now"}). Tap to acknowledge & unlock.`,
           sound: 'default',
           channelId: 'gate-attendance-channel',
+          categoryIdentifier: 'GATE_ALERT_CATEGORY',
           priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 500, 250, 500],
+          vibrate: [0, 600, 200, 600, 200, 600],
           data: {
             type: "GATE_SCAN",
             ...eventData
@@ -598,6 +646,49 @@ export default function App() {
       });
     } catch (_notifErr) {
       console.warn("Native notification dispatch note:", _notifErr.message);
+    }
+  };
+
+  // Mandatory Gate Attendance Parent Acknowledgment Action
+  const handleAcknowledgeAlert = async () => {
+    if (!ackLog || !ackLog.id) {
+      setAckModalVisible(false);
+      return;
+    }
+    setIsAcknowledging(true);
+    try {
+      const parentConfirmer = student?.parent_name || 'Parent / Guardian';
+      const res = await fetch(`${serverUrl}/api/parent/acknowledge-alert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          log_id: ackLog.id,
+          lrn: ackLog.lrn || activeLrn,
+          acknowledged_by: parentConfirmer
+        })
+      });
+      const data = await res.json();
+      acknowledgedEventIdsRef.current.add(ackLog.id);
+      if (vibrateEnabled) {
+        Vibration.vibrate([0, 100, 50, 100]);
+      }
+      showFloatingBanner({
+        icon: "✅",
+        title: "GATE SCAN CONFIRMED",
+        body: `Verification recorded for ${ackLog.student_name || "Learner"}. App unlocked.`,
+        time: "Just now",
+        color: "#10B981"
+      });
+      setAckModalVisible(false);
+      setAckLog(null);
+      if (activeLrn) fetchDashboardData(activeLrn);
+    } catch (err) {
+      console.warn("Acknowledgment error:", err.message);
+      acknowledgedEventIdsRef.current.add(ackLog.id);
+      setAckModalVisible(false);
+      setAckLog(null);
+    } finally {
+      setIsAcknowledging(false);
     }
   };
 
@@ -1472,6 +1563,130 @@ export default function App() {
             )}
           </View>
         </View>
+      </Modal>
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 3B: MANDATORY PARENT GATE ATTENDANCE LOCK SCREEN        */}
+      {/* ------------------------------------------------------------- */}
+      <Modal visible={ackModalVisible} animationType="slide" transparent={false} onRequestClose={() => {}}>
+        <SafeAreaView style={styles.ackLockSafeArea}>
+          <StatusBar barStyle="light-content" backgroundColor="#070c14" />
+          <ScrollView contentContainerStyle={styles.ackLockContent}>
+            
+            {/* Top DepEd Security Ribbon */}
+            <View style={styles.ackSecurityRibbon}>
+              <View style={styles.ackRibbonPill}>
+                <Text style={styles.ackRibbonDot}>●</Text>
+                <Text style={styles.ackRibbonText}>OFFICIAL DEPED GATE SENTINEL • ACTION REQUIRED</Text>
+              </View>
+              <Text style={styles.ackSchoolTitle}>{schoolName}</Text>
+            </View>
+
+            {/* Verification Status Card */}
+            <View style={[
+              styles.ackCard,
+              { borderColor: ackLog?.scan_type === 'TIME_IN' ? '#10B981' : '#F59E0B' }
+            ]}>
+              {/* Giant Security Icon */}
+              <View style={[
+                styles.ackStatusIconBox,
+                { backgroundColor: ackLog?.scan_type === 'TIME_IN' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)' }
+              ]}>
+                <Text style={{ fontSize: 44 }}>
+                  {ackLog?.scan_type === 'TIME_IN' ? '🟢' : '🟠'}
+                </Text>
+              </View>
+
+              <Text style={styles.ackNoticeTitle}>
+                {ackLog?.scan_type === 'TIME_IN' ? 'CAMPUS ARRIVAL VERIFIED' : 'CAMPUS DEPARTURE VERIFIED'}
+              </Text>
+              <Text style={styles.ackNoticeSubtitle}>
+                Biometric Smart ID gate transaction detected. Parent acknowledgment is required to confirm receipt and unlock application.
+              </Text>
+
+              {/* Student Identification Profile */}
+              <View style={styles.ackStudentCard}>
+                <View style={styles.ackAvatarBox}>
+                  <Text style={styles.ackAvatarText}>
+                    {(ackLog?.student_name || student?.full_name || "S").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ackStudentName} numberOfLines={1}>
+                    {ackLog?.student_name || student?.full_name || "Enrolled Learner"}
+                  </Text>
+                  <Text style={styles.ackStudentMeta}>
+                    LRN: {ackLog?.lrn || student?.lrn || activeLrn} • {ackLog?.grade_section || student?.grade_section || "Student"}
+                  </Text>
+                  {(student?.class_adviser || ackLog?.class_adviser) && (
+                    <Text style={styles.ackAdviserText}>
+                      Adviser: {student?.class_adviser || ackLog?.class_adviser}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Telemetry Grid */}
+              <View style={styles.ackTelemetryGrid}>
+                <View style={styles.ackTelemetryItem}>
+                  <Text style={styles.ackTelemetryLabel}>SCAN TYPE</Text>
+                  <Text style={[
+                    styles.ackTelemetryVal,
+                    { color: ackLog?.scan_type === 'TIME_IN' ? '#10B981' : '#F59E0B' }
+                  ]}>
+                    {ackLog?.scan_type === 'TIME_IN' ? 'TIME-IN (ENTRY)' : 'TIME-OUT (EXIT)'}
+                  </Text>
+                </View>
+                <View style={styles.ackTelemetryItem}>
+                  <Text style={styles.ackTelemetryLabel}>GATE SCAN TIME</Text>
+                  <Text style={styles.ackTelemetryVal}>
+                    {ackLog?.time_formatted || ackLog?.timestamp || "Just now"}
+                  </Text>
+                </View>
+                <View style={styles.ackTelemetryItem}>
+                  <Text style={styles.ackTelemetryLabel}>STATION / KIOSK</Text>
+                  <Text style={styles.ackTelemetryVal}>
+                    {ackLog?.device_id || "Gate 1 Main Guard Post"}
+                  </Text>
+                </View>
+                <View style={styles.ackTelemetryItem}>
+                  <Text style={styles.ackTelemetryLabel}>AUTHENTICATION</Text>
+                  <Text style={styles.ackTelemetryVal}>
+                    {ackLog?.verification_method || "Smart QR / RFID"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Legal / Policy Assurance */}
+              <View style={styles.ackPolicyBox}>
+                <Text style={styles.ackPolicyText}>
+                  🛡️ DepEd Child Protection Policy (DO 40, s. 2012): Confirming this alert certifies you have received real-time electronic notification of your child's presence.
+                </Text>
+              </View>
+
+              {/* Huge Mandatory Unlock Button */}
+              <TouchableOpacity
+                style={styles.ackUnlockBtn}
+                onPress={handleAcknowledgeAlert}
+                disabled={isAcknowledging}
+                activeOpacity={0.8}
+              >
+                {isAcknowledging ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 22 }}>🔓</Text>
+                    <Text style={styles.ackUnlockBtnText}>I ACKNOWLEDGE & UNLOCK APP</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.ackBtnSubtext}>
+                Tapping records your verified parent digital confirmation to DepEd Project S.M.I.L.E.
+              </Text>
+
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
 
       {/* ------------------------------------------------------------- */}
@@ -4785,5 +5000,191 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
     marginBottom: 10,
+  },
+
+  // Mandatory Gate Acknowledgment Lock Screen Styles
+  ackLockSafeArea: {
+    flex: 1,
+    backgroundColor: '#070c14',
+  },
+  ackLockContent: {
+    flexGrow: 1,
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ackSecurityRibbon: {
+    alignItems: 'center',
+    marginBottom: 16,
+    width: '100%',
+  },
+  ackRibbonPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 8,
+    gap: 6,
+  },
+  ackRibbonDot: {
+    color: '#EF4444',
+    fontSize: 12,
+  },
+  ackRibbonText: {
+    color: '#FCA5A5',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  ackSchoolTitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  ackCard: {
+    width: '100%',
+    backgroundColor: '#0F172A',
+    borderRadius: 24,
+    borderWidth: 2,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  ackStatusIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  ackNoticeTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  ackNoticeSubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 10,
+  },
+  ackStudentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 14,
+    width: '100%',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+    gap: 12,
+  },
+  ackAvatarBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ackAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  ackStudentName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  ackStudentMeta: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ackAdviserText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  ackTelemetryGrid: {
+    width: '100%',
+    backgroundColor: '#111827',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ackTelemetryItem: {
+    width: '48%',
+    padding: 6,
+  },
+  ackTelemetryLabel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  ackTelemetryVal: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  ackPolicyBox: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#38BDF8',
+    padding: 10,
+    borderRadius: 8,
+    width: '100%',
+    marginBottom: 18,
+  },
+  ackPolicyText: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    lineHeight: 15,
+  },
+  ackUnlockBtn: {
+    width: '100%',
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  ackUnlockBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  ackBtnSubtext: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

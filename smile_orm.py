@@ -148,6 +148,9 @@ class AttendanceLog(Base):
     verification_method = Column(String(30), default="QR_CODE") # QR_CODE, RFID_TAP, MANUAL_LRN
     sms_status = Column(String(30), default="PENDING", index=True)      # PENDING, SENT, MOCKED, FAILED
     remarks = Column(String(100), default="")
+    parent_acknowledged = Column(Boolean, default=False, index=True)
+    parent_acknowledged_at = Column(DateTime, nullable=True)
+    parent_acknowledged_by = Column(String(100), default="")
 
     student_rel = relationship("Student", back_populates="attendance_records")
 
@@ -175,7 +178,10 @@ class AttendanceLog(Base):
             "device_id": self.device_id,
             "verification_method": self.verification_method,
             "sms_status": self.sms_status,
-            "parent_phone": phone or ""
+            "parent_phone": phone or "",
+            "parent_acknowledged": bool(self.parent_acknowledged),
+            "parent_acknowledged_at": self.parent_acknowledged_at.strftime("%Y-%m-%d %I:%M %p") if self.parent_acknowledged_at else None,
+            "parent_acknowledged_by": self.parent_acknowledged_by or ""
         }
 
 class SmsLog(Base):
@@ -1012,6 +1018,10 @@ def auto_migrate_columns_orm():
                         ADD COLUMN IF NOT EXISTS created_at TIMESTAMP;
                     ALTER TABLE workflow_executions
                         ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'ALL';
+                    ALTER TABLE attendance_logs
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged BOOLEAN DEFAULT FALSE,
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged_at TIMESTAMP,
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged_by VARCHAR(100) DEFAULT '';
                 """))
             elif "sqlite" in dialect:
                 # Users columns
@@ -1064,6 +1074,18 @@ def auto_migrate_columns_orm():
                 if "target_audience" not in we_existing:
                     try: conn.execute(text("ALTER TABLE workflow_executions ADD COLUMN target_audience VARCHAR(50) DEFAULT 'ALL';"))
                     except Exception: pass
+
+                # attendance_logs columns
+                al_res = conn.execute(text("PRAGMA table_info(attendance_logs);")).fetchall()
+                al_existing = [r[1] for r in al_res]
+                for c_name, c_type in [
+                    ("parent_acknowledged", "BOOLEAN DEFAULT 0"),
+                    ("parent_acknowledged_at", "DATETIME"),
+                    ("parent_acknowledged_by", "VARCHAR(100) DEFAULT ''"),
+                ]:
+                    if c_name not in al_existing:
+                        try: conn.execute(text(f"ALTER TABLE attendance_logs ADD COLUMN {c_name} {c_type};"))
+                        except Exception: pass
 
             # Backfill standard employee numbers for recognized faculty & staff
             staff_emp_defaults = {
@@ -2123,6 +2145,43 @@ def update_attendance_sms_status_orm(log_id, status):
             session.commit()
     except Exception:
         session.rollback()
+    finally:
+        session.close()
+
+def acknowledge_attendance_log_orm(log_id, acknowledged_by="Parent (Mobile App)"):
+    """
+    Records a parent's digital verification & confirmation of a gate attendance event.
+    Marks the log as acknowledged, timestamps it, and stores the confirmer name.
+    """
+    session = Session()
+    try:
+        log = session.query(AttendanceLog).filter_by(id=int(log_id)).first()
+        if log:
+            log.parent_acknowledged = True
+            log.parent_acknowledged_at = pht_now()
+            log.parent_acknowledged_by = str(acknowledged_by)
+            session.commit()
+            return log.to_dict()
+        return None
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+def get_pending_acknowledgments_orm(lrn):
+    """
+    Returns today's gate scan logs for a student that have not yet been acknowledged by parent.
+    """
+    session = Session()
+    try:
+        today_start = pht_now().replace(hour=0, minute=0, second=0, microsecond=0)
+        logs = session.query(AttendanceLog).filter(
+            AttendanceLog.lrn == str(lrn).strip(),
+            AttendanceLog.timestamp >= today_start,
+            or_(AttendanceLog.parent_acknowledged.is_(False), AttendanceLog.parent_acknowledged.is_(None))
+        ).order_by(AttendanceLog.id.desc()).all()
+        return [l.to_dict() for l in logs]
     finally:
         session.close()
 
@@ -4709,6 +4768,8 @@ broadcast_principal_announcement = broadcast_principal_announcement_orm
 seed_default_automations = seed_default_automations_if_empty
 get_user_by_employee_number = get_user_by_employee_number_orm
 get_staff_today_status = get_staff_today_status_orm
+acknowledge_attendance_log = acknowledge_attendance_log_orm
+get_pending_acknowledgments = get_pending_acknowledgments_orm
 
 
 
