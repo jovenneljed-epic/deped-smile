@@ -150,6 +150,144 @@ class TestSectionsAndAPI(unittest.TestCase):
         self.assertIn(b"DEPED SCHOOL FORM 2 (SF2)", r_csv.data)
         self.assertIn(b"DepEd LRN", r_csv.data)
 
+
+class TestProgressiveAutomationsAndPush(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "principal_admin"
+            sess["full_name"] = "Dr. Maria Santos"
+            sess["role"] = "SUPER_ADMIN"
+
+    def test_automations_page_render(self):
+        """Tests that /automations renders the push notification center."""
+        resp = self.client.get('/automations')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Automated E-Notification & Push Center", resp.data)
+        self.assertIn(b"Broadcast Principal Announcement", resp.data)
+        self.assertIn(b"pushPermissionBanner", resp.data)
+        self.assertIn(b"categoryFilterTabs", resp.data)
+        self.assertIn(b"workflowsContainer", resp.data)
+        self.assertIn(b"principalBroadcastModal", resp.data)
+
+    def test_api_automations_list_and_filter(self):
+        """Tests /api/automations returns progressive workflows & category filters."""
+        # 1. Fetch all
+        resp = self.client.get('/api/automations')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data.get("success"))
+        workflows = data.get("workflows", [])
+        self.assertGreaterEqual(len(workflows), 15, "Should have at least 15 progressive automations")
+        
+        categories = {w.get("category") for w in workflows}
+        self.assertTrue(any("PRINCIPAL" in c for c in categories), "Should have principal category")
+        self.assertTrue(any("DAILY" in c for c in categories), "Should have daily reminder category")
+        self.assertTrue(any("WEEKLY" in c for c in categories), "Should have weekly reminder category")
+        self.assertTrue(any("MONTHLY" in c for c in categories), "Should have monthly reminder category")
+        self.assertTrue(any("EVENT" in c for c in categories), "Should have event reminder category")
+        self.assertTrue(any("EMERGENCY" in c for c in categories), "Should have emergency category")
+
+        # 2. Filter by category
+        resp_daily = self.client.get('/api/automations?category=DAILY')
+        self.assertEqual(resp_daily.status_code, 200)
+        daily_wfs = resp_daily.get_json().get("workflows", [])
+        self.assertGreaterEqual(len(daily_wfs), 5)
+        for w in daily_wfs:
+            self.assertEqual(w["category"], "DAILY_REMINDER")
+
+    def test_api_automations_toggle(self):
+        """Tests toggling an automation active / paused state."""
+        # Get first workflow
+        resp = self.client.get('/api/automations')
+        wf = resp.get_json()["workflows"][0]
+        wf_id = wf["id"]
+        prev_state = wf["is_active"]
+
+        # Toggle
+        toggle_res = self.client.post('/api/automations/toggle', json={"id": wf_id})
+        self.assertEqual(toggle_res.status_code, 200)
+        toggled_data = toggle_res.get_json()
+        self.assertTrue(toggled_data.get("success"))
+        self.assertEqual(toggled_data["workflow"]["is_active"], not prev_state)
+
+        # Toggle back
+        restore_res = self.client.post('/api/automations/toggle', json={"id": wf_id})
+        self.assertEqual(restore_res.status_code, 200)
+        self.assertEqual(restore_res.get_json()["workflow"]["is_active"], prev_state)
+
+    def test_api_automations_trigger(self):
+        """Tests triggering a workflow push notification."""
+        resp = self.client.get('/api/automations')
+        wf = resp.get_json()["workflows"][0]
+        wf_id = wf["id"]
+
+        trigger_res = self.client.post(f'/api/automations/trigger/{wf_id}', json={
+            "source": "UNIT_TEST_TRIGGER"
+        })
+        self.assertEqual(trigger_res.status_code, 200)
+        data = trigger_res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("execution", data)
+        self.assertIn("payload", data)
+        self.assertEqual(data["execution"]["status"], "SUCCESS")
+
+    def test_api_principal_broadcast(self):
+        """Tests Principal Announcement broadcast endpoint."""
+        payload = {
+            "title": "Principal's Official School Announcement: Campus Safety",
+            "body": "DepEd safety protocol reminder: All gate visitors must present government ID at Guardhouse 1.",
+            "target_audience": "ALL",
+            "priority": "HIGH"
+        }
+        res = self.client.post('/api/automations/principal-broadcast', json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("execution", data)
+        self.assertIn("id", data["execution"])
+        self.assertEqual(data["payload"]["title"], payload["title"])
+        self.assertEqual(data["payload"]["priority"], "HIGH")
+
+    def test_api_automations_create_custom(self):
+        """Tests creating a custom progressive reminder."""
+        new_wf = {
+            "title": "DepEd Reading Month Kickoff Announcement",
+            "description": "Annual campus celebration of National Reading Month.",
+            "category": "EVENT_REMINDER",
+            "trigger_type": "EVENT_SCHEDULE",
+            "schedule_cron": "November 1st @ 08:00 AM",
+            "default_title": "National Reading Month Celebration",
+            "default_body": "Join us tomorrow for the opening ceremony in the DepEd Amphitheater.",
+            "target_audience": "ALL",
+            "priority": "NORMAL"
+        }
+        res = self.client.post('/api/automations/create', json=new_wf)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data["workflow"]["title"], new_wf["title"])
+
+    def test_api_automations_executions(self):
+        """Tests retrieving recent workflow audit logs."""
+        res = self.client.get('/api/automations/executions?limit=10')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIsInstance(data.get("executions"), list)
+
+    def test_api_automations_test_push(self):
+        """Tests push notification test payload generation."""
+        res = self.client.post('/api/automations/test-push')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("payload", data)
+        self.assertIn("sound", data["payload"])
+
+
 if __name__ == '__main__':
     unittest.main()
+
 
