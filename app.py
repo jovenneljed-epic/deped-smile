@@ -35,7 +35,8 @@ from smile_orm import (
     get_recent_sms_logs_orm, get_all_attendance_logs_for_export_orm,
     enroll_staff_face_orm, get_enrolled_staff_faces_orm,
     record_staff_attendance_orm, get_staff_today_status_orm,
-    get_staff_dtr_logs_orm
+    get_staff_dtr_logs_orm, get_today_all_staff_logs_orm,
+    get_campus_staff_attendance_summary_orm
 )
 from smile_face_engine import SmileFaceEngine
 from smile_sms import (
@@ -2710,17 +2711,29 @@ def export_attendance_csv():
 def faculty_scanner_page():
     """
     Dedicated Face Recognition & Geotagged Attendance Scanner for Teaching and Non-Teaching Personnel.
-    Works as a high-security biometric attendance station with GPS geotag enforcement.
+    - System Admin / Principal: Central Multi-Account Attendance Station for all school staff with live feed.
+    - Individual Staff / Teacher: Personal Face DTR scanner station.
     """
     current_uid = session.get('user_id')
+    user_obj = get_user_by_id_orm(current_uid) if current_uid else None
+
+    # Check if this scanner session is in Admin / Principal Central Multi-Account Kiosk mode
+    is_admin = bool(user_obj and (user_obj.get('is_admin') or user_obj.get('role') in ['SUPER_ADMIN', 'PRINCIPAL']))
+
     today_status = get_staff_today_status_orm(current_uid) if current_uid else None
     enrolled_staff = get_enrolled_staff_faces_orm()
     enrolled_count = len(enrolled_staff)
-    
-    user_obj = None
-    if current_uid:
-        user_obj = get_user_by_id_orm(current_uid)
-        
+
+    # Active staff list for admin kiosk enrollment and inspection
+    all_staff = []
+    if is_admin:
+        raw_users = get_all_users_orm()
+        staff_roles = ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD', 'SUPER_ADMIN']
+        all_staff = [u for u in raw_users if u.get('is_active', True) and u.get('role') in staff_roles]
+
+    today_all_logs = get_today_all_staff_logs_orm(50) if is_admin else []
+    campus_summary = get_campus_staff_attendance_summary_orm()
+
     return render_template(
         'faculty_scanner.html',
         school_name=SCHOOL_NAME,
@@ -2728,7 +2741,11 @@ def faculty_scanner_page():
         school_lon=DEFAULT_SCHOOL_LON,
         geofence_radius=ALLOWED_GEOFENCE_RADIUS_METERS,
         current_user=user_obj,
+        is_admin_kiosk=is_admin,
+        all_staff=all_staff,
         today_status=today_status,
+        today_all_logs=today_all_logs,
+        campus_summary=campus_summary,
         enrolled_count=enrolled_count
     )
 
@@ -2845,6 +2862,9 @@ def api_faculty_verify_scan():
             "photo_path": match.get("photo_path", "")
         }
 
+        campus_summary = get_campus_staff_attendance_summary_orm()
+        today_all_logs = get_today_all_staff_logs_orm(20)
+
         return jsonify({
             "success": ok,
             "matched": True,
@@ -2853,12 +2873,28 @@ def api_faculty_verify_scan():
             "message": msg,
             "staff": clean_staff,
             "log": log_entry,
-            "today_status": today_status
+            "today_status": today_status,
+            "campus_summary": campus_summary,
+            "today_all_logs": today_all_logs
         })
-
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/faculty/today-all-logs')
+@login_required
+def api_faculty_today_all_logs():
+    """Returns today's live attendance logs across all personnel for the central scanner kiosk."""
+    try:
+        logs = get_today_all_staff_logs_orm(50)
+        summary = get_campus_staff_attendance_summary_orm()
+        return jsonify({
+            "success": True,
+            "logs": logs,
+            "summary": summary
+        })
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/faculty/enroll-face', methods=['POST'])

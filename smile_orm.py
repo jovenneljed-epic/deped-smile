@@ -2748,6 +2748,76 @@ def get_staff_dtr_logs_orm(user_id=None, month=None, year=None, limit=100):
     finally:
         session.close()
 
+def get_today_all_staff_logs_orm(limit=50):
+    """
+    Returns today's attendance logs across ALL teaching and non-teaching personnel.
+    Used by the Central Multi-Account Scanner kiosk in Admin / Principal view.
+    """
+    session = Session()
+    try:
+        now = pht_now()
+        today_start = datetime.combine(now.date(), datetime.min.time())
+        logs = session.query(StaffAttendanceLog).filter(
+            StaffAttendanceLog.timestamp >= today_start
+        ).order_by(StaffAttendanceLog.timestamp.desc()).limit(limit).all()
+
+        results = []
+        for l in logs:
+            ld = l.to_dict()
+            if l.user_rel:
+                ld["designation"] = getattr(l.user_rel, "designation", "") or ""
+                ld["assigned_section_name"] = f"{l.user_rel.assigned_section.grade_level} - {l.user_rel.assigned_section.section_name}" if (l.user_rel.assigned_section) else "N/A"
+                ld["photo_path"] = getattr(l.user_rel, "photo_path", "") or ""
+            results.append(ld)
+        return results
+    finally:
+        session.close()
+
+def get_campus_staff_attendance_summary_orm():
+    """
+    Calculates today's overall faculty & staff attendance statistics for the school.
+    Returns:
+      total_staff: active teaching, non-teaching, principals, staff
+      enrolled_faces: count of staff with registered face embeddings
+      present_today: count of distinct staff members with at least 1 log today
+      timed_in_now: count of staff whose latest scan today is TIME_IN
+      absent_today: staff who haven't logged today
+    """
+    session = Session()
+    try:
+        now = pht_now()
+        today_start = datetime.combine(now.date(), datetime.min.time())
+
+        # Total active staff
+        staff_roles = ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD', 'SUPER_ADMIN']
+        users = session.query(User).filter(User.is_active == True, User.role.in_(staff_roles)).all()
+        total_staff = len(users)
+        enrolled_faces = sum(1 for u in users if u.face_embedding)
+
+        # Today's distinct staff logged
+        today_logs = session.query(StaffAttendanceLog).filter(
+            StaffAttendanceLog.timestamp >= today_start
+        ).order_by(StaffAttendanceLog.timestamp.asc()).all()
+
+        distinct_user_ids = set()
+        latest_status_by_user = {}
+
+        for l in today_logs:
+            distinct_user_ids.add(l.user_id)
+            latest_status_by_user[l.user_id] = l.scan_type
+
+        timed_in_now = sum(1 for uid, st in latest_status_by_user.items() if st == "TIME_IN")
+
+        return {
+            "total_staff": total_staff,
+            "enrolled_faces": enrolled_faces,
+            "present_today": len(distinct_user_ids),
+            "timed_in_now": timed_in_now,
+            "absent_today": max(0, total_staff - len(distinct_user_ids))
+        }
+    finally:
+        session.close()
+
 DEFAULT_STUDENTS = [
     {
         "lrn": "152008250007",
@@ -3652,5 +3722,7 @@ record_staff_attendance = record_staff_attendance_orm
 get_staff_today_status = get_staff_today_status_orm
 get_staff_dtr_logs = get_staff_dtr_logs_orm
 auto_migrate_columns = auto_migrate_columns_orm
+get_today_all_staff_logs = get_today_all_staff_logs_orm
+get_campus_staff_attendance_summary = get_campus_staff_attendance_summary_orm
 
 

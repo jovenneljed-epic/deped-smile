@@ -49,7 +49,7 @@ class TestFacultyDTRSuite(unittest.TestCase):
         """Test GET /faculty-scanner returns 200 with proper HTML and school configs."""
         res = self.client.get('/faculty-scanner')
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Faculty & Staff Face DTR Scanner", res.data)
+        self.assertIn(b"Face DTR Scanner", res.data)
         self.assertIn(b"Biometric Targeting", res.data)
         self.assertIn(str(ALLOWED_GEOFENCE_RADIUS_METERS).encode(), res.data)
 
@@ -150,6 +150,55 @@ class TestFacultyDTRSuite(unittest.TestCase):
         data = json.loads(res.data)
         self.assertTrue(data["success"])
         self.assertIn("today_status", data)
+
+    def test_09_admin_kiosk_scanner_view(self):
+        """Test GET /faculty-scanner as SUPER_ADMIN renders Central Biometric Kiosk."""
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+            sess["full_name"] = "System Administrator"
+
+        res = self.client.get('/faculty-scanner')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"CENTRAL STAFF KIOSK", res.data)
+        self.assertIn(b"UNIVERSAL STATION", res.data)
+        self.assertIn(b"Today's Live Attendance Feed", res.data)
+        self.assertIn(b"enrollStaffSelect", res.data)
+        self.assertIn(b"Total Staff", res.data)
+
+    def test_10_api_faculty_today_all_logs(self):
+        """Test GET /api/faculty/today-all-logs returns live all-staff logs and summary."""
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+            sess["full_name"] = "System Administrator"
+
+        res = self.client.get('/api/faculty/today-all-logs')
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertTrue(data["success"])
+        self.assertIn("summary", data)
+        self.assertIn("logs", data)
+        self.assertIn("total_staff", data["summary"])
+        self.assertIn("present_today", data["summary"])
+        self.assertIn("timed_in_now", data["summary"])
+
+    def test_11_personal_scanner_view_for_teacher(self):
+        """Test GET /faculty-scanner as individual TEACHER renders Personal Scanner."""
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.teacher_id
+            sess["username"] = "teacher_test"
+            sess["role"] = "TEACHER"
+            sess["full_name"] = "Mam Jovelyn D. Aviguetero"
+
+        res = self.client.get('/faculty-scanner')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"PERSONAL SCANNER", res.data)
+        self.assertIn(b"cardAmIn", res.data)
+        self.assertIn(b"cardAmOut", res.data)
+        self.assertNotIn(b'<select id="enrollStaffSelect"', res.data)
 
 if __name__ == '__main__':
     unittest.main()
