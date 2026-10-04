@@ -330,6 +330,7 @@ class User(Base):
     phone_number = Column(String(30), default="")
     designation = Column(String(100), default="") # DepEd Designation / Department (e.g. Registrar, Guidance)
     assigned_section_id = Column(Integer, ForeignKey('sections.id'), nullable=True)
+    employee_number = Column(String(50), nullable=True, index=True) # DepEd Employee Number (e.g. TCH-1001, STF-2001)
     face_embedding = Column(Text, nullable=True) # JSON list of 128 floats for SFace facial recognition
     photo_path = Column(Text, default="") # Photo evidence / profile portrait
     created_at = Column(DateTime, default=pht_now)
@@ -343,6 +344,7 @@ class User(Base):
             "id": self.id,
             "username": self.username,
             "email": self.email,
+            "employee_number": getattr(self, 'employee_number', '') or self.username,
             "full_name": self.full_name,
             "role": self.role,
             "is_active": self.is_active,
@@ -989,6 +991,7 @@ def auto_migrate_columns_orm():
             if "postgres" in dialect:
                 conn.execute(text("""
                     ALTER TABLE users 
+                        ADD COLUMN IF NOT EXISTS employee_number VARCHAR(50),
                         ADD COLUMN IF NOT EXISTS designation VARCHAR(100) DEFAULT '',
                         ADD COLUMN IF NOT EXISTS assigned_section_id INTEGER,
                         ADD COLUMN IF NOT EXISTS face_embedding TEXT,
@@ -1015,6 +1018,7 @@ def auto_migrate_columns_orm():
                 u_res = conn.execute(text("PRAGMA table_info(users);")).fetchall()
                 u_existing = [r[1] for r in u_res]
                 for c_name, c_type in [
+                    ("employee_number", "VARCHAR(50) DEFAULT ''"),
                     ("designation", "VARCHAR(100) DEFAULT ''"),
                     ("assigned_section_id", "INTEGER"),
                     ("face_embedding", "TEXT"),
@@ -1060,6 +1064,30 @@ def auto_migrate_columns_orm():
                 if "target_audience" not in we_existing:
                     try: conn.execute(text("ALTER TABLE workflow_executions ADD COLUMN target_audience VARCHAR(50) DEFAULT 'ALL';"))
                     except Exception: pass
+
+            # Backfill standard employee numbers for recognized faculty & staff
+            staff_emp_defaults = {
+                "admin": "ADMIN-001",
+                "principal": "PRIN-001",
+                "teacher": "TCH-1001",
+                "teacher_test": "TCH-1002",
+                "guard": "SEC-3001",
+                "guard_night": "SEC-3002",
+                "staff": "STF-2001",
+            }
+            for u_name, e_num in staff_emp_defaults.items():
+                try:
+                    conn.execute(text(f"UPDATE users SET employee_number = '{e_num}' WHERE username = '{u_name}' AND (employee_number IS NULL OR employee_number = '');"))
+                except Exception:
+                    pass
+            # Auto-assign any remaining empty employee numbers
+            try:
+                if "postgres" in dialect:
+                    conn.execute(text("UPDATE users SET employee_number = CONCAT('EMP-', LPAD(id::text, 4, '0')) WHERE employee_number IS NULL OR employee_number = '';"))
+                elif "sqlite" in dialect:
+                    conn.execute(text("UPDATE users SET employee_number = 'EMP-' || printf('%04d', id) WHERE employee_number IS NULL OR employee_number = '';"))
+            except Exception:
+                pass
     except Exception as ex:
         print(f"[!] Auto-migration batch note: {ex}")
 
@@ -3354,6 +3382,24 @@ def get_staff_today_status_orm(user_id):
 
         latest = logs[-1].to_dict() if logs else None
 
+        # Compute rendered hours (DepEd Civil Service Form 48)
+        am_minutes = 0
+        pm_minutes = 0
+        am_in_log = next((l for l in logs if l.period == 'AM' and l.scan_type == 'TIME_IN'), None)
+        am_out_log = next((l for l in reversed(logs) if l.period == 'AM' and l.scan_type == 'TIME_OUT'), None)
+        if am_in_log and am_out_log and am_out_log.timestamp > am_in_log.timestamp:
+            am_minutes = int((am_out_log.timestamp - am_in_log.timestamp).total_seconds() // 60)
+
+        pm_in_log = next((l for l in logs if l.period == 'PM' and l.scan_type == 'TIME_IN'), None)
+        pm_out_log = next((l for l in reversed(logs) if l.period == 'PM' and l.scan_type == 'TIME_OUT'), None)
+        if pm_in_log and pm_out_log and pm_out_log.timestamp > pm_in_log.timestamp:
+            pm_minutes = int((pm_out_log.timestamp - pm_in_log.timestamp).total_seconds() // 60)
+
+        total_minutes = am_minutes + pm_minutes
+        rendered_hrs = total_minutes // 60
+        rendered_mins = total_minutes % 60
+        rendered_str = f"{rendered_hrs}h {rendered_mins}m" if total_minutes > 0 else "0h 0m"
+
         return {
             "am_in": am_in or "--:--",
             "am_out": am_out or "--:--",
@@ -3364,9 +3410,33 @@ def get_staff_today_status_orm(user_id):
             "has_pm_in": bool(pm_in),
             "has_pm_out": bool(pm_out),
             "total_punches": len(logs),
+            "total_minutes": total_minutes,
+            "rendered_hours": round(total_minutes / 60.0, 2),
+            "rendered_str": rendered_str,
             "latest_scan": latest,
             "today_logs": [l.to_dict() for l in logs]
         }
+    finally:
+        session.close()
+
+def get_user_by_employee_number_orm(emp_no):
+    """
+    Finds an active staff, teacher, or administrative user by Employee Number
+    (case-insensitive) or Username.
+    """
+    if not emp_no:
+        return None
+    session = Session()
+    try:
+        clean = str(emp_no).strip()
+        user = session.query(User).filter(
+            (func.upper(User.employee_number) == clean.upper()) |
+            (func.lower(User.username) == clean.lower())
+        ).first()
+        return user.to_dict() if user else None
+    except Exception as e:
+        print(f"[!] get_user_by_employee_number_orm error: {e}")
+        return None
     finally:
         session.close()
 
@@ -3617,6 +3687,7 @@ def seed_default_users_orm():
                 "password": "admin123",
                 "full_name": "Engr. System Administrator",
                 "role": "SUPER_ADMIN",
+                "employee_number": "ADMIN-001",
                 "phone_number": "09170000001",
                 "assigned_section_id": None
             },
@@ -3626,6 +3697,7 @@ def seed_default_users_orm():
                 "password": "principal123",
                 "full_name": "Dr. Maria Clara Santos, CESO V",
                 "role": "PRINCIPAL",
+                "employee_number": "PRIN-001",
                 "phone_number": "09170000002",
                 "assigned_section_id": None
             },
@@ -3635,6 +3707,7 @@ def seed_default_users_orm():
                 "password": "teacher123",
                 "full_name": "Mrs. Erlinda Flores (Grade 1 Adviser)",
                 "role": "TEACHER",
+                "employee_number": "TCH-1001",
                 "phone_number": "09170000003",
                 "assigned_section_id": advisory_id
             },
@@ -3644,6 +3717,7 @@ def seed_default_users_orm():
                 "password": "staff123",
                 "full_name": "Ms. Andrea Bautista (School Registrar)",
                 "role": "STAFF",
+                "employee_number": "STF-2001",
                 "phone_number": "09170000005",
                 "assigned_section_id": None
             },
@@ -3653,6 +3727,7 @@ def seed_default_users_orm():
                 "password": "guard123",
                 "full_name": "Officer Danilo Ramos (Gate 1)",
                 "role": "GUARD",
+                "employee_number": "SEC-3001",
                 "phone_number": "09170000004",
                 "assigned_section_id": None
             }
@@ -3666,6 +3741,7 @@ def seed_default_users_orm():
                     password_hash=generate_password_hash(acc["password"]),
                     full_name=acc["full_name"],
                     role=acc["role"],
+                    employee_number=acc.get("employee_number"),
                     is_active=True,
                     phone_number=acc["phone_number"],
                     assigned_section_id=acc.get("assigned_section_id")
@@ -3675,6 +3751,8 @@ def seed_default_users_orm():
                 existing.is_active = True
                 if acc.get("role"):
                     existing.role = acc["role"]
+                if acc.get("employee_number") and not existing.employee_number:
+                    existing.employee_number = acc["employee_number"]
                 if acc.get("assigned_section_id") and not existing.assigned_section_id:
                     existing.assigned_section_id = acc["assigned_section_id"]
                 # Update password hash in case schema refreshed
@@ -4629,6 +4707,8 @@ create_custom_automation = create_custom_automation_orm
 get_workflow_executions = get_workflow_executions_orm
 broadcast_principal_announcement = broadcast_principal_announcement_orm
 seed_default_automations = seed_default_automations_if_empty
+get_user_by_employee_number = get_user_by_employee_number_orm
+get_staff_today_status = get_staff_today_status_orm
 
 
 

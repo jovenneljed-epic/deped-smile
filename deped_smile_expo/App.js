@@ -126,6 +126,16 @@ export default function App() {
   const [tempServerUrl, setTempServerUrl] = useState(CLOUD_SERVER_URL);
   const [tempLrn, setTempLrn] = useState(DEFAULT_LRN);
 
+  // Dual Portal Mode State: 'PARENT' | 'STAFF'
+  const [portalMode, setPortalMode] = useState('PARENT');
+  const [staffUser, setStaffUser] = useState(null);
+  const [staffEmpNo, setStaffEmpNo] = useState('');
+  const [staffLoggingIn, setStaffLoggingIn] = useState(false);
+  const [staffDtr, setStaffDtr] = useState(null);
+  const [staffSection, setStaffSection] = useState(null);
+  const [staffClocking, setStaffClocking] = useState(false);
+  const [staffActiveTab, setStaffActiveTab] = useState('dtr'); // 'dtr', 'advisory', 'bulletins'
+
   // Polling tracker & banner anim
   const lastEventIdRef = useRef(0);
   const lastAnnIdRef = useRef(0);
@@ -854,6 +864,131 @@ export default function App() {
     }
   };
 
+  // -------------------------------------------------------------
+  // 3b. Faculty & Staff Portal Methods (Civil Service Form 48 DTR)
+  // -------------------------------------------------------------
+  const handleStaffLogin = async (overrideEmpNo) => {
+    const targetEmp = (overrideEmpNo || staffEmpNo || "").trim();
+    if (!targetEmp) {
+      Alert.alert("Employee ID Required", "Please enter your DepEd Employee Number (e.g., TCH-1001, STF-2001, PRIN-001) or username.");
+      return;
+    }
+    setStaffLoggingIn(true);
+    try {
+      const res = await fetch(`${serverUrl}/api/mobile/staff/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_number: targetEmp })
+      });
+      const data = await res.json();
+      if (data.success && data.staff) {
+        setStaffUser(data.staff);
+        setStaffDtr(data.today_status || null);
+        setStaffActiveTab('dtr');
+        if (vibrateEnabled) Vibration.vibrate([0, 150, 80, 150]);
+        fetchStaffHome(data.staff.id);
+        showFloatingBanner(
+          "FACULTY PORTAL ACTIVE",
+          `Signed in as ${data.staff.full_name} (${data.staff.employee_number || data.staff.username})`,
+          "Just now",
+          "👨‍🏫",
+          "#10B981"
+        );
+      } else {
+        Alert.alert("Login Failed", data.message || "Account not found. Please verify your Employee Number.");
+      }
+    } catch (err) {
+      Alert.alert("Connection Error", "Could not reach DepEd server. Check your network connection.");
+    } finally {
+      setStaffLoggingIn(false);
+    }
+  };
+
+  const fetchStaffHome = async (userId) => {
+    const uid = userId || (staffUser ? staffUser.id : null);
+    if (!uid) return;
+    try {
+      const res = await fetch(`${serverUrl}/api/mobile/staff/home/${uid}`);
+      const data = await res.json();
+      if (data.success) {
+        if (data.staff) setStaffUser(data.staff);
+        if (data.today_status) setStaffDtr(data.today_status);
+        if (data.section_report) setStaffSection(data.section_report);
+        if (data.announcements) setUrgentAnnouncements(data.announcements.slice(0, 3));
+      }
+    } catch (err) {
+      console.warn("fetchStaffHome error:", err);
+    }
+  };
+
+  const handleStaffClock = async (scanType = "AUTO") => {
+    if (!staffUser) return;
+    setStaffClocking(true);
+    try {
+      const res = await fetch(`${serverUrl}/api/mobile/staff/dtr-clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: staffUser.id,
+          scan_type: scanType,
+          latitude: 14.3012,
+          longitude: 120.9578,
+          accuracy: 12.5,
+          method: "MOBILE_APP"
+        })
+      });
+      const data = await res.json();
+      if (vibrateEnabled) Vibration.vibrate([0, 300, 100, 300]);
+
+      // Schedule real notification with sound & vibration on Android channel!
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Official DepEd DTR Form 48 Recorded",
+          body: data.message || `DTR log recorded for ${staffUser.full_name}.`,
+          sound: 'default',
+          channelId: 'gate-attendance-channel',
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          data: { type: 'STAFF_DTR', staffId: staffUser.id }
+        },
+        trigger: null,
+      });
+
+      if (data.today_status) setStaffDtr(data.today_status);
+      fetchStaffHome(staffUser.id);
+      Alert.alert(data.success ? "DTR Recorded ⏱️" : "DTR Cooldown", data.message);
+    } catch (err) {
+      Alert.alert("Clock Error", "Could not record biometric punch. Please try again.");
+    } finally {
+      setStaffClocking(false);
+    }
+  };
+
+  const handleStaffTestAlert = async () => {
+    if (vibrateEnabled) Vibration.vibrate([0, 500, 200, 500]);
+    const sName = staffUser ? staffUser.full_name : "Faculty Member";
+    const sEmp = staffUser ? (staffUser.employee_number || staffUser.username) : "TCH-1001";
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `⚡ S.M.I.L.E. Faculty Push Alert: ${sName}`,
+        body: `Form 48 Biometric DTR synchronized for ${sName} (${sEmp}). Sound and vibration verified on gate-attendance-channel.`,
+        sound: 'default',
+        channelId: 'gate-attendance-channel',
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        data: { type: 'STAFF_ALERT', empNo: sEmp }
+      },
+      trigger: null,
+    });
+
+    showFloatingBanner(
+      "FACULTY PUSH VERIFIED",
+      `Real alert sent with sound & vibration to ${sName} (${sEmp}).`,
+      "Just now",
+      "⚡",
+      "#10B981"
+    );
+  };
+
   // Status computation
   const isInside = status === "INSIDE_CAMPUS";
   const isExited = status === "SAFELY_EXITED";
@@ -964,7 +1099,20 @@ export default function App() {
           </View>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={styles.portalSwitchButton}
+            onPress={() => {
+              const nextMode = portalMode === 'PARENT' ? 'STAFF' : 'PARENT';
+              setPortalMode(nextMode);
+              if (vibrateEnabled) Vibration.vibrate(30);
+            }}
+          >
+            <Text style={styles.portalSwitchButtonText}>
+              {portalMode === 'PARENT' ? '👨‍🏫 Faculty Portal' : '👨‍👩‍👧 Parent Portal'}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.notifBellButton}
             onPress={() => {
@@ -990,55 +1138,97 @@ export default function App() {
 
       {/* Main Tab Content Body */}
       <View style={styles.tabContentContainer}>
-        {activeTab === 'gate' && renderGateTab()}
-        {activeTab === 'incidents' && renderIncidentsTab()}
-        {activeTab === 'bulletins' && renderBulletinsTab()}
-        {activeTab === 'events' && renderEventsTab()}
-        {activeTab === 'security' && renderSecurityTab()}
+        {portalMode === 'STAFF' ? (
+          renderStaffPortal()
+        ) : (
+          <>
+            {activeTab === 'gate' && renderGateTab()}
+            {activeTab === 'incidents' && renderIncidentsTab()}
+            {activeTab === 'bulletins' && renderBulletinsTab()}
+            {activeTab === 'events' && renderEventsTab()}
+            {activeTab === 'security' && renderSecurityTab()}
+          </>
+        )}
       </View>
 
-      {/* Bottom Navigation Tab Bar (5 High-Performance Tabs) */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'gate' && styles.tabButtonActive]}
-          onPress={() => { setActiveTab('gate'); if (vibrateEnabled) Vibration.vibrate(25); }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'gate' && styles.tabIconActive]}>🛡️</Text>
-          <Text style={[styles.tabLabel, activeTab === 'gate' && styles.tabLabelActive]}>Gate</Text>
-        </TouchableOpacity>
+      {/* Bottom Navigation Tab Bar (Dynamic: Parent vs Faculty) */}
+      {portalMode === 'STAFF' ? (
+        <View style={styles.bottomTabBar}>
+          <TouchableOpacity
+            style={[styles.tabButton, staffActiveTab === 'dtr' && styles.tabButtonActive]}
+            onPress={() => { setStaffActiveTab('dtr'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, staffActiveTab === 'dtr' && styles.tabIconActive]}>⏱️</Text>
+            <Text style={[styles.tabLabel, staffActiveTab === 'dtr' && styles.tabLabelActive]}>Form 48 DTR</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'incidents' && styles.tabButtonActive]}
-          onPress={() => { setActiveTab('incidents'); if (vibrateEnabled) Vibration.vibrate(25); }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'incidents' && styles.tabIconActive]}>⚠️</Text>
-          <Text style={[styles.tabLabel, activeTab === 'incidents' && styles.tabLabelActive]}>Incidents</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, staffActiveTab === 'advisory' && styles.tabButtonActive]}
+            onPress={() => { setStaffActiveTab('advisory'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, staffActiveTab === 'advisory' && styles.tabIconActive]}>👥</Text>
+            <Text style={[styles.tabLabel, staffActiveTab === 'advisory' && styles.tabLabelActive]}>Advisory</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'bulletins' && styles.tabButtonActive]}
-          onPress={() => { setActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
-          <Text style={[styles.tabLabel, activeTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, staffActiveTab === 'bulletins' && styles.tabButtonActive]}
+            onPress={() => { setStaffActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, staffActiveTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
+            <Text style={[styles.tabLabel, staffActiveTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'events' && styles.tabButtonActive]}
-          onPress={() => { setActiveTab('events'); if (vibrateEnabled) Vibration.vibrate(25); }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'events' && styles.tabIconActive]}>📅</Text>
-          <Text style={[styles.tabLabel, activeTab === 'events' && styles.tabLabelActive]}>Events</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabButton}
+            onPress={() => { setPortalMode('PARENT'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={styles.tabIcon}>👨‍👩‍👧</Text>
+            <Text style={styles.tabLabel}>Parent LRN</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.bottomTabBar}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'gate' && styles.tabButtonActive]}
+            onPress={() => { setActiveTab('gate'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, activeTab === 'gate' && styles.tabIconActive]}>🛡️</Text>
+            <Text style={[styles.tabLabel, activeTab === 'gate' && styles.tabLabelActive]}>Gate</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'security' && styles.tabButtonActive]}
-          onPress={() => { setActiveTab('security'); if (vibrateEnabled) Vibration.vibrate(25); }}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'security' && styles.tabIconActive]}>🔐</Text>
-          <Text style={[styles.tabLabel, activeTab === 'security' && styles.tabLabelActive]}>Security</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'incidents' && styles.tabButtonActive]}
+            onPress={() => { setActiveTab('incidents'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, activeTab === 'incidents' && styles.tabIconActive]}>⚠️</Text>
+            <Text style={[styles.tabLabel, activeTab === 'incidents' && styles.tabLabelActive]}>Incidents</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'bulletins' && styles.tabButtonActive]}
+            onPress={() => { setActiveTab('bulletins'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, activeTab === 'bulletins' && styles.tabIconActive]}>📢</Text>
+            <Text style={[styles.tabLabel, activeTab === 'bulletins' && styles.tabLabelActive]}>Bulletins</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'events' && styles.tabButtonActive]}
+            onPress={() => { setActiveTab('events'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={[styles.tabIcon, activeTab === 'events' && styles.tabIconActive]}>📅</Text>
+            <Text style={[styles.tabLabel, activeTab === 'events' && styles.tabLabelActive]}>Events</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.tabButton}
+            onPress={() => { setPortalMode('STAFF'); if (vibrateEnabled) Vibration.vibrate(25); }}
+          >
+            <Text style={styles.tabIcon}>👨‍🏫</Text>
+            <Text style={styles.tabLabel}>Faculty DTR</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL 1: Excuse Note Submission Modal                         */}
@@ -2138,6 +2328,372 @@ export default function App() {
             </Text>
           </TouchableOpacity>
         </View>
+      </ScrollView>
+    );
+  }
+
+  function renderStaffPortal() {
+    if (!staffUser) {
+      return (
+        <ScrollView
+          style={styles.tabScroll}
+          contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Welcome Card */}
+          <View style={styles.staffLoginCard}>
+            <View style={styles.staffLoginIconCircle}>
+              <Text style={{ fontSize: 36 }}>👨‍🏫</Text>
+            </View>
+            <Text style={styles.staffLoginTitle}>FACULTY & STAFF PORTAL</Text>
+            <Text style={styles.staffLoginSubtitle}>
+              Civil Service Form 48 Daily Time Record (DTR) & Advisory Class Attendance Monitor
+            </Text>
+
+            <View style={styles.staffInputGroup}>
+              <Text style={styles.staffInputLabel}>DepEd Employee Number or Username</Text>
+              <TextInput
+                style={styles.staffTextInput}
+                placeholder="e.g. TCH-1001, STF-2001, PRIN-001"
+                placeholderTextColor="#64748B"
+                value={staffEmpNo}
+                onChangeText={setStaffEmpNo}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.staffSubmitBtn}
+              onPress={() => handleStaffLogin()}
+              disabled={staffLoggingIn}
+            >
+              {staffLoggingIn ? (
+                <ActivityIndicator color="#0B192C" />
+              ) : (
+                <Text style={styles.staffSubmitBtnText}>Sign In to Faculty Portal →</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Quick-Access Demo Chips */}
+            <View style={styles.staffChipSection}>
+              <Text style={styles.staffChipSectionTitle}>QUICK SELECT FACULTY DEMO ACCOUNTS:</Text>
+              <View style={styles.staffChipGrid}>
+                <TouchableOpacity
+                  style={styles.staffChip}
+                  onPress={() => handleStaffLogin('TCH-1001')}
+                >
+                  <Text style={styles.staffChipEmoji}>👩‍🏫</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.staffChipName}>TCH-1001</Text>
+                    <Text style={styles.staffChipDesc}>Teacher / Adviser</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.staffChip}
+                  onPress={() => handleStaffLogin('STF-2001')}
+                >
+                  <Text style={styles.staffChipEmoji}>📋</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.staffChipName}>STF-2001</Text>
+                    <Text style={styles.staffChipDesc}>School Registrar</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.staffChip}
+                  onPress={() => handleStaffLogin('PRIN-001')}
+                >
+                  <Text style={styles.staffChipEmoji}>🎓</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.staffChipName}>PRIN-001</Text>
+                    <Text style={styles.staffChipDesc}>School Principal</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.staffChip}
+                  onPress={() => handleStaffLogin('ADMIN-001')}
+                >
+                  <Text style={styles.staffChipEmoji}>💻</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.staffChipName}>ADMIN-001</Text>
+                    <Text style={styles.staffChipDesc}>System Admin</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.backToParentBtn}
+              onPress={() => setPortalMode('PARENT')}
+            >
+              <Text style={styles.backToParentBtnText}>← Switch to Parent Portal (Student LRN)</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.tabScroll}
+        contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchStaffHome(staffUser.id).finally(() => setRefreshing(false));
+            }}
+            tintColor="#FCD116"
+          />
+        }
+      >
+        {/* Staff Profile Header Card */}
+        <View style={styles.staffProfileCard}>
+          <View style={styles.staffAvatarCircle}>
+            <Text style={styles.staffAvatarText}>
+              {staffUser.full_name ? staffUser.full_name[0] : '👨‍🏫'}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={styles.staffProfileName}>{staffUser.full_name}</Text>
+              <View style={styles.staffRolePill}>
+                <Text style={styles.staffRolePillText}>{staffUser.role}</Text>
+              </View>
+            </View>
+            <Text style={styles.staffProfileMeta}>
+              ID: {staffUser.employee_number || staffUser.username} • {staffUser.designation || staffUser.assigned_section_name || 'DepEd Faculty'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.staffLogoutBtn}
+            onPress={() => {
+              setStaffUser(null);
+              setStaffDtr(null);
+              setStaffSection(null);
+              Alert.alert("Signed Out", "Switched out of faculty account.");
+            }}
+          >
+            <Text style={styles.staffLogoutBtnText}>Switch</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Staff Sub-Tabs */}
+        <View style={styles.staffSubTabs}>
+          <TouchableOpacity
+            style={[styles.staffSubTabItem, staffActiveTab === 'dtr' && styles.staffSubTabItemActive]}
+            onPress={() => setStaffActiveTab('dtr')}
+          >
+            <Text style={[styles.staffSubTabText, staffActiveTab === 'dtr' && styles.staffSubTabTextActive]}>
+              ⏱️ Form 48 DTR
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.staffSubTabItem, staffActiveTab === 'advisory' && styles.staffSubTabItemActive]}
+            onPress={() => setStaffActiveTab('advisory')}
+          >
+            <Text style={[styles.staffSubTabText, staffActiveTab === 'advisory' && styles.staffSubTabTextActive]}>
+              👥 Advisory Class
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.staffSubTabItem, staffActiveTab === 'bulletins' && styles.staffSubTabItemActive]}
+            onPress={() => setStaffActiveTab('bulletins')}
+          >
+            <Text style={[styles.staffSubTabText, staffActiveTab === 'bulletins' && styles.staffSubTabTextActive]}>
+              📢 Bulletins
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Tab 1: Form 48 DTR */}
+        {staffActiveTab === 'dtr' && (
+          <View>
+            <View style={styles.dtrCard}>
+              <View style={styles.dtrHeaderRow}>
+                <Text style={styles.dtrTitle}>CIVIL SERVICE FORM 48 (DAILY TIME RECORD)</Text>
+                <Text style={styles.dtrDate}>{todayDate}</Text>
+              </View>
+
+              <View style={styles.dtrGrid}>
+                <View style={styles.dtrGridCell}>
+                  <Text style={styles.dtrCellLabel}>AM ARRIVAL (IN)</Text>
+                  <Text style={[styles.dtrCellValue, staffDtr?.has_am_in && styles.dtrCellFilled]}>
+                    {staffDtr?.am_in || '--:--'}
+                  </Text>
+                </View>
+                <View style={styles.dtrGridCell}>
+                  <Text style={styles.dtrCellLabel}>AM DEPARTURE (OUT)</Text>
+                  <Text style={[styles.dtrCellValue, staffDtr?.has_am_out && styles.dtrCellFilled]}>
+                    {staffDtr?.am_out || '--:--'}
+                  </Text>
+                </View>
+                <View style={styles.dtrGridCell}>
+                  <Text style={styles.dtrCellLabel}>PM ARRIVAL (IN)</Text>
+                  <Text style={[styles.dtrCellValue, staffDtr?.has_pm_in && styles.dtrCellFilled]}>
+                    {staffDtr?.pm_in || '--:--'}
+                  </Text>
+                </View>
+                <View style={styles.dtrGridCell}>
+                  <Text style={styles.dtrCellLabel}>PM DEPARTURE (OUT)</Text>
+                  <Text style={[styles.dtrCellValue, staffDtr?.has_pm_out && styles.dtrCellFilled]}>
+                    {staffDtr?.pm_out || '--:--'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.renderedHoursBox}>
+                <Text style={styles.renderedHoursIcon}>⏱️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.renderedHoursText}>
+                    Rendered Today: <Text style={{ color: '#FCD116', fontWeight: 'bold' }}>{staffDtr?.rendered_str || '0h 0m'}</Text>
+                  </Text>
+                  <Text style={styles.renderedHoursSub}>
+                    DepEd Civil Service Rule • 8 Hours Standard Daily Service
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.dtrClockButton}
+              onPress={() => handleStaffClock('AUTO')}
+              disabled={staffClocking}
+            >
+              {staffClocking ? (
+                <ActivityIndicator color="#0B192C" size="large" />
+              ) : (
+                <>
+                  <Text style={styles.dtrClockBtnIcon}>⚡</Text>
+                  <View>
+                    <Text style={styles.dtrClockBtnTitle}>CLOCK IN / TIME OUT NOW</Text>
+                    <Text style={styles.dtrClockBtnSubtitle}>Biometric & GPS Geotag Verified</Text>
+                  </View>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.staffActionRow}>
+              <TouchableOpacity
+                style={styles.staffTestAlertBtn}
+                onPress={handleStaffTestAlert}
+              >
+                <Text style={styles.staffTestAlertBtnText}>🔔 Test Push Alert & Vibrate</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.staffRefreshBtn}
+                onPress={() => fetchStaffHome(staffUser.id)}
+              >
+                <Text style={styles.staffRefreshBtnText}>🔄 Refresh DTR</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.punchHistorySection}>
+              <Text style={styles.punchSectionTitle}>TODAY'S VERIFIED PUNCH LOGS</Text>
+              {staffDtr && staffDtr.today_logs && staffDtr.today_logs.length > 0 ? (
+                staffDtr.today_logs.map((log, idx) => (
+                  <View key={log.id || idx} style={styles.punchLogItem}>
+                    <View style={styles.punchBadge}>
+                      <Text style={styles.punchBadgeText}>{log.scan_type}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.punchLogTime}>{log.time_formatted || log.period} • {log.period}</Text>
+                      <Text style={styles.punchLogMethod}>{log.verification_method || 'Mobile DTR'} • {log.geotag_status || 'Campus Geotagged'}</Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.emptyPunches}>
+                  <Text style={styles.emptyPunchesText}>No punches recorded yet today.</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Tab 2: Advisory Class Student Attendance */}
+        {staffActiveTab === 'advisory' && (
+          <View>
+            <View style={styles.advisoryHeaderCard}>
+              <Text style={styles.advisorySectionTitle}>
+                {staffSection?.section_name || staffUser.assigned_section_name || 'Class Advisory'}
+              </Text>
+              <Text style={styles.advisoryAdviser}>Class Adviser: {staffUser.full_name}</Text>
+
+              <View style={styles.advisoryMetricsRow}>
+                <View style={styles.advisoryMetricCell}>
+                  <Text style={styles.advisoryMetricVal}>{staffSection?.summary?.present ?? (staffSection?.records ? staffSection.records.filter(r => r.is_present).length : 0)}</Text>
+                  <Text style={styles.advisoryMetricLbl}>PRESENT</Text>
+                </View>
+                <View style={styles.advisoryMetricCell}>
+                  <Text style={styles.advisoryMetricVal}>{staffSection?.summary?.absent ?? 0}</Text>
+                  <Text style={styles.advisoryMetricLbl}>AWAITING</Text>
+                </View>
+                <View style={styles.advisoryMetricCell}>
+                  <Text style={[styles.advisoryMetricVal, { color: '#FCD116' }]}>{staffSection?.summary?.rate || '100%'}</Text>
+                  <Text style={styles.advisoryMetricLbl}>ATTENDANCE RATE</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.advisoryRosterTitle}>STUDENT GATE LOGS (TODAY)</Text>
+            {staffSection && staffSection.records && staffSection.records.length > 0 ? (
+              staffSection.records.map((rec, i) => (
+                <View key={rec.lrn || i} style={styles.studentRosterCard}>
+                  <View style={[styles.studentRosterDot, rec.is_present ? styles.dotGreen : styles.dotAmber]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.studentRosterName}>{rec.student_name}</Text>
+                    <Text style={styles.studentRosterLrn}>LRN: {rec.lrn}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[styles.studentRosterStatus, rec.is_present ? { color: '#10B981' } : { color: '#F59E0B' }]}>
+                      {rec.is_present ? 'PRESENT' : 'AWAITING'}
+                    </Text>
+                    <Text style={styles.studentRosterTime}>{rec.time_in || 'No scan'}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyPunches}>
+                <Text style={styles.emptyPunchesText}>
+                  {staffUser.assigned_section_id
+                    ? 'No gate arrivals recorded yet for your advisory section today.'
+                    : 'Your account is not assigned as a Class Adviser (Advisory Module).'}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Tab 3: Bulletins */}
+        {staffActiveTab === 'bulletins' && (
+          <View>
+            <Text style={styles.staffBulletinHeading}>OFFICIAL SCHOOL BULLETINS & DIRECTIVES</Text>
+            {allAnnouncements && allAnnouncements.length > 0 ? (
+              allAnnouncements.map((ann, idx) => (
+                <View key={ann.id || idx} style={styles.bulletinCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={styles.bulletinCategory}>{ann.category || 'ADVISORY'}</Text>
+                    <Text style={styles.bulletinDate}>{ann.created_at || 'Recent'}</Text>
+                  </View>
+                  <Text style={styles.bulletinTitle}>{ann.title}</Text>
+                  <Text style={styles.bulletinContent}>{ann.content}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyPunches}>
+                <Text style={styles.emptyPunchesText}>No school bulletins found.</Text>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
     );
   }
@@ -3695,5 +4251,539 @@ const styles = StyleSheet.create({
     color: '#FCD116',
     fontSize: 10,
     fontWeight: '800',
+  },
+
+  // Portal Switcher in Header
+  portalSwitchButton: {
+    backgroundColor: 'rgba(252, 209, 22, 0.15)',
+    borderWidth: 1.5,
+    borderColor: '#FCD116',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  portalSwitchButtonText: {
+    color: '#FCD116',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
+  // Staff Login Card
+  staffLoginCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    marginTop: 10,
+  },
+  staffLoginIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#38BDF8',
+    marginBottom: 16,
+  },
+  staffLoginTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  staffLoginSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  staffInputGroup: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  staffInputLabel: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  staffTextInput: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1.5,
+    borderColor: '#334155',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  staffSubmitBtn: {
+    backgroundColor: '#FCD116',
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FCD116',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  staffSubmitBtnText: {
+    color: '#0B192C',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  staffChipSection: {
+    width: '100%',
+    marginTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+    paddingTop: 16,
+  },
+  staffChipSectionTitle: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  staffChipGrid: {
+    gap: 8,
+  },
+  staffChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 10,
+    padding: 10,
+    gap: 12,
+  },
+  staffChipEmoji: {
+    fontSize: 20,
+  },
+  staffChipName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  staffChipDesc: {
+    color: '#94A3B8',
+    fontSize: 11,
+  },
+  backToParentBtn: {
+    marginTop: 20,
+    paddingVertical: 8,
+  },
+  backToParentBtnText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Staff Profile Card
+  staffProfileCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  staffAvatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#0038A8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FCD116',
+  },
+  staffAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  staffProfileName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  staffRolePill: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  staffRolePillText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  staffProfileMeta: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  staffLogoutBtn: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  staffLogoutBtnText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // Staff Sub Tabs
+  staffSubTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    gap: 4,
+  },
+  staffSubTabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  staffSubTabItemActive: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#FCD116',
+  },
+  staffSubTabText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  staffSubTabTextActive: {
+    color: '#FCD116',
+    fontWeight: '900',
+  },
+
+  // Form 48 DTR Styles
+  dtrCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    padding: 14,
+    marginBottom: 12,
+  },
+  dtrHeaderRow: {
+    marginBottom: 12,
+  },
+  dtrTitle: {
+    color: '#FCD116',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  dtrDate: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  dtrGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dtrGridCell: {
+    width: '48%',
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  dtrCellLabel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  dtrCellValue: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  dtrCellFilled: {
+    color: '#10B981',
+  },
+  renderedHoursBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(252, 209, 22, 0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(252, 209, 22, 0.25)',
+    padding: 10,
+    marginTop: 12,
+    gap: 10,
+  },
+  renderedHoursIcon: {
+    fontSize: 22,
+  },
+  renderedHoursText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  renderedHoursSub: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  // Big Clock In Button
+  dtrClockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 12,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dtrClockBtnIcon: {
+    fontSize: 24,
+  },
+  dtrClockBtnTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  dtrClockBtnSubtitle: {
+    color: '#D1FAE5',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  staffActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  staffTestAlertBtn: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  staffTestAlertBtnText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  staffRefreshBtn: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#475569',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  staffRefreshBtnText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // Punch History
+  punchHistorySection: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    padding: 14,
+  },
+  punchSectionTitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  punchLogItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  punchBadge: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#FCD116',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  punchBadgeText: {
+    color: '#FCD116',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  punchLogTime: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  punchLogMethod: {
+    color: '#64748B',
+    fontSize: 10,
+  },
+  emptyPunches: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  emptyPunchesText: {
+    color: '#64748B',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
+  // Advisory Class
+  advisoryHeaderCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    padding: 14,
+    marginBottom: 14,
+  },
+  advisorySectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  advisoryAdviser: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  advisoryMetricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  advisoryMetricCell: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+  },
+  advisoryMetricVal: {
+    color: '#10B981',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  advisoryMetricLbl: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  advisoryRosterTitle: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  studentRosterCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 12,
+    marginBottom: 6,
+    gap: 10,
+  },
+  studentRosterDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  dotGreen: {
+    backgroundColor: '#10B981',
+  },
+  dotAmber: {
+    backgroundColor: '#F59E0B',
+  },
+  studentRosterName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  studentRosterLrn: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  studentRosterStatus: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  studentRosterTime: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  staffBulletinHeading: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
   },
 });

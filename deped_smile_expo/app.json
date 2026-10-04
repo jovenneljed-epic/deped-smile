@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "DepEd S.M.I.L.E. Parent",
+    "name": "DepEd S.M.I.L.E.",
     "slug": "deped-smile-parent",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,6 +16,7 @@
       "bundleIdentifier": "com.deped.smile.parent"
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#16181b"
@@ -25,7 +26,9 @@
         "NOTIFICATIONS",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {

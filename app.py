@@ -26,7 +26,7 @@ from smile_db import (
 )
 from smile_orm import (
     authenticate_user_orm, create_user_orm, get_all_users_orm,
-    update_user_orm, delete_user_orm, get_user_by_id_orm,
+    update_user_orm, delete_user_orm, get_user_by_id_orm, get_user_by_employee_number_orm,
     get_all_sections_orm, get_section_by_id_orm, update_user_profile_orm,
     get_all_pricing_plans_orm, get_pricing_plan_by_code_orm,
     update_pricing_plan_orm, record_payment_transaction_orm,
@@ -1705,6 +1705,120 @@ def api_parent_push_subscribe():
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+# -------------------------------------------------------------
+# Mobile API: Teachers, Faculty & Non-Teaching Staff Portal
+# -------------------------------------------------------------
+
+@app.route('/api/mobile/staff/login', methods=['POST'])
+def api_mobile_staff_login():
+    """
+    Authentication portal for Teachers, Principals, Guards, and Non-Teaching Staff.
+    Supports DepEd Employee Number (e.g., TCH-1001, STF-2001, PRIN-001, ADMIN-001)
+    or System Username.
+    """
+    data = request.get_json(silent=True) or {}
+    emp_no = data.get('employee_number', '').strip()
+    if not emp_no:
+        return jsonify({"success": False, "message": "Please enter your DepEd Employee Number or Username."}), 400
+
+    from smile_orm import get_user_by_employee_number_orm, get_staff_today_status_orm
+    user = get_user_by_employee_number_orm(emp_no)
+    if not user:
+        return jsonify({
+            "success": False,
+            "message": f"No faculty or staff account found matching '{emp_no}'. Please check your Employee ID or contact the school administrator."
+        }), 404
+
+    if not user.get('is_active', True):
+        return jsonify({"success": False, "message": "This account is inactive. Please contact the administrator."}), 403
+
+    today_status = get_staff_today_status_orm(user['id'])
+    return jsonify({
+        "success": True,
+        "message": f"Welcome, {user.get('full_name')}!",
+        "staff": user,
+        "today_status": today_status
+    })
+
+@app.route('/api/mobile/staff/home/<int:user_id>', methods=['GET'])
+def api_mobile_staff_home(user_id):
+    """
+    Returns unified real-time dashboard data for faculty and non-teaching personnel:
+    Civil Service Form 48 DTR logs, rendered hours, advisory class attendance summary,
+    and official school broadcasts.
+    """
+    from smile_orm import (
+        get_user_by_id_orm, get_staff_today_status_orm,
+        get_section_attendance_report_orm, get_all_announcements_orm
+    )
+    user = get_user_by_id_orm(user_id)
+    if not user:
+        return jsonify({"success": False, "message": "Staff member not found."}), 404
+
+    today_status = get_staff_today_status_orm(user_id)
+
+    # Advisory section attendance (for teachers with assigned sections)
+    section_report = None
+    if user.get('assigned_section_id'):
+        try:
+            date_today = pht_now().strftime("%Y-%m-%d")
+            section_report = get_section_attendance_report_orm(
+                section_id=user['assigned_section_id'],
+                date_str=date_today
+            )
+        except Exception as _e:
+            print(f"[!] Section report error: {_e}")
+
+    # Official school announcements
+    try:
+        announcements = get_all_announcements_orm(limit=5)
+    except Exception:
+        announcements = []
+
+    return jsonify({
+        "success": True,
+        "staff": user,
+        "today_status": today_status,
+        "section_report": section_report,
+        "announcements": announcements
+    })
+
+@app.route('/api/mobile/staff/dtr-clock', methods=['POST'])
+def api_mobile_staff_dtr_clock():
+    """
+    Biometric & GPS Mobile Time-In / Time-Out endpoint for teaching and non-teaching personnel.
+    Records Civil Service Form 48 compliant entry.
+    """
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({"success": False, "message": "User ID is required."}), 400
+
+    scan_type = data.get('scan_type', 'AUTO')
+    lat = data.get('latitude')
+    lon = data.get('longitude')
+    accuracy = data.get('accuracy')
+    method = data.get('method', 'MOBILE_APP')
+
+    from smile_orm import record_staff_attendance_orm, get_staff_today_status_orm
+    ok, msg, log_entry = record_staff_attendance_orm(
+        user_id=int(user_id),
+        scan_type=scan_type,
+        lat=lat,
+        lon=lon,
+        accuracy=accuracy,
+        method=method
+    )
+
+    today_status = get_staff_today_status_orm(int(user_id))
+
+    return jsonify({
+        "success": ok,
+        "message": msg,
+        "log": log_entry,
+        "today_status": today_status
+    })
 
 
 @app.route('/api/announcements', methods=['GET', 'POST'])
