@@ -36,7 +36,8 @@ from smile_orm import (
     enroll_staff_face_orm, get_enrolled_staff_faces_orm,
     record_staff_attendance_orm, get_staff_today_status_orm,
     get_staff_dtr_logs_orm, get_today_all_staff_logs_orm,
-    get_campus_staff_attendance_summary_orm
+    get_campus_staff_attendance_summary_orm,
+    get_section_attendance_report_orm
 )
 from smile_face_engine import SmileFaceEngine
 from smile_sms import (
@@ -2710,6 +2711,137 @@ def export_attendance_csv():
         output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename=DepEd_Smile_Attendance_{today_str}.csv"}
+    )
+
+@app.route('/advisory/attendance-report')
+@login_required
+def advisory_attendance_report():
+    """
+    Daily Scanned Student Attendance Report by Date for Class Advisers & Administrators.
+    Provides detailed time-in/time-out records, attendance metrics, date picker, and printable DepEd SF2 sheet.
+    """
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    date_str = request.args.get('date', pht_now().strftime("%Y-%m-%d"))
+
+    report_data = get_section_attendance_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        date_str=date_str
+    )
+
+    all_sections = get_all_sections_orm() if is_admin else []
+
+    return render_template(
+        'advisory_attendance_report.html',
+        school_name=SCHOOL_NAME,
+        report=report_data,
+        date_str=report_data["date_str"],
+        date_formatted=report_data["date_formatted"],
+        summary=report_data["summary"],
+        records=report_data["records"],
+        is_admin=is_admin,
+        all_sections=all_sections,
+        selected_section_id=int(target_section_id) if target_section_id and str(target_section_id).isdigit() else target_section_id
+    )
+
+@app.route('/api/advisory/attendance-report')
+@login_required
+def api_advisory_attendance_report():
+    """JSON API returning student attendance records by date for real-time AJAX filtering."""
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    date_str = request.args.get('date', pht_now().strftime("%Y-%m-%d"))
+
+    report_data = get_section_attendance_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        date_str=date_str
+    )
+    return jsonify({"success": True, "report": report_data})
+
+@app.route('/advisory/attendance-report/export-csv')
+@login_required
+def export_advisory_attendance_csv():
+    """Generates DepEd SF2 compliant CSV for an advisory section on a specific date."""
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    date_str = request.args.get('date', pht_now().strftime("%Y-%m-%d"))
+
+    report_data = get_section_attendance_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        date_str=date_str
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    sec_name = report_data.get("section_name", "Section")
+    adv_name = report_data.get("adviser_teacher", "Adviser")
+    d_fmt = report_data.get("date_formatted", date_str)
+
+    writer.writerow(["DEPED SCHOOL FORM 2 (SF2) - DAILY STUDENT ATTENDANCE REPORT"])
+    writer.writerow(["School Name:", SCHOOL_NAME])
+    writer.writerow(["Grade & Section:", sec_name])
+    writer.writerow(["Class Adviser:", adv_name])
+    writer.writerow(["Attendance Date:", d_fmt])
+    writer.writerow(["Generated Date:", pht_now().strftime("%Y-%m-%d %I:%M:%S %p")])
+    writer.writerow([])
+    writer.writerow(["Total Enrolled:", report_data["summary"]["total_enrolled"], "Present:", report_data["summary"]["present_count"], "Safely Exited:", report_data["summary"]["exited_count"], "Absent:", report_data["summary"]["absent_count"], "Attendance Rate:", report_data["summary"]["attendance_rate"]])
+    writer.writerow([])
+    writer.writerow(["No.", "DepEd LRN", "Learner Full Name", "Gender", "Time In (Arrival)", "Time Out (Departure)", "Daily Status", "Verification Method", "Parent Phone", "SMS Alert Status"])
+
+    for idx, r in enumerate(report_data.get("records", []), 1):
+        writer.writerow([
+            idx,
+            r["lrn"],
+            r["full_name"],
+            r["gender"],
+            r["time_in"],
+            r["time_out"],
+            r["status_label"],
+            r["verification_method"],
+            r["parent_phone"],
+            r["sms_status"]
+        ])
+
+    output.seek(0)
+    clean_sec = "".join(c for c in sec_name if c.isalnum() or c in (' ', '-', '_')).strip().replace(' ', '_')
+    filename = f"DepEd_SF2_DailyAttendance_{clean_sec}_{date_str}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={filename}"}
     )
 
 # -------------------------------------------------------------

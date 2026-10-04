@@ -17,7 +17,7 @@ class TestSectionsAndAPI(unittest.TestCase):
         self.assertTrue(any(s["section_name"] == "Sunflower" for s in kinder), "Kindergarten should have Sunflower")
         
         grade1 = get_sections_by_grade_orm("Grade 1")
-        self.assertTrue(any(s["section_name"] == "Mabait" for s in grade1), "Grade 1 should have Mabait")
+        self.assertTrue(any(s["section_name"] == "Masipag" for s in grade1), "Grade 1 should have Masipag")
         self.assertFalse(any(s["section_name"] == "Gold" for s in grade1), "Grade 1 should NOT contain Grade 10 sections like Gold")
 
         grade10 = get_sections_by_grade_orm("Grade 10")
@@ -39,7 +39,7 @@ class TestSectionsAndAPI(unittest.TestCase):
         data_g1 = resp_g1.get_json()
         self.assertTrue(data_g1.get("success"))
         sec_names = [s["section_name"] for s in data_g1.get("sections", [])]
-        self.assertIn("Mabait", sec_names)
+        self.assertIn("Masipag", sec_names)
         self.assertNotIn("Gold", sec_names)
 
     def test_section_crud(self):
@@ -99,7 +99,7 @@ class TestSectionsAndAPI(unittest.TestCase):
         r = self.client.get('/')
         self.assertEqual(r.status_code, 200)
         self.assertIn(b"deped_seal.svg", r.data)
-        self.assertIn(b"Don Montano Central Integrated School", r.data)
+        self.assertIn(b"School Security & Attendance Dashboard", r.data)
 
         # Enroll page
         r_enroll = self.client.get('/enroll')
@@ -120,5 +120,36 @@ class TestSectionsAndAPI(unittest.TestCase):
         self.assertIn(b"openEditSectionModal", r_db.data)
         self.assertIn(b"deped_seal.svg", r_db.data)
 
+    def test_advisory_attendance_report(self):
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+
+        # 1. Test HTML Page Load
+        r_page = self.client.get('/advisory/attendance-report')
+        self.assertEqual(r_page.status_code, 200)
+        self.assertIn(b"Student Attendance Report by Date", r_page.data)
+        self.assertIn(b"DepEd SF2 Attendance Module", r_page.data)
+        self.assertIn(b"reportDateInput", r_page.data)
+
+        # 2. Test JSON API Endpoint
+        r_api = self.client.get('/api/advisory/attendance-report?date=2026-10-04')
+        self.assertEqual(r_api.status_code, 200)
+        data = r_api.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("report", data)
+        self.assertIn("summary", data["report"])
+        self.assertIn("records", data["report"])
+        self.assertIn("total_enrolled", data["report"]["summary"])
+
+        # 3. Test CSV Export Endpoint
+        r_csv = self.client.get('/advisory/attendance-report/export-csv?date=2026-10-04')
+        self.assertEqual(r_csv.status_code, 200)
+        self.assertIn("text/csv", r_csv.content_type)
+        self.assertIn(b"DEPED SCHOOL FORM 2 (SF2)", r_csv.data)
+        self.assertIn(b"DepEd LRN", r_csv.data)
+
 if __name__ == '__main__':
     unittest.main()
+

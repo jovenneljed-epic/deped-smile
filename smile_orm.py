@@ -1819,6 +1819,158 @@ def get_teacher_advisory_overview_orm(section_id=None, section_name=None, advise
     finally:
         session.close()
 
+def get_section_attendance_report_orm(section_id=None, section_name=None, adviser_name=None, date_str=None):
+    """
+    Generates a comprehensive Daily Scanned Student Attendance Report for a specific section and date.
+    Used for DepEd SF2 compliance, date-filtered attendance audit trails, and printable daily sheets.
+    """
+    session = Session()
+    try:
+        from datetime import datetime, date, time as dtime
+        
+        # 1. Resolve Target Date
+        if date_str:
+            try:
+                target_date = datetime.strptime(str(date_str).strip(), "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                target_date = pht_now().date()
+        else:
+            target_date = pht_now().date()
+
+        start_of_day = datetime.combine(target_date, dtime.min)
+        end_of_day = datetime.combine(target_date, dtime.max)
+
+        # 2. Resolve Target Section
+        target_section = None
+        if section_id:
+            try:
+                target_section = session.query(Section).filter_by(id=int(section_id)).first()
+            except (ValueError, TypeError):
+                pass
+        
+        if not target_section and section_name:
+            parts = [p.strip() for p in section_name.split("-") if p.strip()]
+            if len(parts) >= 2:
+                target_section = session.query(Section).filter(
+                    Section.grade_level.ilike(f"%{parts[0]}%"),
+                    Section.section_name.ilike(f"%{parts[1]}%")
+                ).first()
+            if not target_section:
+                target_section = session.query(Section).filter(
+                    (Section.section_name.ilike(f"%{section_name}%")) |
+                    (Section.grade_level.ilike(f"%{section_name}%"))
+                ).first()
+
+        if not target_section and adviser_name:
+            clean_adv = adviser_name.replace("Mrs.", "").replace("Mr.", "").replace("Ms.", "").replace("Dr.", "").strip()
+            target_section = session.query(Section).filter(Section.adviser_teacher.ilike(f"%{clean_adv}%")).first()
+
+        # 3. Query all students belonging to this section
+        std_query = session.query(Student).filter(Student.is_active == True)
+        if target_section:
+            sec_label = f"{target_section.grade_level} - {target_section.section_name}"
+            std_query = std_query.filter(
+                (Student.section_id == target_section.id) |
+                (Student.grade_section == sec_label) |
+                (Student.section_name == target_section.section_name)
+            )
+        elif section_name:
+            std_query = std_query.filter(Student.grade_section.ilike(f"%{section_name}%"))
+        elif adviser_name:
+            clean_adv = adviser_name.replace("Mrs.", "").replace("Mr.", "").replace("Ms.", "").replace("Dr.", "").strip()
+            std_query = std_query.filter(Student.class_adviser.ilike(f"%{clean_adv}%"))
+
+        students = std_query.order_by(Student.last_name.asc(), Student.first_name.asc()).all()
+        student_lrns = [s.lrn for s in students]
+
+        # 4. Query Attendance Logs on target date for these learners
+        logs_by_lrn = {lrn: [] for lrn in student_lrns}
+        if student_lrns:
+            logs = session.query(AttendanceLog).filter(
+                AttendanceLog.timestamp >= start_of_day,
+                AttendanceLog.timestamp <= end_of_day,
+                AttendanceLog.lrn.in_(student_lrns)
+            ).order_by(AttendanceLog.timestamp.asc()).all()
+            for l in logs:
+                if l.lrn in logs_by_lrn:
+                    logs_by_lrn[l.lrn].append(l)
+
+        # 5. Build Learner Records with exact arrival, departure, and status
+        records = []
+        present_count = 0
+        exited_count = 0
+        absent_count = 0
+
+        for s in students:
+            s_logs = logs_by_lrn.get(s.lrn, [])
+            time_in_log = next((l for l in s_logs if l.scan_type == "TIME_IN"), None)
+            time_out_log = next((l for l in reversed(s_logs) if l.scan_type == "TIME_OUT"), None)
+            latest_scan = s_logs[-1] if s_logs else None
+
+            if not s_logs:
+                status = "ABSENT"
+                status_label = "Absent / No Scan"
+                absent_count += 1
+            elif latest_scan and latest_scan.scan_type == "TIME_OUT":
+                status = "SAFELY_EXITED"
+                status_label = "Safely Exited"
+                exited_count += 1
+                present_count += 1
+            else:
+                status = "PRESENT"
+                status_label = "Present / In Campus"
+                present_count += 1
+
+            records.append({
+                "student_id": s.lrn,
+                "lrn": s.lrn,
+                "full_name": f"{s.last_name}, {s.first_name}",
+                "first_name": s.first_name,
+                "last_name": s.last_name,
+                "gender": s.gender or "N/A",
+                "grade_section": s.grade_section or (f"{target_section.grade_level} - {target_section.section_name}" if target_section else "N/A"),
+                "parent_name": s.parent_name or "N/A",
+                "parent_phone": s.parent_phone or "N/A",
+                "time_in": time_in_log.timestamp.strftime("%I:%M %p") if time_in_log else "--:--",
+                "time_out": time_out_log.timestamp.strftime("%I:%M %p") if time_out_log else "--:--",
+                "first_scan_iso": time_in_log.timestamp.isoformat() if time_in_log else "",
+                "status": status,
+                "status_label": status_label,
+                "total_scans": len(s_logs),
+                "verification_method": latest_scan.verification_method if latest_scan else "N/A",
+                "sms_status": latest_scan.sms_status if latest_scan else "N/A",
+                "logs": [l.to_dict() for l in s_logs]
+            })
+
+        total_enrolled = len(students)
+        rate_pct = f"{(present_count / total_enrolled * 100):.1f}%" if total_enrolled > 0 else "0.0%"
+
+        sec_name = f"{target_section.grade_level} - {target_section.section_name}" if target_section else (section_name or "Advisory Section")
+        adviser = target_section.adviser_teacher if target_section else (adviser_name or "")
+        room = target_section.room_number if target_section else ""
+
+        return {
+            "section_id": target_section.id if target_section else None,
+            "section_name": sec_name,
+            "grade_level": target_section.grade_level if target_section else "",
+            "adviser_teacher": adviser,
+            "room_number": room,
+            "date_str": target_date.strftime("%Y-%m-%d"),
+            "date_formatted": target_date.strftime("%A, %B %d, %Y"),
+            "is_today": target_date == pht_now().date(),
+            "summary": {
+                "total_enrolled": total_enrolled,
+                "present_count": present_count,
+                "inside_campus": present_count - exited_count,
+                "exited_count": exited_count,
+                "absent_count": absent_count,
+                "attendance_rate": rate_pct
+            },
+            "records": records
+        }
+    finally:
+        session.close()
+
 
 def get_database_stats_orm():
     session = Session()
@@ -3724,5 +3876,6 @@ get_staff_dtr_logs = get_staff_dtr_logs_orm
 auto_migrate_columns = auto_migrate_columns_orm
 get_today_all_staff_logs = get_today_all_staff_logs_orm
 get_campus_staff_attendance_summary = get_campus_staff_attendance_summary_orm
+get_section_attendance_report = get_section_attendance_report_orm
 
 
