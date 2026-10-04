@@ -2174,6 +2174,50 @@ def api_automations_toggle():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/api/workflows/update/<int:wf_id>', methods=['POST', 'PUT'])
+@app.route('/api/automations/update/<int:wf_id>', methods=['POST', 'PUT'])
+def api_automations_update(wf_id):
+    """Updates the personalized notification content, schedule, audience, and priority of an automation workflow."""
+    from smile_orm import update_automation_orm
+    data = request.json or {}
+
+    title = data.get('title')
+    description = data.get('description')
+    default_title = data.get('default_title')
+    default_body = data.get('default_body')
+    target_audience = data.get('target_audience')
+    priority = data.get('priority')
+    schedule_cron = data.get('schedule_cron')
+    icon = data.get('icon')
+    badge_color = data.get('badge_color')
+
+    if default_body is not None and not str(default_body).strip():
+        return jsonify({"success": False, "message": "Notification message body cannot be empty."}), 400
+
+    try:
+        wf = update_automation_orm(
+            wf_id=wf_id,
+            title=title,
+            description=description,
+            default_title=default_title,
+            default_body=default_body,
+            target_audience=target_audience,
+            priority=priority,
+            schedule_cron=schedule_cron,
+            icon=icon,
+            badge_color=badge_color
+        )
+        if not wf:
+            return jsonify({"success": False, "message": f"Workflow #{wf_id} not found."}), 404
+
+        return jsonify({
+            "success": True,
+            "message": f"Notification template for '{wf['title']}' updated successfully!",
+            "workflow": wf
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/api/workflows/run/<int:wf_id>', methods=['POST'])
 @app.route('/api/automations/trigger/<int:wf_id>', methods=['POST'])
 def api_automations_run(wf_id):

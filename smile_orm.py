@@ -4560,6 +4560,47 @@ def toggle_automation_orm(wf_id):
     finally:
         session.close()
 
+def update_automation_orm(wf_id, title=None, description=None, default_title=None, default_body=None, target_audience=None, priority=None, schedule_cron=None, icon=None, badge_color=None):
+    """
+    Updates the configuration and personalized notification content of an automation workflow.
+    """
+    session = Session()
+    try:
+        if str(wf_id).isdigit():
+            wf = session.query(AutomationWorkflow).filter_by(id=int(wf_id)).first()
+        else:
+            wf = session.query(AutomationWorkflow).filter_by(workflow_key=str(wf_id)).first()
+
+        if not wf:
+            return None
+
+        if title is not None and str(title).strip():
+            wf.title = str(title).strip()
+        if description is not None:
+            wf.description = str(description).strip()
+        if default_title is not None and str(default_title).strip():
+            wf.default_title = str(default_title).strip()
+        if default_body is not None and str(default_body).strip():
+            wf.default_body = str(default_body).strip()
+        if target_audience is not None and str(target_audience).strip():
+            wf.target_audience = str(target_audience).strip()
+        if priority is not None and str(priority).strip():
+            wf.priority = str(priority).strip().upper()
+        if schedule_cron is not None and str(schedule_cron).strip():
+            wf.schedule_cron = str(schedule_cron).strip()
+        if icon is not None and str(icon).strip():
+            wf.icon = str(icon).strip()
+        if badge_color is not None and str(badge_color).strip():
+            wf.badge_color = str(badge_color).strip()
+
+        session.commit()
+        return wf.to_dict()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
 def trigger_automation_orm(wf_id, custom_title=None, custom_body=None, target_audience=None, priority=None, trigger_source="MANUAL_TRIGGER"):
     """
     Executes an automation pipeline:
@@ -4580,11 +4621,25 @@ def trigger_automation_orm(wf_id, custom_title=None, custom_body=None, target_au
         if not wf:
             raise ValueError(f"Workflow with ID/key '{wf_id}' not found.")
 
-        title = custom_title or wf.default_title or wf.title
-        body = custom_body or wf.default_body or wf.description
+        raw_title = custom_title or wf.default_title or wf.title
+        raw_body = custom_body or wf.default_body or wf.description
         audience = target_audience or wf.target_audience or "ALL"
         prio = priority or wf.priority or "NORMAL"
         category = wf.category
+
+        # Evaluate dynamic placeholders ({school_name}, {time}, {date})
+        try:
+            import smile_config
+            school_nm = getattr(smile_config, 'SCHOOL_NAME', 'Don Montano Community Integrated School')
+        except Exception:
+            school_nm = 'Don Montano Community Integrated School'
+
+        now_dt = pht_now()
+        time_str = now_dt.strftime("%I:%M %p")
+        date_str = now_dt.strftime("%A, %b %d, %Y")
+
+        title = str(raw_title).replace('{school_name}', school_nm).replace('{time}', time_str).replace('{date}', date_str)
+        body = str(raw_body).replace('{school_name}', school_nm).replace('{time}', time_str).replace('{date}', date_str)
 
         # 1. Create ParentNotification for the feed
         notif = ParentNotification(
@@ -4761,6 +4816,7 @@ def broadcast_principal_announcement_orm(title, body, target_audience="ALL", pri
 get_all_automations = get_all_automations_orm
 get_automation_by_id = get_automation_by_id_orm
 toggle_automation = toggle_automation_orm
+update_automation = update_automation_orm
 trigger_automation = trigger_automation_orm
 create_custom_automation = create_custom_automation_orm
 get_workflow_executions = get_workflow_executions_orm

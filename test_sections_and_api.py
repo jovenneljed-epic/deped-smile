@@ -233,6 +233,37 @@ class TestProgressiveAutomationsAndPush(unittest.TestCase):
         self.assertIn("payload", data)
         self.assertEqual(data["execution"]["status"], "SUCCESS")
 
+    def test_api_automations_update(self):
+        """Tests editing/personalizing notification template contents."""
+        resp = self.client.get('/api/automations')
+        wf = resp.get_json()["workflows"][0]
+        wf_id = wf["id"]
+        orig_body = wf["default_body"]
+
+        new_body = "Personalized test notification: Don Montano CIS assembly is today at {time}."
+        update_res = self.client.post(f'/api/automations/update/{wf_id}', json={
+            "default_body": new_body,
+            "priority": "HIGH"
+        })
+        self.assertEqual(update_res.status_code, 200)
+        data = update_res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data["workflow"]["default_body"], new_body)
+        self.assertEqual(data["workflow"]["priority"], "HIGH")
+
+        # Test trigger with dynamic placeholders evaluated
+        trigger_res = self.client.post(f'/api/automations/trigger/{wf_id}', json={})
+        self.assertEqual(trigger_res.status_code, 200)
+        trig_data = trigger_res.get_json()
+        self.assertTrue(trig_data.get("success"))
+        self.assertNotIn("{time}", trig_data["payload"]["body"])
+
+        # Restore original body
+        self.client.post(f'/api/automations/update/{wf_id}', json={
+            "default_body": orig_body,
+            "priority": wf.get("priority", "NORMAL")
+        })
+
     def test_api_principal_broadcast(self):
         """Tests Principal Announcement broadcast endpoint."""
         payload = {

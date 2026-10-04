@@ -516,7 +516,189 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- IN-APP TOAST NOTIFICATION CONTAINER                          -->
+<!-- MODAL: EDIT & PERSONALIZE NOTIFICATION TEMPLATE              -->
+<!-- ============================================================ -->
+<div id="editWorkflowModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    
+    <!-- Modal Header -->
+    <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-amber-400/20 text-amber-400 border border-amber-400/30 flex items-center justify-center text-lg shrink-0">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </div>
+        <div>
+          <span class="text-[10px] font-black uppercase text-amber-400 tracking-wider">Custom Message Studio</span>
+          <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <span>Personalize Notification Message</span>
+            <span id="editWorkflowBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono font-normal">#1</span>
+          </h3>
+        </div>
+      </div>
+      <button onclick="closeEditWorkflowModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+        ✕
+      </button>
+    </div>
+
+    <!-- Modal Body: Two Column (Editor Left, Mobile Mockup Preview Right) -->
+    <div class="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left: Form Controls (7 cols) -->
+      <div class="lg:col-span-7 space-y-4">
+        <input type="hidden" id="editWorkflowId" value="">
+
+        <div>
+          <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">WORKFLOW / PIPELINE TITLE</label>
+          <input type="text" id="editWorkflowTitle" class="w-full mt-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition" placeholder="Workflow Pipeline Name">
+        </div>
+
+        <div>
+          <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>NOTIFICATION HEADER / SUBJECT</span>
+            <span class="text-[9px] text-amber-400 font-normal">Appears bold on lockscreens</span>
+          </label>
+          <input type="text" id="editDefaultTitle" oninput="updateEditLivePreview()" class="w-full mt-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition" placeholder="e.g. Flag Ceremony Notice">
+        </div>
+
+        <!-- Quick Tags / Dynamic Placeholders Toolbar -->
+        <div>
+          <label class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">INSERT DYNAMIC SMART PLACEHOLDERS</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="insertPlaceholder('{school_name}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-mono border border-slate-700 hover:border-amber-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[8px]"></i> {school_name}
+            </button>
+            <button type="button" onclick="insertPlaceholder('{time}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-mono border border-slate-700 hover:border-emerald-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[8px]"></i> {time}
+            </button>
+            <button type="button" onclick="insertPlaceholder('{date}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[10px] font-mono border border-slate-700 hover:border-sky-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[8px]"></i> {date}
+            </button>
+            <button type="button" onclick="insertPlaceholder('{student_name}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 text-[10px] font-mono border border-slate-700 hover:border-purple-400 transition flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[8px]"></i> {student_name}
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Smart placeholders dynamically populate with real DepEd school, time, and student data upon dispatch.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between">
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">NOTIFICATION MESSAGE BODY</label>
+            <span class="text-[10px] text-slate-500 font-mono" id="editCharCount">0 chars</span>
+          </div>
+          <textarea id="editDefaultBody" oninput="updateEditLivePreview()" rows="4" placeholder="Personalize the notification text delivered to recipient devices..." class="w-full mt-1.5 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition leading-relaxed"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">TARGET AUDIENCE</label>
+            <select id="editAudience" onchange="updateEditLivePreview()" class="w-full mt-1.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition">
+              <option value="ALL">👥 Entire Campus (All)</option>
+              <option value="PARENTS">👨‍👩‍👧 Parents & Guardians</option>
+              <option value="TEACHERS">👨‍🏫 Faculty & Teachers</option>
+              <option value="STAFF">💼 Non-Teaching Personnel</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">ALERT PRIORITY</label>
+            <select id="editPriority" onchange="updateEditLivePreview()" class="w-full mt-1.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition">
+              <option value="NORMAL">ℹ️ Standard Notice</option>
+              <option value="HIGH">⚠️ High Priority</option>
+              <option value="URGENT">🚨 URGENT (Loud Push)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">SCHEDULE CRON</label>
+            <input type="text" id="editScheduleCron" class="w-full mt-1.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-amber-400 transition font-mono" placeholder="07:15 AM (Mon-Fri)">
+          </div>
+        </div>
+
+        <!-- Description / Pipeline Notes -->
+        <div>
+          <label class="text-[10px] font-black uppercase tracking-wider text-slate-400">INTERNAL PIPELINE DESCRIPTION</label>
+          <input type="text" id="editDescription" class="w-full mt-1.5 p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:outline-none focus:border-amber-400 transition" placeholder="Notes on when and how this automation triggers">
+        </div>
+      </div>
+
+      <!-- Right: Smartphone Push Preview (5 cols) -->
+      <div class="lg:col-span-5 flex flex-col items-center justify-center">
+        <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+          <i class="fa-solid fa-mobile-screen text-amber-400"></i> Personalized Device Preview
+        </span>
+
+        <!-- Smartphone Mockup Frame -->
+        <div class="w-full max-w-[280px] rounded-[36px] bg-slate-950 border-4 border-slate-700 shadow-2xl p-3 space-y-3 relative overflow-hidden">
+          <!-- Speaker notch -->
+          <div class="w-20 h-4 bg-slate-800 rounded-full mx-auto"></div>
+          
+          <!-- Mock Phone Lockscreen Time -->
+          <div class="text-center pt-2 pb-1">
+            <h4 class="text-2xl font-light text-white font-mono" id="editMockPhoneTime">07:15</h4>
+            <span class="text-[10px] text-slate-400">Don Montano CIS</span>
+          </div>
+
+          <!-- Lockscreen Push Notification Card -->
+          <div class="p-3 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-lg text-white space-y-1.5 backdrop-blur-md">
+            <div class="flex items-center justify-between text-[10px]">
+              <div class="flex items-center gap-1.5">
+                <div class="w-4 h-4 rounded-md bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[8px]">
+                  S
+                </div>
+                <span class="font-bold text-slate-300">DEPED S.M.I.L.E.</span>
+              </div>
+              <span class="text-slate-500 font-mono">now</span>
+            </div>
+
+            <div class="pt-0.5">
+              <h5 class="text-xs font-bold text-amber-300 leading-snug line-clamp-2" id="editPreviewTitle">
+                Daily Flag Ceremony & Opening Reminder
+              </h5>
+              <p class="text-[11px] text-slate-300 leading-tight mt-1 line-clamp-4 whitespace-pre-line" id="editPreviewBody">
+                All learners and faculty are requested to assemble at the school grounds for the 07:15 AM flag ceremony.
+              </p>
+            </div>
+
+            <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[9px] text-slate-400">
+              <span id="editPreviewAudienceBadge" class="text-amber-400 font-semibold">👥 Entire Campus</span>
+              <span id="editPreviewPriorityBadge" class="text-slate-400 font-semibold">ℹ️ NORMAL</span>
+            </div>
+          </div>
+
+          <!-- Bottom bar indicator -->
+          <div class="w-24 h-1 bg-slate-700 rounded-full mx-auto mt-4"></div>
+        </div>
+        
+        <div class="text-[10px] text-slate-500 mt-2 text-center max-w-[260px]">
+          Preview illustrates how personalized text, emoji, and smart tags will render on recipient devices.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-4 border-t border-slate-800 bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <span class="text-[11px] text-slate-400">
+        <i class="fa-solid fa-floppy-disk text-amber-400"></i> Saves directly to automated schedule & immediate push
+      </span>
+
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <button onclick="closeEditWorkflowModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition">
+          Cancel
+        </button>
+        <button onclick="saveWorkflowTemplate(false)" id="btnSaveTemplate" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm active:scale-95">
+          <i class="fa-solid fa-save"></i>
+          <span>Save Template</span>
+        </button>
+        <button onclick="saveWorkflowTemplate(true)" id="btnSaveAndSend" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Save & Send Push Now</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
 <!-- ============================================================ -->
 <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
 
@@ -887,10 +1069,15 @@
             </div>
 
             <!-- Notification Preview Snippet -->
-            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-              <strong class="text-slate-800 dark:text-slate-200 block text-[10px] uppercase font-bold tracking-wider mb-0.5">
-                <i class="fa-solid fa-quote-left text-amber-400 mr-1"></i> Push Preview
-              </strong>
+            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 group/preview cursor-pointer hover:border-amber-400/50 hover:bg-amber-400/[0.02] transition" onclick="openEditWorkflowModal(${wf.id})" title="Click to edit and personalize message">
+              <div class="flex items-center justify-between mb-0.5">
+                <strong class="text-slate-800 dark:text-slate-200 block text-[10px] uppercase font-bold tracking-wider">
+                  <i class="fa-solid fa-quote-left text-amber-400 mr-1"></i> Push Preview
+                </strong>
+                <span class="text-[9px] font-bold text-amber-500 opacity-80 group-hover/preview:opacity-100 flex items-center gap-1 transition">
+                  <i class="fa-solid fa-pen text-[8px]"></i> Personalize
+                </span>
+              </div>
               <span class="line-clamp-2">${escapeHtml(wf.default_body || wf.description)}</span>
             </div>
           </div>
@@ -904,6 +1091,9 @@
             </div>
 
             <div class="flex items-center gap-1.5">
+              <button onclick="openEditWorkflowModal(${wf.id})" class="px-2 py-1.5 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 text-amber-600 dark:text-amber-400 font-bold border border-amber-400/30 transition text-[10px] flex items-center gap-1" title="Personalize Notification Content">
+                <i class="fa-solid fa-pen-to-square"></i> Edit
+              </button>
               <button onclick="inspectWorkflow(${wf.id})" class="px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold transition text-[10px]" title="Inspect Pipeline Nodes">
                 Inspect
               </button>
@@ -1297,7 +1487,186 @@
   }
 
   // -------------------------------------------------------------
-  // 13. Initialization
+  // 13. Edit & Personalize Notification Template Handlers
+  // -------------------------------------------------------------
+  let activeEditingWfId = null;
+
+  function openEditWorkflowModal(wfId) {
+    const wf = allWorkflows.find(w => w.id === wfId);
+    if (!wf) return;
+    activeEditingWfId = wfId;
+
+    document.getElementById('editWorkflowId').value = wf.id;
+    document.getElementById('editWorkflowBadge').innerText = `#${wf.id}`;
+    document.getElementById('editWorkflowTitle').value = wf.title || '';
+    document.getElementById('editDefaultTitle').value = wf.default_title || wf.title || '';
+    document.getElementById('editDefaultBody').value = wf.default_body || wf.description || '';
+    document.getElementById('editAudience').value = wf.target_audience || 'ALL';
+    document.getElementById('editPriority').value = wf.priority || 'NORMAL';
+    document.getElementById('editScheduleCron').value = wf.schedule_cron || '';
+    document.getElementById('editDescription').value = wf.description || '';
+
+    updateEditLivePreview();
+    document.getElementById('editWorkflowModal').classList.remove('hidden');
+  }
+
+  function closeEditWorkflowModal() {
+    document.getElementById('editWorkflowModal').classList.add('hidden');
+    activeEditingWfId = null;
+  }
+
+  function insertPlaceholder(placeholder) {
+    const textarea = document.getElementById('editDefaultBody');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    textarea.value = text.substring(0, start) + placeholder + text.substring(end);
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = start + placeholder.length;
+    updateEditLivePreview();
+  }
+
+  function updateEditLivePreview() {
+    const rawTitle = document.getElementById('editDefaultTitle').value || 'Notification Title';
+    const rawBody = document.getElementById('editDefaultBody').value || 'Notification message...';
+    const audience = document.getElementById('editAudience').value;
+    const priority = document.getElementById('editPriority').value;
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const schoolName = "Don Montano Community Integrated School";
+
+    const previewTitleText = rawTitle
+      .replace(/\{school_name\}/g, schoolName)
+      .replace(/\{time\}/g, timeStr)
+      .replace(/\{date\}/g, dateStr)
+      .replace(/\{student_name\}/g, "Juan Dela Cruz");
+
+    const previewBodyText = rawBody
+      .replace(/\{school_name\}/g, schoolName)
+      .replace(/\{time\}/g, timeStr)
+      .replace(/\{date\}/g, dateStr)
+      .replace(/\{student_name\}/g, "Juan Dela Cruz");
+
+    document.getElementById('editPreviewTitle').innerText = previewTitleText;
+    document.getElementById('editPreviewBody').innerText = previewBodyText;
+    document.getElementById('editCharCount').innerText = `${rawBody.length} chars`;
+
+    const hourStr = String(now.getHours()).padStart(2, '0');
+    const minStr = String(now.getMinutes()).padStart(2, '0');
+    const phoneClock = document.getElementById('editMockPhoneTime');
+    if (phoneClock) phoneClock.innerText = `${hourStr}:${minStr}`;
+
+    const audienceMap = {
+      'ALL': '👥 Entire Campus',
+      'PARENTS': '👨‍👩‍👧 Parents & Guardians',
+      'TEACHERS': '👨‍🏫 Faculty & Teachers',
+      'STAFF': '💼 Non-Teaching Personnel'
+    };
+    document.getElementById('editPreviewAudienceBadge').innerText = audienceMap[audience] || audience;
+
+    const prioEl = document.getElementById('editPreviewPriorityBadge');
+    if (priority === 'URGENT') {
+      prioEl.innerText = '🚨 URGENT';
+      prioEl.className = 'text-rose-400 font-semibold';
+    } else if (priority === 'HIGH') {
+      prioEl.innerText = '⚠️ HIGH';
+      prioEl.className = 'text-amber-400 font-semibold';
+    } else {
+      prioEl.innerText = 'ℹ️ NORMAL';
+      prioEl.className = 'text-slate-400 font-semibold';
+    }
+  }
+
+  async function saveWorkflowTemplate(sendImmediately) {
+    const wfId = parseInt(document.getElementById('editWorkflowId').value);
+    if (!wfId) return;
+
+    const title = document.getElementById('editWorkflowTitle').value.trim();
+    const default_title = document.getElementById('editDefaultTitle').value.trim();
+    const default_body = document.getElementById('editDefaultBody').value.trim();
+    const target_audience = document.getElementById('editAudience').value;
+    const priority = document.getElementById('editPriority').value;
+    const schedule_cron = document.getElementById('editScheduleCron').value.trim();
+    const description = document.getElementById('editDescription').value.trim();
+
+    const saveBtn = document.getElementById('btnSaveTemplate');
+    const sendBtn = document.getElementById('btnSaveAndSend');
+    const origSaveText = saveBtn.innerHTML;
+    const origSendText = sendBtn.innerHTML;
+
+    if (sendImmediately) {
+      sendBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>Sending...</span>`;
+      sendBtn.disabled = true;
+    } else {
+      saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>Saving...</span>`;
+      saveBtn.disabled = true;
+    }
+
+    try {
+      // 1. Update workflow template in database
+      const updateRes = await fetch(`/api/automations/update/${wfId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          default_title,
+          default_body,
+          target_audience,
+          priority,
+          schedule_cron,
+          description
+        })
+      });
+
+      const updateData = await updateRes.json();
+      if (!updateData.success) {
+        throw new Error(updateData.error || 'Failed to save workflow template');
+      }
+
+      showInAppPushToast(
+        "Notification Template Updated",
+        `Personalized message for '${title}' saved successfully.`
+      );
+
+      // 2. If user requested immediate dispatch, trigger push right away
+      if (sendImmediately) {
+        const triggerRes = await fetch(`/api/automations/trigger/${wfId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            custom_title: default_title,
+            custom_body: default_body
+          })
+        });
+        const triggerData = await triggerRes.json();
+        if (triggerData.success) {
+          showInAppPushToast(
+            "Push Dispatched Instantly",
+            `Personalized notification sent to ${target_audience}: "${default_title}"`
+          );
+          playPushChime();
+        }
+      }
+
+      closeEditWorkflowModal();
+      await loadWorkflows();
+      await loadExecutions();
+
+    } catch (err) {
+      console.error(err);
+      alert('Error updating template: ' + err.message);
+    } finally {
+      saveBtn.innerHTML = origSaveText;
+      saveBtn.disabled = false;
+      sendBtn.innerHTML = origSendText;
+      sendBtn.disabled = false;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 14. Initialization
   // -------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', () => {
     checkPushNotificationStatus();
