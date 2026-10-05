@@ -1380,8 +1380,10 @@ def api_mobile_bootstrap():
     finally:
         session.close()
 
+@app.route('/api/parent/poll', defaults={'lrn': None})
+@app.route('/api/parent/poll/', defaults={'lrn': None})
 @app.route('/api/parent/poll/<lrn>')
-def api_parent_poll(lrn):
+def api_parent_poll(lrn=None):
     """
     Real-Time Background Telemetry Stream for Parent Mobile App.
     Synchronously monitors:
@@ -1398,14 +1400,15 @@ def api_parent_poll(lrn):
     last_id = int(last_id_param) if last_id_param is not None and str(last_id_param).isdigit() else None
     last_ann_id = int(last_ann_id_param) if last_ann_id_param is not None and str(last_ann_id_param).isdigit() else None
     last_notif_id = int(last_notif_id_param) if last_notif_id_param is not None and str(last_notif_id_param).isdigit() else None
-    clean_lrn = str(lrn).strip()
+    clean_lrn = str(lrn).strip() if lrn else ""
 
     session = Session()
     try:
         # Current child status & latest log
-        latest_overall_log = session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == clean_lrn
-        ).order_by(AttendanceLog.id.desc()).first()
+        overall_q = session.query(AttendanceLog)
+        if clean_lrn and clean_lrn != "ALL":
+            overall_q = overall_q.filter(AttendanceLog.lrn == clean_lrn)
+        latest_overall_log = overall_q.order_by(AttendanceLog.id.desc()).first()
         
         status_text = "AWAITING_ARRIVAL"
         if latest_overall_log:
@@ -1419,10 +1422,10 @@ def api_parent_poll(lrn):
         # Check gate scan events strictly (eliminating repeat loop)
         new_log = None
         if last_id is not None:
-            new_log = session.query(AttendanceLog).filter(
-                AttendanceLog.lrn == clean_lrn,
-                AttendanceLog.id > last_id
-            ).order_by(AttendanceLog.id.asc()).first()
+            log_q = session.query(AttendanceLog).filter(AttendanceLog.id > last_id)
+            if clean_lrn and clean_lrn != "ALL":
+                log_q = log_q.filter(AttendanceLog.lrn == clean_lrn)
+            new_log = log_q.order_by(AttendanceLog.id.asc()).first()
         elif request.args.get('initial') == '1':
             new_log = latest_overall_log
 
@@ -1439,12 +1442,14 @@ def api_parent_poll(lrn):
             new_ann = latest_ann_val
 
         # Check progressive push notifications published since last_notif_id
-        notif_query = session.query(ParentNotification).filter(
-            (ParentNotification.lrn == clean_lrn) |
-            (ParentNotification.lrn == "ALL") |
-            (ParentNotification.lrn == "") |
-            (ParentNotification.lrn.is_(None))
-        )
+        notif_query = session.query(ParentNotification)
+        if clean_lrn and clean_lrn != "ALL":
+            notif_query = notif_query.filter(
+                (ParentNotification.lrn == clean_lrn) |
+                (ParentNotification.lrn == "ALL") |
+                (ParentNotification.lrn == "") |
+                (ParentNotification.lrn.is_(None))
+            )
         latest_notif_val = notif_query.order_by(ParentNotification.id.desc()).first()
         latest_notif_id_val = latest_notif_val.id if latest_notif_val else 0
 
@@ -1458,11 +1463,13 @@ def api_parent_poll(lrn):
 
         # Pending unacknowledged gate scans today
         today_start = pht_now().replace(hour=0, minute=0, second=0, microsecond=0)
-        pending_acks = session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == clean_lrn,
+        pending_q = session.query(AttendanceLog).filter(
             AttendanceLog.timestamp >= today_start,
             or_(AttendanceLog.parent_acknowledged.is_(False), AttendanceLog.parent_acknowledged.is_(None))
-        ).order_by(AttendanceLog.id.desc()).all()
+        )
+        if clean_lrn and clean_lrn != "ALL":
+            pending_q = pending_q.filter(AttendanceLog.lrn == clean_lrn)
+        pending_acks = pending_q.order_by(AttendanceLog.id.desc()).all()
 
         res_data = {
             "has_new": (new_log is not None),
@@ -1512,12 +1519,14 @@ def api_parent_acknowledge_alert():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/api/parent/pending-acknowledgments', defaults={'lrn': None})
+@app.route('/api/parent/pending-acknowledgments/', defaults={'lrn': None})
 @app.route('/api/parent/pending-acknowledgments/<lrn>')
-def api_parent_pending_acknowledgments(lrn):
-    """Returns all unacknowledged gate scans today for the given student."""
+def api_parent_pending_acknowledgments(lrn=None):
+    """Returns all unacknowledged gate scans today for the given student (or all students if lrn not specified)."""
     from smile_orm import get_pending_acknowledgments_orm
     try:
-        pending = get_pending_acknowledgments_orm(str(lrn).strip())
+        pending = get_pending_acknowledgments_orm(str(lrn).strip() if lrn else None)
         return jsonify({
             "success": True,
             "count": len(pending),

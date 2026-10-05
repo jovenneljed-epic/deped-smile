@@ -2119,12 +2119,17 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
                 lrn=str(lrn),
                 data={
                     "type": "GATE_SCAN",
+                    "id": log_id,
                     "lrn": str(lrn),
                     "student_name": student_name,
                     "scan_type": scan_type,
-                    "timestamp": now_pht
+                    "timestamp": now_pht,
+                    "time_formatted": now_pht,
+                    "device_id": "Gate 1 Main Guard Post",
+                    "verification_method": verification_method or "Smart QR / RFID"
                 },
-                channel_id="gate-attendance-channel"
+                channel_id="gate-attendance-channel",
+                category_id="GATE_ALERT_CATEGORY"
             )
         except Exception as _ep_err:
             print(f"[Expo Push] Auto-dispatch note: {_ep_err}")
@@ -2169,18 +2174,20 @@ def acknowledge_attendance_log_orm(log_id, acknowledged_by="Parent (Mobile App)"
     finally:
         session.close()
 
-def get_pending_acknowledgments_orm(lrn):
+def get_pending_acknowledgments_orm(lrn=None):
     """
-    Returns today's gate scan logs for a student that have not yet been acknowledged by parent.
+    Returns today's gate scan logs for a student (or all learners if lrn is None or 'ALL') that have not yet been acknowledged by parent.
     """
     session = Session()
     try:
         today_start = pht_now().replace(hour=0, minute=0, second=0, microsecond=0)
-        logs = session.query(AttendanceLog).filter(
-            AttendanceLog.lrn == str(lrn).strip(),
+        q = session.query(AttendanceLog).filter(
             AttendanceLog.timestamp >= today_start,
             or_(AttendanceLog.parent_acknowledged.is_(False), AttendanceLog.parent_acknowledged.is_(None))
-        ).order_by(AttendanceLog.id.desc()).all()
+        )
+        if lrn and str(lrn).strip() and str(lrn).strip().upper() != "ALL":
+            q = q.filter(AttendanceLog.lrn == str(lrn).strip())
+        logs = q.order_by(AttendanceLog.id.desc()).all()
         return [l.to_dict() for l in logs]
     finally:
         session.close()
@@ -4249,7 +4256,7 @@ def deactivate_parent_device_token_orm(token):
     finally:
         session.close()
 
-def dispatch_expo_push_notification(title, body, lrn=None, data=None, channel_id="gate-attendance-channel", sound="default"):
+def dispatch_expo_push_notification(title, body, lrn=None, data=None, channel_id="gate-attendance-channel", sound="default", category_id="GATE_ALERT_CATEGORY"):
     """
     Dispatches high-priority push notifications to registered parent devices via Expo Push Service.
     Wakes up Android phone, displays Heads-Up notification on Lock Screen with audio sound and vibration!
@@ -4290,6 +4297,8 @@ def dispatch_expo_push_notification(title, body, lrn=None, data=None, channel_id
                     "_displayInForeground": True,
                     "data": data or {}
                 }
+                if category_id:
+                    msg["categoryId"] = category_id
                 messages.append(msg)
 
             chunk_size = 100

@@ -222,7 +222,7 @@ export default function App() {
   // 1b. Real-Time Push Notification Engine & Android Lock-Screen Channel
   // -------------------------------------------------------------
   useEffect(() => {
-    // A. Create Max Importance Android Channel for Lock-Screen Heads-Up Alerts
+    // A. Create Max Importance Android Channel for Lock-Screen Heads-Up Alerts (Wakes screen when off)
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('gate-attendance-channel', {
         name: 'Gate Attendance & DepEd Alerts',
@@ -232,10 +232,13 @@ export default function App() {
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         sound: 'default',
         bypassDnd: true,
+        showBadge: true,
+        enableLights: true,
+        enableVibrate: true,
       }).catch(err => console.warn('Android channel setup note:', err.message));
     }
 
-    // Set notification category for lock screen action
+    // Set notification category for lock screen action (unlock directly from lockscreen)
     Notifications.setNotificationCategoryAsync('GATE_ALERT_CATEGORY', [
       {
         identifier: 'ACKNOWLEDGE_ACTION',
@@ -254,17 +257,43 @@ export default function App() {
       }
     });
 
-    // C. Foreground notification listener
+    // Check if app was opened via lock-screen notification when screen was off or app was closed
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) {
+        const notifData = response.notification?.request?.content?.data || {};
+        const actionIdentifier = response.actionIdentifier;
+        if (notifData.type === 'GATE_SCAN' || notifData.scan_type) {
+          setAckLog(notifData);
+          setAckModalVisible(true);
+          if (actionIdentifier === 'ACKNOWLEDGE_ACTION') {
+            handleAcknowledgeAlertWithData(notifData);
+          }
+        }
+      }
+    }).catch(err => console.warn('Last notif response check:', err.message));
+
+    // C. Foreground notification listener (Wakes heads-up notification with triple vibration)
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      if (vibrateEnabled) Vibration.vibrate([0, 500, 150, 500]);
+      const notifData = notification?.request?.content?.data || {};
+      if (vibrateEnabled) {
+        Vibration.vibrate([0, 600, 200, 600, 200, 600]);
+      }
+      if (notifData.type === 'GATE_SCAN' || notifData.scan_type) {
+        setAckLog(notifData);
+        setAckModalVisible(true);
+      }
     });
 
     // D. Response listener (when user taps the lock-screen heads-up banner or notification action)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       const notifData = response.notification?.request?.content?.data || {};
-      if (notifData.type === 'GATE_SCAN' && notifData.id) {
+      const actionIdentifier = response.actionIdentifier;
+      if (notifData.type === 'GATE_SCAN' || notifData.scan_type) {
         setAckLog(notifData);
         setAckModalVisible(true);
+        if (actionIdentifier === 'ACKNOWLEDGE_ACTION') {
+          handleAcknowledgeAlertWithData(notifData);
+        }
       }
       setActiveTab('gate');
     });
@@ -341,43 +370,47 @@ export default function App() {
           if (!loginLrnInput) setLoginLrnInput(data.enrolled_students[0].lrn);
         }
 
-        // Only auto-attach student if user is already logged in or an explicit LRN was requested
-        if (preferredLrn || isLoggedIn) {
-          let targetStudent = data.active_student;
-          if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
-            targetStudent = data.enrolled_students.find(s => s.lrn === lrnParam) || data.enrolled_students[0];
+        const candidateLrn = preferredLrn || activeLrn || (data.active_student && data.active_student.lrn) || (data.enrolled_students && data.enrolled_students[0] && data.enrolled_students[0].lrn) || "";
+        let targetStudent = data.active_student;
+        if (!targetStudent && data.enrolled_students && data.enrolled_students.length > 0) {
+          targetStudent = data.enrolled_students.find(s => s.lrn === candidateLrn) || data.enrolled_students[0];
+        }
+
+        if (targetStudent) {
+          setStudent(targetStudent);
+          if (!activeLrn) setActiveLrn(targetStudent.lrn);
+          if (!tempLrn) setTempLrn(targetStudent.lrn);
+        }
+
+        if (data.latest_log_id !== undefined) {
+          lastEventIdRef.current = data.latest_log_id;
+        }
+        if (data.latest_announcement_id !== undefined) {
+          lastAnnIdRef.current = data.latest_announcement_id;
+        }
+
+        // IMMEDIATE CHECK: Check if there are unacknowledged gate scans today requiring parent confirmation
+        try {
+          const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${candidateLrn}`);
+          const ackData = await ackRes.json();
+          if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
+            const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+            if (unack.length > 0) {
+              setAckLog(unack[0]);
+              setAckModalVisible(true);
+            }
           }
+        } catch (_) {}
 
+        if (preferredLrn || isLoggedIn) {
           if (targetStudent) {
-            setStudent(targetStudent);
-            setActiveLrn(targetStudent.lrn);
-            setTempLrn(targetStudent.lrn);
-
-            if (data.latest_log_id !== undefined) {
-              lastEventIdRef.current = data.latest_log_id;
-            }
-            if (data.latest_announcement_id !== undefined) {
-              lastAnnIdRef.current = data.latest_announcement_id;
-            }
-
             await fetchDashboardData(targetStudent.lrn);
             await fetchNotifications(targetStudent.lrn);
-
-            try {
-              const ackRes = await fetch(`${serverUrl}/api/parent/pending-acknowledgments/${targetStudent.lrn}`);
-              const ackData = await ackRes.json();
-              if (ackData && ackData.success && ackData.pending_logs && ackData.pending_logs.length > 0) {
-                const unack = ackData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
-                if (unack.length > 0) {
-                  setAckLog(unack[0]);
-                  setAckModalVisible(true);
-                }
-              }
-            } catch (_) {}
-
-            startPolling(targetStudent.lrn);
           }
         }
+
+        // Always initiate background telemetry polling on app start
+        startPolling(candidateLrn);
       }
     } catch (err) {
       console.warn("Bootstrap cloud notice:", err.message);
@@ -395,18 +428,34 @@ export default function App() {
                 setLoginLrnInput(localData.enrolled_students[0].lrn);
               }
             }
+            const fallbackLrn = preferredLrn || activeLrn || (localData.active_student && localData.active_student.lrn) || (localData.enrolled_students && localData.enrolled_students[0] && localData.enrolled_students[0].lrn) || "";
+            if (localData.active_student) {
+              setStudent(localData.active_student);
+              if (!activeLrn) setActiveLrn(localData.active_student.lrn);
+              if (!tempLrn) setTempLrn(localData.active_student.lrn);
+            }
+            if (localData.latest_log_id !== undefined) lastEventIdRef.current = localData.latest_log_id;
+            if (localData.latest_announcement_id !== undefined) lastAnnIdRef.current = localData.latest_announcement_id;
+
+            try {
+              const localAckRes = await fetch(`${LOCAL_SERVER_URL}/api/parent/pending-acknowledgments/${fallbackLrn}`);
+              const localAckData = await localAckRes.json();
+              if (localAckData && localAckData.success && localAckData.pending_logs && localAckData.pending_logs.length > 0) {
+                const unack = localAckData.pending_logs.filter(l => !acknowledgedEventIdsRef.current.has(l.id));
+                if (unack.length > 0) {
+                  setAckLog(unack[0]);
+                  setAckModalVisible(true);
+                }
+              }
+            } catch (_) {}
+
             if (preferredLrn || isLoggedIn) {
               if (localData.active_student) {
-                setStudent(localData.active_student);
-                setActiveLrn(localData.active_student.lrn);
-                setTempLrn(localData.active_student.lrn);
-                if (localData.latest_log_id !== undefined) lastEventIdRef.current = localData.latest_log_id;
-                if (localData.latest_announcement_id !== undefined) lastAnnIdRef.current = localData.latest_announcement_id;
                 fetchDashboardData(localData.active_student.lrn);
                 fetchNotifications(localData.active_student.lrn);
-                startPolling(localData.active_student.lrn);
               }
             }
+            startPolling(fallbackLrn);
           }
         } catch (_) {}
       }
@@ -714,22 +763,22 @@ export default function App() {
   // Real-Time Gate Scan Alert Handler
   const triggerGateAlert = (eventData) => {
     if (vibrateEnabled) {
-      // Dual high-intensity haptic pulses
-      Vibration.vibrate([0, 500, 150, 500]);
+      // Urgent Triple-Pulse Vibration: [0, 600, 200, 600, 200, 600]
+      Vibration.vibrate([0, 600, 200, 600, 200, 600]);
     }
 
     const isEntry = eventData.scan_type === "TIME_IN";
     if (pushEnabled) {
       showFloatingBanner({
-        icon: isEntry ? "🟢" : "🔵",
+        icon: isEntry ? "🟢" : "🟠",
         title: isEntry ? "CAMPUS ARRIVAL ALERT" : "CAMPUS EXIT ALERT",
-        body: `${eventData.student_name || "Student"} safely ${isEntry ? "arrived at" : "departed from"} Gate 1 (${eventData.time_formatted || "Just now"})`,
+        body: `${eventData.student_name || "Student"} safely ${isEntry ? "entered" : "safely departed from"} Gate 1 (${eventData.time_formatted || "Just now"})`,
         time: "Just now",
-        color: isEntry ? "#10B981" : "#38BDF8"
+        color: isEntry ? "#10B981" : "#F59E0B"
       });
     }
 
-    // Immediately pop Mandatory Acknowledgment Screen
+    // Immediately pop Mandatory Impenetrable Gate Security Screen
     setAckLog(eventData);
     setAckModalVisible(true);
 
@@ -757,8 +806,9 @@ export default function App() {
   };
 
   // Mandatory Gate Attendance Parent Acknowledgment Action
-  const handleAcknowledgeAlert = async () => {
-    if (!ackLog || !ackLog.id) {
+  const handleAcknowledgeAlertWithData = async (logData) => {
+    const target = logData || ackLog;
+    if (!target || !target.id) {
       setAckModalVisible(false);
       return;
     }
@@ -769,34 +819,47 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          log_id: ackLog.id,
-          lrn: ackLog.lrn || activeLrn,
+          log_id: target.id,
+          lrn: target.lrn || activeLrn,
           acknowledged_by: parentConfirmer
         })
       });
       const data = await res.json();
-      acknowledgedEventIdsRef.current.add(ackLog.id);
+      acknowledgedEventIdsRef.current.add(target.id);
       if (vibrateEnabled) {
-        Vibration.vibrate([0, 100, 50, 100]);
+        Vibration.vibrate([0, 150, 80, 150]);
       }
       showFloatingBanner({
         icon: "✅",
         title: "GATE SCAN CONFIRMED",
-        body: `Verification recorded for ${ackLog.student_name || "Learner"}. App unlocked.`,
+        body: `Verification recorded for ${target.student_name || "Learner"}. App unlocked.`,
         time: "Just now",
         color: "#10B981"
       });
       setAckModalVisible(false);
       setAckLog(null);
+      // Auto-unlock into parent portal if currently on login screen
+      if (!isLoggedIn) {
+        setPortalMode('PARENT');
+        setIsLoggedIn(true);
+      }
       if (activeLrn) fetchDashboardData(activeLrn);
     } catch (err) {
       console.warn("Acknowledgment error:", err.message);
-      acknowledgedEventIdsRef.current.add(ackLog.id);
+      acknowledgedEventIdsRef.current.add(target.id);
       setAckModalVisible(false);
       setAckLog(null);
+      if (!isLoggedIn) {
+        setPortalMode('PARENT');
+        setIsLoggedIn(true);
+      }
     } finally {
       setIsAcknowledging(false);
     }
+  };
+
+  const handleAcknowledgeAlert = async () => {
+    await handleAcknowledgeAlertWithData(ackLog);
   };
 
   // Real-Time Announcement Alert Handler
