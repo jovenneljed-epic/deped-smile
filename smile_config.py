@@ -145,8 +145,10 @@ def get_database_url():
 DEFAULT_SCHOOL_SETTINGS = {
     "school_name": "Don Montano Central Integrated School",
     "school_short_name": "DMCIS",
-    "deped_region": "Region IV-A CALABARZON",
+    "deped_region": "Region I • Ilocos Region",
+    "school_division": "SDO Pangasinan II",
     "school_id": "152008",
+    "school_address": "Brgy. Don Montano, Umingan, Pangasinan",
     "system_domain": "https://classic-optics-cooperative-therapy.trycloudflare.com",
     "camera_source": "rtsp://192.168.1.165:554/live/ch0"
 }
@@ -166,13 +168,17 @@ def load_school_settings():
 def save_school_settings(new_settings):
     """Persists updated school configuration and updates module globals."""
     import json
-    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN, CAMERA_INDEX
+    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN, CAMERA_INDEX, SCHOOL_ID, SCHOOL_ADDRESS, DEPED_REGION, SCHOOL_DIVISION
     current = load_school_settings()
     current.update(new_settings)
     with open(SCHOOL_SETTINGS_PATH, "w", encoding="utf-8") as f:
         json.dump(current, f, indent=2)
     SCHOOL_NAME = current.get("school_name", SCHOOL_NAME)
     SCHOOL_SHORT_NAME = current.get("school_short_name", SCHOOL_SHORT_NAME)
+    SCHOOL_ID = current.get("school_id", "152008")
+    SCHOOL_ADDRESS = current.get("school_address", "Brgy. Don Montano, Umingan, Pangasinan")
+    DEPED_REGION = current.get("deped_region", "Region I • Ilocos Region")
+    SCHOOL_DIVISION = current.get("school_division", "SDO Pangasinan II")
     SYSTEM_DOMAIN = current.get("system_domain", SYSTEM_DOMAIN)
     cam = current.get("camera_source", "rtsp://192.168.1.165:554/live/ch0")
     CAMERA_INDEX = int(cam) if str(cam).isdigit() else str(cam)
@@ -181,6 +187,10 @@ def save_school_settings(new_settings):
 _active_school = load_school_settings()
 SCHOOL_NAME = _active_school.get("school_name", "Don Montano Central Integrated School")
 SCHOOL_SHORT_NAME = _active_school.get("school_short_name", "DMCIS")
+SCHOOL_ID = _active_school.get("school_id", "152008")
+SCHOOL_ADDRESS = _active_school.get("school_address", "Brgy. Don Montano, Umingan, Pangasinan")
+DEPED_REGION = _active_school.get("deped_region", "Region I • Ilocos Region")
+SCHOOL_DIVISION = _active_school.get("school_division", "SDO Pangasinan II")
 SYSTEM_DOMAIN = _active_school.get("system_domain", "https://classic-optics-cooperative-therapy.trycloudflare.com")
 
 

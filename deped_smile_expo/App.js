@@ -60,7 +60,10 @@ export default function App() {
   const [siblings, setSiblings] = useState([]);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [studentPickerVisible, setStudentPickerVisible] = useState(false);
-  const [schoolName, setSchoolName] = useState("Department of Education • Project S.M.I.L.E.");
+  const [schoolName, setSchoolName] = useState("Don Montano Central Integrated School");
+  const [schoolId, setSchoolId] = useState("152008");
+  const [schoolAddress, setSchoolAddress] = useState("Brgy. Don Montano, Umingan, Pangasinan");
+  const [depedRegion, setDepedRegion] = useState("SDO Pangasinan II • Region I");
   const [status, setStatus] = useState("AWAITING_ARRIVAL");
   const [latestLog, setLatestLog] = useState(null);
   const [todayLogs, setTodayLogs] = useState([]);
@@ -364,6 +367,9 @@ export default function App() {
       const data = await res.json();
       if (data && data.success) {
         if (data.school_name) setSchoolName(data.school_name);
+        if (data.school_id) setSchoolId(data.school_id);
+        if (data.school_address) setSchoolAddress(data.school_address);
+        if (data.deped_region) setDepedRegion(data.deped_region);
         if (data.enrolled_students && data.enrolled_students.length > 0) {
           setEnrolledStudents(data.enrolled_students);
           setSiblings(data.enrolled_students);
@@ -478,6 +484,9 @@ export default function App() {
       const data = await res.json();
       if (data && data.success) {
         if (data.school_name) setSchoolName(data.school_name);
+        if (data.school_id) setSchoolId(data.school_id);
+        if (data.school_address) setSchoolAddress(data.school_address);
+        if (data.deped_region) setDepedRegion(data.deped_region);
         if (data.enrolled_students && data.enrolled_students.length > 0) {
           setEnrolledStudents(data.enrolled_students);
           setSiblings(data.enrolled_students);
@@ -2215,25 +2224,46 @@ export default function App() {
 
           {/* Brand Logo & Title */}
           <View style={styles.loginHero}>
-            <View style={styles.loginLogoWrapper}>
-              <Image
-                source={require('./assets/logo.png')}
-                style={styles.loginLogo}
-                resizeMode="contain"
-              />
+            <View style={styles.loginLogoOuterGlow}>
+              <View style={styles.loginLogoWrapper}>
+                <Image
+                  source={require('./assets/logo.png')}
+                  style={styles.loginLogo}
+                  resizeMode="cover"
+                />
+              </View>
             </View>
             <Text style={styles.loginAppTitle}>PROJECT S.M.I.L.E.</Text>
             <Text style={styles.loginAppSubtitle}>
               Security Monitoring, Incident Logging, and E-notification
             </Text>
-            <View style={styles.loginSchoolPill}>
-              <Text style={styles.loginSchoolPillText}>
-                {schoolName || "Don Montano Community Integrated School"}
-              </Text>
+
+            {/* Official DepEd School Identity Card (School ID, Region & Campus Address) */}
+            <View style={styles.loginSchoolMetaCard}>
+              <View style={styles.loginSchoolNameRow}>
+                <Text style={styles.loginSchoolMetaName}>
+                  {schoolName || "Don Montano Central Integrated School"}
+                </Text>
+              </View>
+              <View style={styles.loginSchoolBadgesRow}>
+                <View style={styles.loginSchoolIdBadge}>
+                  <Text style={styles.loginSchoolIdLabel}>DEPED ID</Text>
+                  <Text style={styles.loginSchoolIdValue}>{schoolId || "152008"}</Text>
+                </View>
+                <View style={styles.loginSchoolRegionBadge}>
+                  <Text style={styles.loginSchoolRegionLabel}>DIVISION</Text>
+                  <Text style={styles.loginSchoolRegionValue}>{depedRegion || "SDO Pangasinan II • Region I"}</Text>
+                </View>
+              </View>
+              <View style={styles.loginSchoolAddressRow}>
+                <Text style={styles.loginSchoolAddressText}>
+                  📍 {schoolAddress || "Brgy. Don Montano, Umingan, Pangasinan"}
+                </Text>
+              </View>
             </View>
           </View>
 
-          {/* Role / Portal Switcher Segmented Control */}
+          {/* Role / Portal Switcher Segmented Control with Modern 3D Iconography */}
           <View style={styles.loginSegmentContainer}>
             <TouchableOpacity
               style={[styles.loginSegmentTab, loginPortal === 'PARENT' && styles.loginSegmentTabActive]}
@@ -2241,10 +2271,22 @@ export default function App() {
                 setLoginPortal('PARENT');
                 if (vibrateEnabled) Vibration.vibrate(20);
               }}
+              activeOpacity={0.85}
             >
-              <Text style={[styles.loginSegmentText, loginPortal === 'PARENT' && styles.loginSegmentTextActive]}>
-                👨‍👩‍👧 Parent & Guardian
-              </Text>
+              <Image
+                source={require('./assets/icon_parent.png')}
+                style={[styles.portalTabIcon, loginPortal !== 'PARENT' && styles.portalTabIconInactive]}
+                resizeMode="cover"
+              />
+              <View style={styles.portalTabContent}>
+                <Text style={[styles.loginSegmentText, loginPortal === 'PARENT' && styles.loginSegmentTextActive]}>
+                  Parent Portal
+                </Text>
+                <Text style={[styles.portalTabSub, loginPortal === 'PARENT' && styles.portalTabSubActive]}>
+                  Gate Safety & Alerts
+                </Text>
+              </View>
+              {loginPortal === 'PARENT' && <View style={styles.portalTabHighlight} />}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -2253,10 +2295,22 @@ export default function App() {
                 setLoginPortal('STAFF');
                 if (vibrateEnabled) Vibration.vibrate(20);
               }}
+              activeOpacity={0.85}
             >
-              <Text style={[styles.loginSegmentText, loginPortal === 'STAFF' && styles.loginSegmentTextActive]}>
-                👨‍🏫 Faculty & Staff
-              </Text>
+              <Image
+                source={require('./assets/icon_faculty.png')}
+                style={[styles.portalTabIcon, loginPortal !== 'STAFF' && styles.portalTabIconInactive]}
+                resizeMode="cover"
+              />
+              <View style={styles.portalTabContent}>
+                <Text style={[styles.loginSegmentText, loginPortal === 'STAFF' && styles.loginSegmentTextActive]}>
+                  Faculty & Staff
+                </Text>
+                <Text style={[styles.portalTabSub, loginPortal === 'STAFF' && styles.portalTabSubActive]}>
+                  Form 48 DTR Record
+                </Text>
+              </View>
+              {loginPortal === 'STAFF' && <View style={[styles.portalTabHighlight, { backgroundColor: '#10B981' }]} />}
             </TouchableOpacity>
           </View>
 
@@ -2307,7 +2361,7 @@ export default function App() {
                           handleParentLogin(s.lrn);
                         }}
                       >
-                        <Text style={styles.demoChipIcon}>🎓</Text>
+                        <Image source={require('./assets/icon_parent.png')} style={{ width: 30, height: 30, borderRadius: 8 }} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.demoChipName}>{s.full_name}</Text>
                           <Text style={styles.demoChipMeta}>LRN: {s.lrn} • {s.grade_level || "Student"}</Text>
@@ -2323,7 +2377,7 @@ export default function App() {
                         handleParentLogin('152008250007');
                       }}
                     >
-                      <Text style={styles.demoChipIcon}>🎓</Text>
+                      <Image source={require('./assets/icon_parent.png')} style={{ width: 30, height: 30, borderRadius: 8 }} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.demoChipName}>Keziah Aviguetero</Text>
                         <Text style={styles.demoChipMeta}>LRN: 152008250007 • Grade 7</Text>
@@ -2378,7 +2432,7 @@ export default function App() {
                       handleStaffLogin('TCH-1001');
                     }}
                   >
-                    <Text style={styles.staffChipItemIcon}>👩‍🏫</Text>
+                    <Image source={require('./assets/icon_faculty.png')} style={{ width: 28, height: 28, borderRadius: 7 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.staffChipItemName}>TCH-1001</Text>
                       <Text style={styles.staffChipItemDesc}>Teacher / Adviser</Text>
@@ -2392,7 +2446,7 @@ export default function App() {
                       handleStaffLogin('STF-2001');
                     }}
                   >
-                    <Text style={styles.staffChipItemIcon}>📋</Text>
+                    <Image source={require('./assets/icon_faculty.png')} style={{ width: 28, height: 28, borderRadius: 7 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.staffChipItemName}>STF-2001</Text>
                       <Text style={styles.staffChipItemDesc}>School Staff</Text>
@@ -2406,7 +2460,7 @@ export default function App() {
                       handleStaffLogin('PRIN-001');
                     }}
                   >
-                    <Text style={styles.staffChipItemIcon}>🎓</Text>
+                    <Image source={require('./assets/icon_faculty.png')} style={{ width: 28, height: 28, borderRadius: 7 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.staffChipItemName}>PRIN-001</Text>
                       <Text style={styles.staffChipItemDesc}>Principal</Text>
@@ -2420,7 +2474,7 @@ export default function App() {
                       handleStaffLogin('ADMIN-001');
                     }}
                   >
-                    <Text style={styles.staffChipItemIcon}>💻</Text>
+                    <Image source={require('./assets/icon_faculty.png')} style={{ width: 28, height: 28, borderRadius: 7 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.staffChipItemName}>ADMIN-001</Text>
                       <Text style={styles.staffChipItemDesc}>System Admin</Text>
@@ -2433,8 +2487,8 @@ export default function App() {
 
           {/* Footer */}
           <View style={styles.loginFooter}>
-            <Text style={styles.loginFooterText}>DepEd Region IV-A • Division Safety Architecture</Text>
-            <Text style={styles.loginFooterSub}>Project S.M.I.L.E. Mobile App v1.3.0</Text>
+            <Text style={styles.loginFooterText}>{depedRegion || "SDO Pangasinan II • Region I"} • DepEd Safety Architecture</Text>
+            <Text style={styles.loginFooterSub}>Project S.M.I.L.E. Mobile App v1.4.1</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2919,7 +2973,7 @@ export default function App() {
           {/* Welcome Card */}
           <View style={styles.staffLoginCard}>
             <View style={styles.staffLoginIconCircle}>
-              <Text style={{ fontSize: 36 }}>👨‍🏫</Text>
+              <Image source={require('./assets/icon_faculty.png')} style={{ width: 56, height: 56, borderRadius: 14 }} resizeMode="cover" />
             </View>
             <Text style={styles.staffLoginTitle}>FACULTY & STAFF PORTAL</Text>
             <Text style={styles.staffLoginSubtitle}>
@@ -2959,7 +3013,7 @@ export default function App() {
                   style={styles.staffChip}
                   onPress={() => handleStaffLogin('TCH-1001')}
                 >
-                  <Text style={styles.staffChipEmoji}>👩‍🏫</Text>
+                  <Image source={require('./assets/icon_faculty.png')} style={{ width: 24, height: 24, borderRadius: 6, marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.staffChipName}>TCH-1001</Text>
                     <Text style={styles.staffChipDesc}>Teacher / Adviser</Text>
@@ -2970,7 +3024,7 @@ export default function App() {
                   style={styles.staffChip}
                   onPress={() => handleStaffLogin('STF-2001')}
                 >
-                  <Text style={styles.staffChipEmoji}>📋</Text>
+                  <Image source={require('./assets/icon_faculty.png')} style={{ width: 24, height: 24, borderRadius: 6, marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.staffChipName}>STF-2001</Text>
                     <Text style={styles.staffChipDesc}>School Registrar</Text>
@@ -2981,7 +3035,7 @@ export default function App() {
                   style={styles.staffChip}
                   onPress={() => handleStaffLogin('PRIN-001')}
                 >
-                  <Text style={styles.staffChipEmoji}>🎓</Text>
+                  <Image source={require('./assets/icon_faculty.png')} style={{ width: 24, height: 24, borderRadius: 6, marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.staffChipName}>PRIN-001</Text>
                     <Text style={styles.staffChipDesc}>School Principal</Text>
@@ -2992,7 +3046,7 @@ export default function App() {
                   style={styles.staffChip}
                   onPress={() => handleStaffLogin('ADMIN-001')}
                 >
-                  <Text style={styles.staffChipEmoji}>💻</Text>
+                  <Image source={require('./assets/icon_faculty.png')} style={{ width: 24, height: 24, borderRadius: 6, marginRight: 8 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.staffChipName}>ADMIN-001</Text>
                     <Text style={styles.staffChipDesc}>System Admin</Text>
@@ -5634,27 +5688,36 @@ const styles = StyleSheet.create({
   },
   loginHero: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
     width: '100%',
   },
-  loginLogoWrapper: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: '#101C2E',
+  loginLogoOuterGlow: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: 'rgba(252, 209, 22, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FCD116',
-    marginBottom: 12,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(252, 209, 22, 0.35)',
     shadowColor: '#FCD116',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 6,
   },
+  loginLogoWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#081220',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
   loginLogo: {
-    width: 56,
-    height: 56,
+    width: 88,
+    height: 88,
   },
   loginAppTitle: {
     color: '#FFFFFF',
@@ -5667,52 +5730,173 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 3,
     letterSpacing: 0.5,
   },
-  loginSchoolPill: {
-    backgroundColor: 'rgba(252, 209, 22, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(252, 209, 22, 0.3)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+  loginSchoolMetaCard: {
+    width: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
     borderRadius: 16,
-    marginTop: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(252, 209, 22, 0.32)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  loginSchoolPillText: {
-    color: '#CBD5E1',
+  loginSchoolNameRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  loginSchoolMetaName: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  loginSchoolBadgesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  loginSchoolIdBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(252, 209, 22, 0.15)',
+    borderWidth: 1,
+    borderColor: '#FCD116',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 5,
+  },
+  loginSchoolIdLabel: {
+    color: '#FCD116',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  loginSchoolIdValue: {
+    color: '#FFFFFF',
     fontSize: 11,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  loginSchoolRegionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.5)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 5,
+  },
+  loginSchoolRegionLabel: {
+    color: '#93C5FD',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  loginSchoolRegionValue: {
+    color: '#F8FAFC',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  loginSchoolAddressRow: {
+    width: '100%',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(148, 163, 184, 0.15)',
+    paddingTop: 5,
+    alignItems: 'center',
+  },
+  loginSchoolAddressText: {
+    color: '#94A3B8',
+    fontSize: 10.5,
     fontWeight: '600',
+    textAlign: 'center',
   },
   loginSegmentContainer: {
     flexDirection: 'row',
     backgroundColor: '#0B192C',
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: '#1E293B',
-    padding: 4,
+    padding: 5,
     width: '100%',
     marginBottom: 16,
+    gap: 6,
   },
   loginSegmentTab: {
     flex: 1,
-    paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    position: 'relative',
+    gap: 8,
   },
   loginSegmentTabActive: {
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
+    backgroundColor: '#16233B',
+    borderWidth: 1.5,
     borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  portalTabIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+  },
+  portalTabIconInactive: {
+    opacity: 0.5,
+  },
+  portalTabContent: {
+    flex: 1,
+    justifyContent: 'center',
   },
   loginSegmentText: {
     color: '#94A3B8',
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
   },
   loginSegmentTextActive: {
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+  portalTabSub: {
+    color: '#64748B',
+    fontSize: 8.5,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  portalTabSubActive: {
+    color: '#FCD116',
+    fontWeight: '700',
+  },
+  portalTabHighlight: {
+    position: 'absolute',
+    bottom: -5,
+    left: '20%',
+    right: '20%',
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#FCD116',
   },
   loginCard: {
     width: '100%',

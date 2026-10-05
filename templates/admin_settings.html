@@ -193,11 +193,16 @@
             </div>
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">DepEd Region / Division</label>
-              <input type="text" name="deped_region" value="{{ school_settings.deped_region if school_settings else 'Region IV-A CALABARZON' }}" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700">
+              <input type="text" name="deped_region" value="{{ school_settings.deped_region if school_settings else 'Region I • Ilocos Region' }}" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700">
             </div>
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">DepEd School ID</label>
               <input type="text" name="school_id" value="{{ school_settings.school_id if school_settings else '152008' }}" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-700">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Official School Campus Address</label>
+              <input type="text" name="school_address" value="{{ school_settings.school_address if school_settings else 'Brgy. Don Montano, Umingan, Pangasinan' }}" placeholder="e.g. Brgy. Don Montano, Umingan, Pangasinan"
+                     class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
             </div>
 
             <!-- Public Domain / Internet Address -->

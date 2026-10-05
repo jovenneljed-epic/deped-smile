@@ -375,7 +375,9 @@ def admin_save_school_settings():
     """Super Admin: Updates official school profile, DepEd metadata, CCTV Camera Source, and Public Domain URL."""
     school_name = request.form.get("school_name", "").strip()
     deped_region = request.form.get("deped_region", "").strip()
+    school_division = request.form.get("school_division", "").strip()
     school_id = request.form.get("school_id", "").strip()
+    school_address = request.form.get("school_address", "").strip()
     system_domain = request.form.get("system_domain", "").strip()
     camera_source = request.form.get("camera_source", "").strip()
 
@@ -383,7 +385,9 @@ def admin_save_school_settings():
         payload = {
             "school_name": school_name,
             "deped_region": deped_region,
+            "school_division": school_division,
             "school_id": school_id,
+            "school_address": school_address,
             "system_domain": system_domain
         }
         if camera_source:
@@ -1365,10 +1369,15 @@ def api_mobile_bootstrap():
 
         latest_log = session.query(AttendanceLog).order_by(AttendanceLog.id.desc()).first()
         latest_ann = session.query(Announcement).order_by(Announcement.id.desc()).first()
+        school_cfg = smile_config.load_school_settings()
 
         return jsonify({
             "success": True,
-            "school_name": SCHOOL_NAME,
+            "school_name": school_cfg.get("school_name", SCHOOL_NAME),
+            "school_id": school_cfg.get("school_id", getattr(smile_config, "SCHOOL_ID", "152008")),
+            "school_address": school_cfg.get("school_address", getattr(smile_config, "SCHOOL_ADDRESS", "Brgy. Don Montano, Umingan, Pangasinan")),
+            "deped_region": school_cfg.get("deped_region", getattr(smile_config, "DEPED_REGION", "Region I • Ilocos Region")),
+            "school_division": school_cfg.get("school_division", getattr(smile_config, "SCHOOL_DIVISION", "SDO Pangasinan II")),
             "active_student": active_student,
             "enrolled_students": enrolled_students,
             "total_enrolled": len(enrolled_students),
