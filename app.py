@@ -443,6 +443,7 @@ def api_admin_create_user():
     role = data.get('role', 'TEACHER').strip().upper()
     phone_number = data.get('phone_number', '').strip()
     assigned_section_id = data.get('assigned_section_id')
+    employee_number = data.get('employee_number', '').strip()
 
     if not username or not full_name or not email or not password:
         return jsonify({"success": False, "message": "Full Name, Username, Email, and Password are required."}), 400
@@ -454,12 +455,22 @@ def api_admin_create_user():
         full_name=full_name,
         role=role,
         phone_number=phone_number,
-        assigned_section_id=assigned_section_id
+        assigned_section_id=assigned_section_id,
+        employee_number=employee_number or None
     )
     if not success:
         return jsonify({"success": False, "message": user_or_msg}), 400
     user_dict = user_or_msg
-    return jsonify({"success": True, "user": user_dict, "message": f"Account for {user_dict['full_name']} created successfully."})
+    return jsonify({"success": True, "user": user_dict, "message": f"Account for {user_dict['full_name']} created successfully with login code {user_dict.get('employee_number', user_dict['username'])}."})
+
+@app.route('/api/admin/users/generate-code', methods=['GET'])
+@admin_required
+def api_admin_generate_code():
+    """Super Admin: Returns next sequential DepEd code for role (e.g. TCH-1008)."""
+    from smile_orm import generate_next_staff_code_orm
+    role = request.args.get('role', 'TEACHER')
+    code = generate_next_staff_code_orm(role)
+    return jsonify({"success": True, "code": code})
 
 @app.route('/api/admin/users/<int:user_id>', methods=['GET'])
 @admin_required
@@ -494,6 +505,9 @@ def api_admin_update_user(user_id):
         if not val:
             return jsonify({"success": False, "message": "Email cannot be empty."}), 400
         update_fields['email'] = val
+
+    if 'employee_number' in data:
+        update_fields['employee_number'] = data['employee_number'].strip() if data['employee_number'] else ""
 
     if 'role' in data and data['role']:
         req_role = data['role'].strip().upper()

@@ -90,6 +90,7 @@
         <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black border-y border-slate-200">
           <tr>
             <th class="py-3.5 px-4">Staff User / Full Name</th>
+            <th class="py-3.5 px-4">Mobile App Login Code</th>
             <th class="py-3.5 px-4">Role Access Level</th>
             <th class="py-3.5 px-4">Contact Phone</th>
             <th class="py-3.5 px-4">Assigned Section</th>
@@ -106,6 +107,7 @@
               data-fullname="{{ u.full_name|lower }}"
               data-email="{{ u.email|lower }}"
               data-role="{{ u.role }}"
+              data-empno="{{ (u.employee_number or u.username)|lower }}"
               data-active="{{ 'true' if u.is_active else 'false' }}">
             
             <!-- User / Name Column -->
@@ -124,6 +126,26 @@
                   <span class="text-[10px] text-slate-400 font-mono block">{{ u.username }} &bull; {{ u.email }}</span>
                 </div>
               </div>
+            </td>
+
+            <!-- Mobile App Login Code Column -->
+            <td class="py-3 px-4">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-black border shadow-xs tracking-wider flex items-center gap-1.5 {% if u.role == 'TEACHER' %}bg-emerald-50 text-emerald-800 border-emerald-300{% elif u.role == 'PRINCIPAL' %}bg-blue-50 text-deped-blue border-blue-300{% elif u.role == 'SUPER_ADMIN' %}bg-amber-50 text-amber-900 border-amber-300{% elif u.role == 'STAFF' %}bg-indigo-50 text-indigo-800 border-indigo-300{% else %}bg-purple-50 text-purple-800 border-purple-300{% endif %}">
+                  <i class="fa-solid fa-mobile-screen-button text-[11px] opacity-75"></i>
+                  <span id="staffCode_{{ u.id }}">{{ u.employee_number or u.username }}</span>
+                </span>
+                <button type="button" 
+                        onclick="copyStaffCode('{{ u.employee_number or u.username }}', this)" 
+                        title="Copy code for mobile app login" 
+                        class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-[10px] font-bold transition flex items-center gap-1 border border-slate-200 shadow-2xs">
+                  <i class="fa-solid fa-copy text-[10px]"></i>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <span class="text-[9px] text-slate-400 font-medium block mt-0.5">
+                or use: <code class="text-slate-600 font-mono font-bold">{{ u.username }}</code>
+              </span>
             </td>
 
             <!-- Role Badge -->
@@ -175,7 +197,7 @@
               <div class="inline-flex items-center gap-1.5">
                 
                 <!-- 1. EDIT BUTTON: Available for ALL accounts including own profile -->
-                <button onclick="openEditUserModal({{ u.id }}, '{{ u.username|escape }}', '{{ u.full_name|escape }}', '{{ u.email|escape }}', '{{ u.role }}', '{{ u.phone_number or '' }}', {{ u.assigned_section_id or 'null' }}, {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.id == current_user.id else 'false' }})"
+                <button onclick="openEditUserModal({{ u.id }}, '{{ u.username|escape }}', '{{ u.full_name|escape }}', '{{ u.email|escape }}', '{{ u.role }}', '{{ u.phone_number or '' }}', {{ u.assigned_section_id or 'null' }}, {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.id == current_user.id else 'false' }}, '{{ u.employee_number or '' }}')"
                         title="Edit Account Details & Password"
                         class="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-deped-blue font-bold text-xs transition border border-blue-200 flex items-center gap-1">
                   <i class="fa-solid fa-pen-to-square text-[11px]"></i>
@@ -265,25 +287,38 @@
         </div>
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
-          <select id="addRole" onchange="toggleAddSectionVisibility()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
-            <option value="TEACHER">Class Adviser / Teacher</option>
-            <option value="STAFF">DepEd Staff / Non-Teaching</option>
-            <option value="PRINCIPAL">Principal / School Head</option>
-            <option value="GUARD">Campus Security Guard</option>
-            <option value="SUPER_ADMIN">Super Administrator</option>
+          <select id="addRole" onchange="onAddRoleChange()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+            <option value="TEACHER">Class Adviser / Teacher (TCH-xxxx)</option>
+            <option value="STAFF">DepEd Staff / Non-Teaching (STF-xxxx)</option>
+            <option value="PRINCIPAL">Principal / School Head (PRIN-xxx)</option>
+            <option value="GUARD">Campus Security Guard (SEC-xxxx)</option>
+            <option value="SUPER_ADMIN">Super Administrator (ADMIN-xxx)</option>
           </select>
         </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
-          <input type="email" id="addEmail" required placeholder="mendoza@donmontano.edu.ph" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            Teacher / Employee Code <span class="text-[10px] text-slate-400 font-normal lowercase">(Mobile App Login)</span>
+          </label>
+          <div class="relative">
+            <input type="text" id="addEmployeeNumber" placeholder="Auto-generated if blank" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold font-mono text-slate-900 pr-16 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue uppercase">
+            <button type="button" onclick="autoSuggestAddCode()" class="absolute right-1.5 top-1.5 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-deped-blue text-[10px] font-bold rounded-lg transition" title="Auto-suggest code">
+              Auto
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1">Auto-assigned (e.g. TCH-1008) if left blank.</p>
         </div>
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contact Phone</label>
           <input type="text" id="addPhone" placeholder="09170000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
         </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
+        <input type="email" id="addEmail" required placeholder="mendoza@donmontano.edu.ph" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
       </div>
 
       <!-- Real Database Section Assignment -->
@@ -359,11 +394,11 @@
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Role Level</label>
           <select id="editRole" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
-            <option value="TEACHER">Class Adviser / Teacher</option>
-            <option value="STAFF">DepEd Staff / Non-Teaching</option>
-            <option value="PRINCIPAL">Principal / School Head</option>
-            <option value="GUARD">Campus Security Guard</option>
-            <option value="SUPER_ADMIN">Super Administrator</option>
+            <option value="TEACHER">Class Adviser / Teacher (TCH-xxxx)</option>
+            <option value="STAFF">DepEd Staff / Non-Teaching (STF-xxxx)</option>
+            <option value="PRINCIPAL">Principal / School Head (PRIN-xxx)</option>
+            <option value="GUARD">Campus Security Guard (SEC-xxxx)</option>
+            <option value="SUPER_ADMIN">Super Administrator (ADMIN-xxx)</option>
           </select>
           <p id="editSelfRoleWarning" class="hidden text-[10px] text-amber-700 font-bold mt-1">
             <i class="fa-solid fa-triangle-exclamation mr-0.5"></i> You cannot change role on your own active admin account.
@@ -373,13 +408,26 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
-          <input type="email" id="editEmail" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            Teacher / Employee Code <span class="text-[10px] text-slate-400 font-normal lowercase">(Mobile App Login)</span>
+          </label>
+          <div class="relative">
+            <input type="text" id="editEmployeeNumber" placeholder="e.g. TCH-1001" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold font-mono text-slate-900 pr-16 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue uppercase">
+            <button type="button" onclick="autoSuggestEditCode()" class="absolute right-1.5 top-1.5 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-deped-blue text-[10px] font-bold rounded-lg transition" title="Auto-suggest code">
+              Auto
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1">Staff can enter this code OR their username to log in.</p>
         </div>
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Contact Phone</label>
           <input type="text" id="editPhone" placeholder="09170000000" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
         </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Email Address</label>
+        <input type="email" id="editEmail" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
       </div>
 
       <!-- Real Database Section Assignment -->
@@ -450,6 +498,51 @@
     }
   }
 
+  function copyStaffCode(code, btn) {
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-check text-emerald-600"></i> Copied!';
+      btn.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-300');
+      setTimeout(() => {
+        btn.innerHTML = orig;
+        btn.classList.remove('bg-emerald-50', 'text-emerald-800', 'border-emerald-300');
+      }, 2000);
+    }).catch(() => {
+      prompt("Copy staff login code:", code);
+    });
+  }
+
+  async function autoSuggestAddCode() {
+    const role = document.getElementById('addRole').value;
+    try {
+      const res = await fetch(`/api/admin/users/generate-code?role=${encodeURIComponent(role)}`);
+      const data = await res.json();
+      if (data.success && data.code) {
+        document.getElementById('addEmployeeNumber').value = data.code;
+      }
+    } catch (e) {
+      console.warn("Failed to generate code:", e);
+    }
+  }
+
+  async function onAddRoleChange() {
+    autoSuggestAddCode();
+  }
+
+  async function autoSuggestEditCode() {
+    const role = document.getElementById('editRole').value;
+    try {
+      const res = await fetch(`/api/admin/users/generate-code?role=${encodeURIComponent(role)}`);
+      const data = await res.json();
+      if (data.success && data.code) {
+        document.getElementById('editEmployeeNumber').value = data.code;
+      }
+    } catch (e) {
+      console.warn("Failed to generate code:", e);
+    }
+  }
+
   // -------------------------------------------------------------
   // Filter & Search Functions
   // -------------------------------------------------------------
@@ -478,9 +571,10 @@
       const fName = row.getAttribute('data-fullname') || '';
       const email = row.getAttribute('data-email') || '';
       const role = row.getAttribute('data-role') || '';
+      const empNo = row.getAttribute('data-empno') || '';
       const isActive = row.getAttribute('data-active') === 'true';
 
-      const matchesSearch = !q || uName.includes(q) || fName.includes(q) || email.includes(q);
+      const matchesSearch = !q || uName.includes(q) || fName.includes(q) || email.includes(q) || empNo.includes(q);
       
       let matchesRole = true;
       if (currentActiveRoleFilter === 'INACTIVE') {
@@ -516,6 +610,7 @@
   // -------------------------------------------------------------
   function openAddUserModal() {
     document.getElementById('formAddUser').reset();
+    autoSuggestAddCode();
     document.getElementById('modalAddUser').classList.remove('hidden');
   }
 
@@ -536,6 +631,7 @@
       password: document.getElementById('addPassword').value.trim(),
       role: document.getElementById('addRole').value,
       phone_number: document.getElementById('addPhone').value.trim(),
+      employee_number: document.getElementById('addEmployeeNumber').value.trim() || undefined,
       assigned_section_id: document.getElementById('addAssignedSection').value || null
     };
 
@@ -548,7 +644,7 @@
       const data = await res.json();
       if (data.success) {
         closeAddUserModal();
-        alert("Account created successfully for " + data.user.full_name + " (" + data.user.role + ")!");
+        alert("Account created successfully for " + data.user.full_name + " (" + data.user.role + ") with Mobile App Login Code: " + (data.user.employee_number || data.user.username) + "!");
         location.reload();
       } else {
         alert("Cannot create account: " + data.message);
@@ -564,12 +660,13 @@
   // -------------------------------------------------------------
   // Edit Staff Account Modal Handlers
   // -------------------------------------------------------------
-  function openEditUserModal(userId, username, fullName, email, role, phone, assignedSecId, isActive, isSelf) {
+  function openEditUserModal(userId, username, fullName, email, role, phone, assignedSecId, isActive, isSelf, empNo) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editFullName').value = fullName;
     document.getElementById('editUsername').value = username;
     document.getElementById('editEmail').value = email;
     document.getElementById('editPhone').value = phone || '';
+    document.getElementById('editEmployeeNumber').value = empNo || '';
     document.getElementById('editPassword').value = '';
 
     const roleSelect = document.getElementById('editRole');
@@ -632,6 +729,7 @@
       email: document.getElementById('editEmail').value.trim(),
       role: roleSelect.disabled ? undefined : roleSelect.value,
       phone_number: document.getElementById('editPhone').value.trim(),
+      employee_number: document.getElementById('editEmployeeNumber').value.trim(),
       assigned_section_id: document.getElementById('editAssignedSection').value || null,
       is_active: isActiveVal
     };

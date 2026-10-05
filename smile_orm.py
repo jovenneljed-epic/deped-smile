@@ -2936,8 +2936,121 @@ def delete_event_orm(event_id):
 # User & Role-Based Access Control (RBAC) Functions
 # -------------------------------------------------------------
 
-def create_user_orm(username, email, password, full_name, role="TEACHER", phone_number="", assigned_section_id=None):
-    """Creates a new user account with hashed password."""
+def generate_next_staff_code_orm(role="TEACHER"):
+    """
+    Generates the next available official DepEd employee/teacher code based on role.
+    TEACHER              -> TCH-1001, TCH-1002...
+    STAFF / NON_TEACHING -> STF-2001, STF-2002...
+    PRINCIPAL            -> PRIN-001, PRIN-002...
+    GUARD                -> SEC-3001, SEC-3002...
+    SUPER_ADMIN          -> ADMIN-001, ADMIN-002...
+    """
+    role_norm = (role or "TEACHER").strip().upper()
+    role_prefixes = {
+        "SUPER_ADMIN": ("ADMIN-", 1),
+        "PRINCIPAL": ("PRIN-", 1),
+        "TEACHER": ("TCH-", 1001),
+        "STAFF": ("STF-", 2001),
+        "NON_TEACHING": ("STF-", 2001),
+        "GUARD": ("SEC-", 3001),
+    }
+    prefix, start_num = role_prefixes.get(role_norm, ("EMP-", 1001))
+
+    session = Session()
+    try:
+        users = session.query(User.employee_number).filter(User.employee_number.isnot(None)).all()
+        existing_codes = {u[0].strip().upper() for u in users if u[0] and u[0].strip()}
+
+        curr = start_num
+        while True:
+            candidate = f"{prefix}{curr:04d}" if curr >= 1000 else f"{prefix}{curr:03d}"
+            if candidate not in existing_codes:
+                return candidate
+            curr += 1
+    except Exception as e:
+        print(f"[!] generate_next_staff_code_orm error: {e}")
+        return f"{prefix}{start_num:04d}" if start_num >= 1000 else f"{prefix}{start_num:03d}"
+    finally:
+        session.close()
+
+def auto_assign_all_staff_codes_orm():
+    """
+    Ensures every staff and administrator account has an assigned DepEd Employee / Teacher Code.
+    Backfills sequential codes for any accounts where employee_number is NULL, empty, or generic.
+    """
+    session = Session()
+    try:
+        users = session.query(User).order_by(User.id.asc()).all()
+        existing_codes = {
+            u.employee_number.strip().upper() 
+            for u in users 
+            if u.employee_number and u.employee_number.strip() and not u.employee_number.startswith("EMP-")
+        }
+
+        role_prefixes = {
+            "SUPER_ADMIN": ("ADMIN-", 1),
+            "PRINCIPAL": ("PRIN-", 1),
+            "TEACHER": ("TCH-", 1001),
+            "STAFF": ("STF-", 2001),
+            "NON_TEACHING": ("STF-", 2001),
+            "GUARD": ("SEC-", 3001),
+        }
+
+        # Known defaults for common seeded accounts
+        known_defaults = {
+            "admin": "ADMIN-001",
+            "principal": "PRIN-001",
+            "teacher": "TCH-1001",
+            "teacher_test": "TCH-1002",
+            "guard": "SEC-3001",
+            "guard_night": "SEC-3002",
+            "staff": "STF-2001",
+        }
+
+        changed = False
+        counters = {
+            "SUPER_ADMIN": 1,
+            "PRINCIPAL": 1,
+            "TEACHER": 1001,
+            "STAFF": 2001,
+            "NON_TEACHING": 2001,
+            "GUARD": 3001,
+        }
+
+        for u in users:
+            curr_code = (u.employee_number or "").strip()
+            # If empty or generic EMP- prefix, upgrade to official DepEd role code
+            if not curr_code or curr_code.startswith("EMP-"):
+                u_role = (u.role or "TEACHER").strip().upper()
+                u_name = (u.username or "").lower().strip()
+
+                if u_name in known_defaults and known_defaults[u_name] not in existing_codes:
+                    assigned_code = known_defaults[u_name]
+                else:
+                    prefix, start_idx = role_prefixes.get(u_role, ("EMP-", 1001))
+                    curr_idx = max(start_idx, counters.get(u_role, start_idx))
+                    while True:
+                        code_fmt = f"{prefix}{curr_idx:04d}" if curr_idx >= 1000 else f"{prefix}{curr_idx:03d}"
+                        if code_fmt not in existing_codes:
+                            assigned_code = code_fmt
+                            break
+                        curr_idx += 1
+                    counters[u_role] = curr_idx + 1
+
+                u.employee_number = assigned_code
+                existing_codes.add(assigned_code.upper())
+                changed = True
+
+        if changed:
+            session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] auto_assign_all_staff_codes_orm note: {e}")
+    finally:
+        session.close()
+
+def create_user_orm(username, email, password, full_name, role="TEACHER", phone_number="", assigned_section_id=None, employee_number=None):
+    """Creates a new user account with hashed password and DepEd employee code."""
     session = Session()
     try:
         u_clean = username.strip().lower()
@@ -2945,16 +3058,26 @@ def create_user_orm(username, email, password, full_name, role="TEACHER", phone_
         existing = session.query(User).filter((User.username == u_clean) | (User.email == e_clean)).first()
         if existing:
             return False, f"Username '{u_clean}' or email '{e_clean}' is already registered."
+
+        role_clean = role.strip().upper()
+        emp_clean = (employee_number or "").strip().upper()
+        if emp_clean:
+            existing_emp = session.query(User).filter(func.upper(User.employee_number) == emp_clean).first()
+            if existing_emp:
+                return False, f"Employee/Teacher Code '{emp_clean}' is already assigned to {existing_emp.full_name}."
+        else:
+            emp_clean = generate_next_staff_code_orm(role_clean)
         
         user = User(
             username=u_clean,
             email=e_clean,
             password_hash=generate_password_hash(password.strip()),
             full_name=full_name.strip(),
-            role=role.strip().upper(),
+            role=role_clean,
             is_active=True,
             phone_number=phone_number.strip(),
-            assigned_section_id=assigned_section_id
+            assigned_section_id=assigned_section_id,
+            employee_number=emp_clean
         )
         session.add(user)
         session.commit()
@@ -3020,6 +3143,8 @@ def get_user_by_id_orm(user_id):
         session.close()
 
 def get_all_users_orm():
+    """Returns all users, ensuring every account has an assigned DepEd employee/teacher code."""
+    auto_assign_all_staff_codes_orm()
     session = Session()
     try:
         users = session.query(User).order_by(User.id.asc()).all()
@@ -3087,6 +3212,20 @@ def update_user_orm(user_id, **kwargs):
                     user.assigned_section_id = int(sec_val)
                 except (ValueError, TypeError):
                     user.assigned_section_id = None
+
+        # Employee Number / Teacher Code update with duplicate check
+        if "employee_number" in kwargs:
+            emp_val = kwargs["employee_number"]
+            if emp_val is not None:
+                new_emp = str(emp_val).strip().upper()
+                if new_emp:
+                    if new_emp != (user.employee_number or "").upper():
+                        existing = session.query(User).filter(func.upper(User.employee_number) == new_emp, User.id != user.id).first()
+                        if existing:
+                            return False, f"Employee / Teacher Code '{new_emp}' is already assigned to {existing.full_name}."
+                    user.employee_number = new_emp
+                else:
+                    user.employee_number = generate_next_staff_code_orm(user.role)
 
         # Password Reset
         if "password" in kwargs and kwargs["password"] and kwargs["password"].strip():
@@ -4835,6 +4974,5 @@ get_user_by_employee_number = get_user_by_employee_number_orm
 get_staff_today_status = get_staff_today_status_orm
 acknowledge_attendance_log = acknowledge_attendance_log_orm
 get_pending_acknowledgments = get_pending_acknowledgments_orm
-
-
-
+auto_assign_all_staff_codes = auto_assign_all_staff_codes_orm
+generate_next_staff_code = generate_next_staff_code_orm
