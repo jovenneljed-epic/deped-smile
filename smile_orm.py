@@ -3553,6 +3553,36 @@ def record_staff_attendance_orm(user_id, scan_type="AUTO", lat=None, lon=None, a
     finally:
         session.close()
 
+def recalibrate_staff_attendance_geotags_orm():
+    """
+    Recalibrates existing staff attendance logs against the active campus coordinates.
+    Updates any logs within the school's authorized geofence radius to 'CAMPUS_VERIFIED'.
+    """
+    session = Session()
+    try:
+        from smile_config import verify_school_geotag
+        logs = session.query(StaffAttendanceLog).filter(
+            StaffAttendanceLog.latitude.isnot(None),
+            StaffAttendanceLog.longitude.isnot(None)
+        ).all()
+        
+        updated = 0
+        for log in logs:
+            is_verified, dist, status_label = verify_school_geotag(log.latitude, log.longitude)
+            if status_label != log.geotag_status:
+                log.geotag_status = status_label
+                updated += 1
+        if updated > 0:
+            session.commit()
+            print(f"[+] Recalibrated {updated} staff attendance geotag records to active campus location.")
+        return updated
+    except Exception as e:
+        session.rollback()
+        print(f"[!] recalibrate_staff_attendance_geotags_orm error: {e}")
+        return 0
+    finally:
+        session.close()
+
 def get_staff_today_status_orm(user_id):
     """
     Returns today's 4-punch DTR state (AM IN, AM OUT, PM IN, PM OUT) and total rendered hours.
@@ -3648,7 +3678,9 @@ def get_user_by_employee_number_orm(emp_no):
 def get_staff_dtr_logs_orm(user_id=None, month=None, year=None, limit=100):
     """
     Returns civil service DTR logs filterable by user, month, and year.
+    Auto-recalibrates geotags against active school location.
     """
+    recalibrate_staff_attendance_geotags_orm()
     session = Session()
     try:
         q = session.query(StaffAttendanceLog)
@@ -4976,3 +5008,4 @@ acknowledge_attendance_log = acknowledge_attendance_log_orm
 get_pending_acknowledgments = get_pending_acknowledgments_orm
 auto_assign_all_staff_codes = auto_assign_all_staff_codes_orm
 generate_next_staff_code = generate_next_staff_code_orm
+recalibrate_staff_attendance_geotags = recalibrate_staff_attendance_geotags_orm

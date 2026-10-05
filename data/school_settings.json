@@ -5,6 +5,9 @@
   "school_division": "SDO Pangasinan II",
   "school_id": "152008",
   "school_address": "Brgy. Don Montano, Umingan, Pangasinan",
-  "system_domain": "https://smile.donmontanocis.edu.ph",
-  "camera_source": "rtsp://192.168.1.165:554/live/ch0"
+  "system_domain": "https://deped-smile.vercel.app",
+  "camera_source": "rtsp://192.168.1.165:554/live/ch0",
+  "school_latitude": 15.9295,
+  "school_longitude": 120.8613,
+  "geofence_radius": 2500
 }

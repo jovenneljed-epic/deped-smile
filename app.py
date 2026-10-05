@@ -372,7 +372,7 @@ def admin_save_sms_settings():
 @app.route('/admin/settings/school', methods=['POST'])
 @admin_required
 def admin_save_school_settings():
-    """Super Admin: Updates official school profile, DepEd metadata, CCTV Camera Source, and Public Domain URL."""
+    """Super Admin: Updates official school profile, DepEd metadata, Campus GPS Coordinates, Geofence, CCTV, and Public Domain URL."""
     school_name = request.form.get("school_name", "").strip()
     deped_region = request.form.get("deped_region", "").strip()
     school_division = request.form.get("school_division", "").strip()
@@ -380,6 +380,9 @@ def admin_save_school_settings():
     school_address = request.form.get("school_address", "").strip()
     system_domain = request.form.get("system_domain", "").strip()
     camera_source = request.form.get("camera_source", "").strip()
+    school_latitude = request.form.get("school_latitude", "").strip()
+    school_longitude = request.form.get("school_longitude", "").strip()
+    geofence_radius = request.form.get("geofence_radius", "").strip()
 
     if school_name:
         payload = {
@@ -392,8 +395,21 @@ def admin_save_school_settings():
         }
         if camera_source:
             payload["camera_source"] = camera_source
+        if school_latitude:
+            try: payload["school_latitude"] = float(school_latitude)
+            except (ValueError, TypeError): pass
+        if school_longitude:
+            try: payload["school_longitude"] = float(school_longitude)
+            except (ValueError, TypeError): pass
+        if geofence_radius:
+            try: payload["geofence_radius"] = int(geofence_radius)
+            except (ValueError, TypeError): pass
+
         smile_config.save_school_settings(payload)
-    return redirect(url_for('admin_settings', msg="School identity, CCTV Camera, and Public Domain settings updated successfully."))
+        from smile_orm import recalibrate_staff_attendance_geotags_orm
+        recalibrate_staff_attendance_geotags_orm()
+
+    return redirect(url_for('admin_settings', msg="School profile, campus GPS coordinates, geofence perimeter, and CCTV settings updated successfully."))
 
 @app.route('/admin/events')
 @admin_required
@@ -1392,6 +1408,9 @@ def api_mobile_bootstrap():
             "school_address": school_cfg.get("school_address", getattr(smile_config, "SCHOOL_ADDRESS", "Brgy. Don Montano, Umingan, Pangasinan")),
             "deped_region": school_cfg.get("deped_region", getattr(smile_config, "DEPED_REGION", "Region I • Ilocos Region")),
             "school_division": school_cfg.get("school_division", getattr(smile_config, "SCHOOL_DIVISION", "SDO Pangasinan II")),
+            "school_latitude": float(school_cfg.get("school_latitude", getattr(smile_config, "DEFAULT_SCHOOL_LAT", 15.9295))),
+            "school_longitude": float(school_cfg.get("school_longitude", getattr(smile_config, "DEFAULT_SCHOOL_LON", 120.8613))),
+            "geofence_radius": int(school_cfg.get("geofence_radius", getattr(smile_config, "ALLOWED_GEOFENCE_RADIUS_METERS", 2500))),
             "active_student": active_student,
             "enrolled_students": enrolled_students,
             "total_enrolled": len(enrolled_students),
@@ -3223,12 +3242,17 @@ def faculty_scanner_page():
     today_all_logs = get_today_all_staff_logs_orm(50) if is_admin else []
     campus_summary = get_campus_staff_attendance_summary_orm()
 
+    school_cfg = smile_config.load_school_settings()
+    active_lat = float(school_cfg.get("school_latitude", smile_config.DEFAULT_SCHOOL_LAT))
+    active_lon = float(school_cfg.get("school_longitude", smile_config.DEFAULT_SCHOOL_LON))
+    active_radius = int(school_cfg.get("geofence_radius", smile_config.ALLOWED_GEOFENCE_RADIUS_METERS))
+
     return render_template(
         'faculty_scanner.html',
         school_name=SCHOOL_NAME,
-        school_lat=DEFAULT_SCHOOL_LAT,
-        school_lon=DEFAULT_SCHOOL_LON,
-        geofence_radius=ALLOWED_GEOFENCE_RADIUS_METERS,
+        school_lat=active_lat,
+        school_lon=active_lon,
+        geofence_radius=active_radius,
         current_user=user_obj,
         is_admin_kiosk=is_admin,
         all_staff=all_staff,
@@ -3460,6 +3484,9 @@ def faculty_dtr_page():
     Civil Service Commission (CSC) / DepEd Form 48 Daily Time Record (DTR) Portal.
     Displays authentic time logs, campus geotag verifications, and monthly rendered hours.
     """
+    from smile_orm import recalibrate_staff_attendance_geotags_orm
+    recalibrate_staff_attendance_geotags_orm()
+
     current_uid = session.get('user_id')
     current_role = session.get('role')
 

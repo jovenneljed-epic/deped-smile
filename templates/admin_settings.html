@@ -205,6 +205,76 @@
                      class="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
             </div>
 
+            <!-- Campus GPS Geofence & Geotag Settings -->
+            <div class="sm:col-span-2 p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 rounded-2xl space-y-3">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm shadow-xs">
+                    <i class="fa-solid fa-location-dot"></i>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-black uppercase tracking-wider text-emerald-950 font-heading">
+                      Campus GPS Geofence &amp; Geotag Perimeter
+                    </label>
+                    <p class="text-[10px] text-emerald-800">
+                      Authorizes faculty and staff attendance punches as <span class="font-bold text-emerald-900">Campus Verified 📍</span>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="detectCurrentGpsLocation()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-[11px] shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-crosshairs" id="gpsDetectIcon"></i>
+                    <span>Detect My Current GPS</span>
+                  </button>
+                  <a id="btnGpsMapLink" href="https://www.google.com/maps?q={{ school_settings.school_latitude if school_settings and school_settings.school_latitude else 15.9295 }},{{ school_settings.school_longitude if school_settings and school_settings.school_longitude else 120.8613 }}" target="_blank" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-[11px] border border-slate-300 shadow-xs transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-map-location-dot text-emerald-600"></i>
+                    <span>View Pin</span>
+                  </a>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label class="block text-[11px] font-bold text-emerald-950 uppercase tracking-wider mb-1">
+                    Campus Latitude
+                  </label>
+                  <input type="number" step="any" name="school_latitude" id="schoolLatitudeInput" 
+                         value="{{ school_settings.school_latitude if school_settings and school_settings.school_latitude else 15.9295 }}"
+                         oninput="updateMapLink()"
+                         class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-emerald-950 uppercase tracking-wider mb-1">
+                    Campus Longitude
+                  </label>
+                  <input type="number" step="any" name="school_longitude" id="schoolLongitudeInput" 
+                         value="{{ school_settings.school_longitude if school_settings and school_settings.school_longitude else 120.8613 }}"
+                         oninput="updateMapLink()"
+                         class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-emerald-950 uppercase tracking-wider mb-1">
+                    Allowed Geofence Radius
+                  </label>
+                  <div class="relative">
+                    <select name="geofence_radius" id="geofenceRadiusSelect" class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-emerald-500">
+                      <option value="500" {% if school_settings and school_settings.geofence_radius == 500 %}selected{% endif %}>500 meters (Tight Campus Gates)</option>
+                      <option value="1000" {% if school_settings and school_settings.geofence_radius == 1000 %}selected{% endif %}>1,000 meters (1.0 km Perimeter)</option>
+                      <option value="2500" {% if not school_settings or not school_settings.geofence_radius or school_settings.geofence_radius == 2500 %}selected{% endif %}>2,500 meters (2.5 km Standard - Recommended)</option>
+                      <option value="5000" {% if school_settings and school_settings.geofence_radius == 5000 %}selected{% endif %}>5,000 meters (5.0 km Extended Coverage)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2 pt-1 text-[11px] text-emerald-800">
+                <i class="fa-solid fa-circle-info text-emerald-600 mt-0.5 shrink-0"></i>
+                <p>
+                  Default is calibrated for <strong>Don Montano Central Integrated School (15.9295, 120.8613)</strong>. Staff scanning within this radius will be certified as <strong>Campus Verified 📍</strong> on Civil Service Form 48 DTR.
+                </p>
+              </div>
+            </div>
+
             <!-- Public Domain / Internet Address -->
             <div class="sm:col-span-2 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl space-y-2">
               <div class="flex items-center justify-between">
@@ -546,6 +616,40 @@
       btn.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> Auto-Scan School Network';
       alert("Scan error: " + err.message);
     }
+  }
+
+  function updateMapLink() {
+    const lat = document.getElementById('schoolLatitudeInput').value.trim() || '15.9295';
+    const lon = document.getElementById('schoolLongitudeInput').value.trim() || '120.8613';
+    const btn = document.getElementById('btnGpsMapLink');
+    if (btn) {
+      btn.href = `https://www.google.com/maps?q=${lat},${lon}`;
+    }
+  }
+
+  function detectCurrentGpsLocation() {
+    const icon = document.getElementById('gpsDetectIcon');
+    if (!('geolocation' in navigator)) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    if (icon) icon.className = "fa-solid fa-spinner fa-spin";
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (icon) icon.className = "fa-solid fa-crosshairs";
+        const lat = pos.coords.latitude.toFixed(6);
+        const lon = pos.coords.longitude.toFixed(6);
+        document.getElementById('schoolLatitudeInput').value = lat;
+        document.getElementById('schoolLongitudeInput').value = lon;
+        updateMapLink();
+        alert(`Location detected!\n\nLatitude: ${lat}\nLongitude: ${lon}\nAccuracy: ±${Math.round(pos.coords.accuracy)}m\n\nClick 'Save School Identity & CCTV Settings' below to apply.`);
+      },
+      (err) => {
+        if (icon) icon.className = "fa-solid fa-crosshairs";
+        alert("Could not detect GPS location: " + err.message + "\nPlease enable Location permission in your browser.");
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   }
 </script>
 {% endblock %}

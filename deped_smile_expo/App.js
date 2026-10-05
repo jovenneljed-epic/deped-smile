@@ -1203,9 +1203,9 @@ export default function App() {
         body: JSON.stringify({
           user_id: staffUser.id,
           scan_type: scanType,
-          latitude: 14.3012,
-          longitude: 120.9578,
-          accuracy: 12.5,
+          latitude: 15.9295,
+          longitude: 120.8613,
+          accuracy: 5.0,
           method: "MOBILE_APP"
         })
       });

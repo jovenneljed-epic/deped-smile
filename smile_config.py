@@ -149,8 +149,11 @@ DEFAULT_SCHOOL_SETTINGS = {
     "school_division": "SDO Pangasinan II",
     "school_id": "152008",
     "school_address": "Brgy. Don Montano, Umingan, Pangasinan",
-    "system_domain": "https://classic-optics-cooperative-therapy.trycloudflare.com",
-    "camera_source": "rtsp://192.168.1.165:554/live/ch0"
+    "system_domain": "https://deped-smile.vercel.app",
+    "camera_source": "rtsp://192.168.1.165:554/live/ch0",
+    "school_latitude": 15.9295,
+    "school_longitude": 120.8613,
+    "geofence_radius": 2500
 }
 
 def load_school_settings():
@@ -168,7 +171,7 @@ def load_school_settings():
 def save_school_settings(new_settings):
     """Persists updated school configuration and updates module globals."""
     import json
-    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN, CAMERA_INDEX, SCHOOL_ID, SCHOOL_ADDRESS, DEPED_REGION, SCHOOL_DIVISION
+    global SCHOOL_NAME, SCHOOL_SHORT_NAME, SYSTEM_DOMAIN, CAMERA_INDEX, SCHOOL_ID, SCHOOL_ADDRESS, DEPED_REGION, SCHOOL_DIVISION, DEFAULT_SCHOOL_LAT, DEFAULT_SCHOOL_LON, ALLOWED_GEOFENCE_RADIUS_METERS
     current = load_school_settings()
     current.update(new_settings)
     with open(SCHOOL_SETTINGS_PATH, "w", encoding="utf-8") as f:
@@ -182,6 +185,12 @@ def save_school_settings(new_settings):
     SYSTEM_DOMAIN = current.get("system_domain", SYSTEM_DOMAIN)
     cam = current.get("camera_source", "rtsp://192.168.1.165:554/live/ch0")
     CAMERA_INDEX = int(cam) if str(cam).isdigit() else str(cam)
+    try:
+        DEFAULT_SCHOOL_LAT = float(current.get("school_latitude", 15.9295))
+        DEFAULT_SCHOOL_LON = float(current.get("school_longitude", 120.8613))
+        ALLOWED_GEOFENCE_RADIUS_METERS = int(current.get("geofence_radius", 2500))
+    except (ValueError, TypeError):
+        pass
     return current
 
 _active_school = load_school_settings()
@@ -191,7 +200,10 @@ SCHOOL_ID = _active_school.get("school_id", "152008")
 SCHOOL_ADDRESS = _active_school.get("school_address", "Brgy. Don Montano, Umingan, Pangasinan")
 DEPED_REGION = _active_school.get("deped_region", "Region I • Ilocos Region")
 SCHOOL_DIVISION = _active_school.get("school_division", "SDO Pangasinan II")
-SYSTEM_DOMAIN = _active_school.get("system_domain", "https://classic-optics-cooperative-therapy.trycloudflare.com")
+SYSTEM_DOMAIN = _active_school.get("system_domain", "https://deped-smile.vercel.app")
+DEFAULT_SCHOOL_LAT = float(os.environ.get("SCHOOL_LATITUDE", _active_school.get("school_latitude", 15.9295)))
+DEFAULT_SCHOOL_LON = float(os.environ.get("SCHOOL_LONGITUDE", _active_school.get("school_longitude", 120.8613)))
+ALLOWED_GEOFENCE_RADIUS_METERS = int(os.environ.get("GEOFENCE_RADIUS_METERS", _active_school.get("geofence_radius", 2500)))
 
 
 # Comprehensive DepEd K-12 Grade Levels (Kindergarten to Senior High School)
@@ -370,10 +382,14 @@ VAPID_CLAIMS = {
 # -------------------------------------------------------------
 # Campus GPS Geofence & Authentic Geotag Verification
 # -------------------------------------------------------------
-# Default school GPS coordinates (Configurable via School Settings or ENV)
-DEFAULT_SCHOOL_LAT = float(os.environ.get("SCHOOL_LATITUDE", 14.5995))   # Metro Manila / DepEd central default
-DEFAULT_SCHOOL_LON = float(os.environ.get("SCHOOL_LONGITUDE", 120.9842))
-ALLOWED_GEOFENCE_RADIUS_METERS = int(os.environ.get("GEOFENCE_RADIUS_METERS", 2000)) # 2 km perimeter
+# Active school GPS coordinates for Don Montano Central Integrated School (Brgy. Don Montano, Umingan, Pangasinan)
+# Dynamically customizable via Admin Settings portal or SCHOOL_LATITUDE / SCHOOL_LONGITUDE environment variables
+if 'DEFAULT_SCHOOL_LAT' not in globals() or DEFAULT_SCHOOL_LAT is None:
+    DEFAULT_SCHOOL_LAT = 15.9295
+if 'DEFAULT_SCHOOL_LON' not in globals() or DEFAULT_SCHOOL_LON is None:
+    DEFAULT_SCHOOL_LON = 120.8613
+if 'ALLOWED_GEOFENCE_RADIUS_METERS' not in globals() or ALLOWED_GEOFENCE_RADIUS_METERS is None:
+    ALLOWED_GEOFENCE_RADIUS_METERS = 2500
 
 def calculate_haversine_distance(lat1, lon1, lat2, lon2):
     """
