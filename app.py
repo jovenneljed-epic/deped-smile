@@ -1045,6 +1045,18 @@ def api_db_seed():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@app.route('/api/db-enable-rls', methods=['POST'])
+@admin_required
+def api_db_enable_rls():
+    """Enforces Row Level Security (RLS) on all Supabase PostgreSQL tables in public schema."""
+    from smile_orm import ensure_postgresql_rls_orm
+    try:
+        count, msg = ensure_postgresql_rls_orm()
+        return jsonify({"success": True, "message": msg, "tables_secured": count})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route('/api/sections', methods=['GET'])
 def api_get_sections():
     """Returns real sections from database with optional grade_level filter."""

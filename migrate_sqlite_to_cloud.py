@@ -79,6 +79,25 @@ def run_migration(target_db_url: str):
     try:
         Base.metadata.create_all(target_engine)
         print("  [OK] All tables verified in Cloud Database.")
+
+        # For PostgreSQL / Supabase, automatically enable Row Level Security (RLS) on all public tables
+        if target_engine.dialect.name == "postgresql":
+            try:
+                with target_engine.connect() as conn:
+                    from sqlalchemy import text
+                    conn.execute(text("""
+                        DO $$
+                        DECLARE tbl record;
+                        BEGIN
+                            FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+                                EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', tbl.tablename);
+                            END LOOP;
+                        END $$;
+                    """))
+                    conn.commit()
+                print("  [OK] Supabase Row Level Security (RLS) enabled on all public tables.")
+            except Exception as rls_err:
+                print(f"  [!] Note on RLS enablement: {rls_err}")
     except Exception as e:
         print(f"  [ERROR] Schema generation failed: {e}")
         return False

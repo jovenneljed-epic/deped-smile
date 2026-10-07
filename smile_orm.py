@@ -1538,6 +1538,12 @@ def init_orm_db(force=False):
                 except Exception as ex:
                     print(f"[!] workflow_executions creation note: {ex}")
 
+            if "postgres" in engine.dialect.name.lower():
+                try:
+                    ensure_postgresql_rls_orm()
+                except Exception:
+                    pass
+
             _db_initialized = True
             return
 
@@ -1560,6 +1566,10 @@ def init_orm_db(force=False):
                     conn.commit()
             except Exception as ex:
                 print(f"[!] PostgreSQL column auto-migration note: {ex}")
+            try:
+                ensure_postgresql_rls_orm()
+            except Exception:
+                pass
         # Check and migrate columns in SQLite if needed
         if "sqlite" in engine.dialect.name.lower():
             try:
@@ -3583,6 +3593,37 @@ def recalibrate_staff_attendance_geotags_orm():
     finally:
         session.close()
 
+def ensure_postgresql_rls_orm():
+    """
+    Enforces Row Level Security (RLS) on all public tables in PostgreSQL / Supabase.
+    Resolves Supabase Security Advisor errors and blocks unauthorized PostgREST API access,
+    while leaving full direct access for the Flask application table owner ('postgres').
+    """
+    if "postgres" not in engine.dialect.name.lower():
+        return 0, "Current database engine is not PostgreSQL."
+
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("""
+                DO $$
+                DECLARE tbl record;
+                BEGIN
+                    FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+                        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', tbl.tablename);
+                    END LOOP;
+                END $$;
+            """))
+            conn.commit()
+
+            res = conn.execute(text("SELECT COUNT(*) FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = true;"))
+            count = res.scalar() or 0
+            print(f"[+] Supabase Row Level Security enforced on {count} public tables.")
+            return count, f"Successfully enforced Row Level Security on {count} tables in Supabase."
+    except Exception as ex:
+        print(f"[!] ensure_postgresql_rls_orm error: {ex}")
+        return 0, f"Error enforcing RLS: {ex}"
+
 def get_staff_today_status_orm(user_id):
     """
     Returns today's 4-punch DTR state (AM IN, AM OUT, PM IN, PM OUT) and total rendered hours.
@@ -5009,3 +5050,4 @@ get_pending_acknowledgments = get_pending_acknowledgments_orm
 auto_assign_all_staff_codes = auto_assign_all_staff_codes_orm
 generate_next_staff_code = generate_next_staff_code_orm
 recalibrate_staff_attendance_geotags = recalibrate_staff_attendance_geotags_orm
+ensure_postgresql_rls = ensure_postgresql_rls_orm

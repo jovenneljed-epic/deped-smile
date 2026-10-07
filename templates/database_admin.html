@@ -15,6 +15,11 @@
       <p class="text-sm text-slate-500">Relational Database Engine &middot; DepEd RA 10173 Smart ID Store</p>
     </div>
     <div class="flex items-center space-x-3">
+      {% if db_stats.is_cloud_prod %}
+      <button onclick="hardenSupabaseSecurity()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center">
+        <i class="fa-solid fa-shield-halved mr-1.5"></i> Harden Supabase Security (RLS)
+      </button>
+      {% endif %}
       <button onclick="reseedDatabase()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center">
         <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Re-seed DepEd Population
       </button>
@@ -652,6 +657,18 @@
       }
     } catch(err) {
       alert('Network error: ' + err.message);
+    }
+  }
+
+  async function hardenSupabaseSecurity() {
+    if (!confirm("Enforce Row Level Security (RLS) on all Supabase tables to resolve Security Advisor errors?")) return;
+    try {
+      const res = await fetch('/api/db-enable-rls', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      window.location.reload();
+    } catch(err) {
+      alert("Error: " + err.message);
     }
   }
 
