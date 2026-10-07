@@ -734,8 +734,8 @@ def create_orm_engine():
             connect_args=connect_args,
             pool_size=5 if not is_serverless else 3,
             max_overflow=10 if not is_serverless else 5,
-            pool_recycle=300,
-            pool_pre_ping=False if is_serverless else True
+            pool_recycle=120 if is_serverless else 300,
+            pool_pre_ping=True
         )
 
 engine = create_orm_engine()
@@ -859,7 +859,7 @@ def get_all_sections_orm():
     """Returns all real sections from the database with in-memory TTL caching."""
     global _SECTIONS_CACHE
     now = time.time()
-    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 60:
+    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 120:
         return _SECTIONS_CACHE["data"]
 
     session = Session()
@@ -1485,6 +1485,11 @@ def init_orm_db(force=False):
     if _db_initialized and not force:
         return
 
+    # In Serverless / Vercel runtime, cloud database is already migrated; skip heavy cold-start DDL
+    if getattr(smile_config, "IS_VERCEL", False) and not force:
+        _db_initialized = True
+        return
+
     try:
         # 1. Ensure all core tables exist in database (CREATE TABLE IF NOT EXISTS)
         Base.metadata.create_all(engine)
@@ -1746,7 +1751,7 @@ def get_all_enrolled_students_orm():
 def get_enrolled_students_count_orm():
     """Ultra-fast count of enrolled students without loading objects or embeddings (2ms) with TTL caching."""
     now = time.time()
-    if _STUDENT_COUNT_CACHE["count"] is not None and (now - _STUDENT_COUNT_CACHE["ts"]) < 30:
+    if _STUDENT_COUNT_CACHE["count"] is not None and (now - _STUDENT_COUNT_CACHE["ts"]) < 60:
         return _STUDENT_COUNT_CACHE["count"]
     session = Session()
     try:
@@ -2223,9 +2228,9 @@ def record_sms_orm(recipient_phone, student_lrn, message_body, status, gateway="
         session.close()
 
 def get_today_summary_orm():
-    """Returns today's gate scan metrics with high-speed 3s in-memory TTL caching."""
+    """Returns today's gate scan metrics with high-speed 15s in-memory TTL caching."""
     now = time.time()
-    if _TODAY_SUMMARY_CACHE["data"] is not None and (now - _TODAY_SUMMARY_CACHE["ts"]) < 3.0:
+    if _TODAY_SUMMARY_CACHE["data"] is not None and (now - _TODAY_SUMMARY_CACHE["ts"]) < 15.0:
         return _TODAY_SUMMARY_CACHE["data"]
     session = Session()
     try:
@@ -3719,9 +3724,8 @@ def get_user_by_employee_number_orm(emp_no):
 def get_staff_dtr_logs_orm(user_id=None, month=None, year=None, limit=100):
     """
     Returns civil service DTR logs filterable by user, month, and year.
-    Auto-recalibrates geotags against active school location.
+    Geotags are verified upon attendance clock-in for maximum query performance.
     """
-    recalibrate_staff_attendance_geotags_orm()
     session = Session()
     try:
         q = session.query(StaffAttendanceLog)
