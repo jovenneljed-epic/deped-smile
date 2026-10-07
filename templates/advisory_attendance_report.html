@@ -112,11 +112,15 @@
                  class="text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-deped-blue cursor-pointer">
         </div>
 
-        <!-- Action Buttons: Print & CSV -->
+        <!-- Action Buttons: Monthly SF2, Print & CSV -->
         <div class="flex items-center gap-1.5">
-          <button type="button" onclick="window.print()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Print Official DepEd SF2 Sheet">
+          <a href="/advisory/sf2{% if selected_section_id %}?section_id={{ selected_section_id }}{% endif %}" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black shadow-sm transition flex items-center gap-1.5" title="View Full Monthly Official DepEd SF2 Sheet">
+            <i class="fa-solid fa-file-invoice"></i>
+            <span class="hidden sm:inline">Monthly SF2 Form</span>
+          </a>
+          <button type="button" onclick="window.print()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Print Daily Attendance Sheet">
             <i class="fa-solid fa-print text-amber-300"></i>
-            <span class="hidden sm:inline">Print SF2</span>
+            <span class="hidden sm:inline">Print Daily</span>
           </button>
           <a href="/advisory/attendance-report/export-csv?date={{ date_str }}{% if selected_section_id %}&section_id={{ selected_section_id }}{% endif %}" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5" title="Download Excel / CSV">
             <i class="fa-solid fa-file-excel"></i>

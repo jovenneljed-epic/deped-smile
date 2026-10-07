@@ -78,13 +78,19 @@
       {% if is_teacher_view %}
       <!-- Student Attendance Report by Date Button -->
       <a href="/advisory/attendance-report{% if selected_section_id %}?section_id={{ selected_section_id }}{% endif %}" class="inline-flex items-center px-3.5 py-2 bg-gradient-to-r from-blue-700 to-deped-blue hover:from-blue-800 hover:to-deped-darkblue text-white text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap" title="View Daily Scanned Student Attendance Report by Date">
-        <i class="fa-solid fa-calendar-check mr-1.5 text-amber-300"></i> Attendance Report
+        <i class="fa-solid fa-calendar-check mr-1.5 text-amber-300"></i> Daily Attendance
+      </a>
+      <a href="/advisory/sf2{% if selected_section_id %}?section_id={{ selected_section_id }}{% endif %}" class="inline-flex items-center px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-sm transition whitespace-nowrap" title="Official DepEd SF2 Monthly Attendance Sheet">
+        <i class="fa-solid fa-file-invoice mr-1.5"></i> DepEd SF2 Sheet
       </a>
       {% endif %}
 
       {% if not is_teacher_view %}
-      <a href="/export/csv" class="inline-flex items-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap" title="Export DepEd School Form 2 Attendance CSV">
-        <i class="fa-solid fa-file-excel mr-1.5"></i> Export SF2 (CSV)
+      <a href="/advisory/sf2{% if selected_section_id %}?section_id={{ selected_section_id }}{% endif %}" class="inline-flex items-center px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-sm transition whitespace-nowrap" title="DepEd School Form 2 Monthly Attendance Matrix">
+        <i class="fa-solid fa-file-invoice mr-1.5"></i> Monthly SF2
+      </a>
+      <a href="/export/csv" class="inline-flex items-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition whitespace-nowrap" title="Export DepEd Attendance CSV">
+        <i class="fa-solid fa-file-excel mr-1.5"></i> Export CSV
       </a>
       {% endif %}
     </div>

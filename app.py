@@ -37,7 +37,8 @@ from smile_orm import (
     record_staff_attendance_orm, get_staff_today_status_orm,
     get_staff_dtr_logs_orm, get_today_all_staff_logs_orm,
     get_campus_staff_attendance_summary_orm,
-    get_section_attendance_report_orm
+    get_section_attendance_report_orm,
+    get_monthly_deped_sf2_report_orm
 )
 from smile_sms import (
     send_via_semaphore, send_via_twilio, send_via_android_gateway,
@@ -3270,6 +3271,166 @@ def export_advisory_attendance_csv():
     output.seek(0)
     clean_sec = "".join(c for c in sec_name if c.isalnum() or c in (' ', '-', '_')).strip().replace(' ', '_')
     filename = f"DepEd_SF2_DailyAttendance_{clean_sec}_{date_str}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={filename}"}
+    )
+
+@app.route('/advisory/sf2')
+@login_required
+def advisory_deped_sf2():
+    """
+    Official DepEd School Form 2 (SF2) Monthly Learner Attendance Sheet.
+    Complies with DepEd Order No. 58, s. 2017 & DO 4, s. 2014.
+    Automatically aggregates all student gate kiosk scans into an official printable landscape sheet.
+    """
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    month_val = request.args.get('month')
+    year_val = request.args.get('year')
+
+    report_data = get_monthly_deped_sf2_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        month=month_val,
+        year=year_val
+    )
+
+    all_sections = get_all_sections_orm() if is_admin else []
+
+    return render_template(
+        'deped_sf2.html',
+        school_name=SCHOOL_NAME,
+        report=report_data,
+        is_admin=is_admin,
+        all_sections=all_sections,
+        selected_section_id=int(target_section_id) if target_section_id and str(target_section_id).isdigit() else target_section_id,
+        selected_month=report_data["month"],
+        selected_year=report_data["year"]
+    )
+
+@app.route('/api/advisory/sf2')
+@login_required
+def api_advisory_deped_sf2():
+    """JSON API endpoint returning monthly DepEd SF2 report data."""
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    month_val = request.args.get('month')
+    year_val = request.args.get('year')
+
+    report_data = get_monthly_deped_sf2_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        month=month_val,
+        year=year_val
+    )
+    return jsonify({"success": True, "report": report_data})
+
+@app.route('/advisory/sf2/export-csv')
+@login_required
+def export_advisory_deped_sf2_csv():
+    """Generates official DepEd SF2 compliant Monthly CSV Spreadsheet."""
+    user_role = session.get('role', '')
+    user_section_id = session.get('assigned_section_id')
+    user_section_name = session.get('assigned_section_name')
+    user_full_name = session.get('full_name')
+    is_admin = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
+
+    target_section_id = request.args.get('section_id')
+    if not is_admin or not target_section_id:
+        target_section_id = target_section_id if is_admin else user_section_id
+
+    month_val = request.args.get('month')
+    year_val = request.args.get('year')
+
+    report_data = get_monthly_deped_sf2_report_orm(
+        section_id=target_section_id,
+        section_name=user_section_name if not target_section_id else None,
+        adviser_name=user_full_name if not target_section_id else None,
+        month=month_val,
+        year=year_val
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(["DEPED SCHOOL FORM 2 (SF2) - DAILY ATTENDANCE REPORT OF LEARNERS"])
+    writer.writerow(["(Pursuant to DepEd Order No. 58, s. 2017 & DepEd Order No. 4, s. 2014)"])
+    writer.writerow([])
+    writer.writerow(["School Name:", report_data.get("school_name", SCHOOL_NAME), "", "School ID:", report_data.get("school_id", "152008"), "", "District:", report_data.get("school_district", "Umingan II")])
+    writer.writerow(["Division:", report_data.get("school_division", "SDO Pangasinan II"), "", "Region:", report_data.get("deped_region", "Region I"), "", "School Year:", report_data.get("school_year", "")])
+    writer.writerow(["Grade Level:", report_data.get("grade_level", ""), "", "Section:", report_data.get("section_only_name", ""), "", "Month:", f"{report_data.get('month_name', '')} {report_data.get('year', '')}"])
+    writer.writerow(["Class Adviser:", report_data.get("adviser_teacher", "")])
+    writer.writerow([])
+
+    # Day columns
+    day_headers = [str(dm["day"]) for dm in report_data.get("days_meta", [])]
+    dow_headers = [dm["dow_code"] for dm in report_data.get("days_meta", [])]
+
+    writer.writerow(["No.", "DepEd LRN", "Learner Name"] + day_headers + ["Total Present", "Total Absent", "Total Tardy", "Remarks"])
+    writer.writerow(["", "", "Day of Week:"] + dow_headers + ["", "", "", ""])
+    writer.writerow([])
+
+    # Males
+    writer.writerow(["MALE LEARNERS"])
+    for m in report_data.get("males", []):
+        day_codes = [d["code"] if d["type"] != "weekend" else "" for d in m.get("days", [])]
+        writer.writerow([m["no"], m["lrn"], m["full_name"]] + day_codes + [m["total_present"], m["total_absent"], m["total_tardy"], m["remarks"]])
+
+    male_day_counts = [d["count"] if d["is_school_day"] else "" for d in report_data.get("daily_male_totals", [])]
+    writer.writerow(["", "", "TOTAL MALE ATTENDANCE PER DAY:"] + male_day_counts + [report_data["statistics"]["male_attendance_sum"], "", "", ""])
+    writer.writerow([])
+
+    # Females
+    writer.writerow(["FEMALE LEARNERS"])
+    for f in report_data.get("females", []):
+        day_codes = [d["code"] if d["type"] != "weekend" else "" for d in f.get("days", [])]
+        writer.writerow([f["no"], f["lrn"], f["full_name"]] + day_codes + [f["total_present"], f["total_absent"], f["total_tardy"], f["remarks"]])
+
+    female_day_counts = [d["count"] if d["is_school_day"] else "" for d in report_data.get("daily_female_totals", [])]
+    writer.writerow(["", "", "TOTAL FEMALE ATTENDANCE PER DAY:"] + female_day_counts + [report_data["statistics"]["female_attendance_sum"], "", "", ""])
+    writer.writerow([])
+
+    # Combined
+    comb_day_counts = [d["count"] if d["is_school_day"] else "" for d in report_data.get("daily_combined_totals", [])]
+    writer.writerow(["", "", "COMBINED DAILY TOTAL (MALE + FEMALE):"] + comb_day_counts + [report_data["statistics"]["combined_attendance_sum"], "", "", ""])
+    writer.writerow([])
+
+    # Summary Statistics Box
+    stats = report_data.get("statistics", {})
+    writer.writerow(["SUMMARY STATISTICS (DepEd DO 58 Standard Formulas)"])
+    writer.writerow(["Metric", "Male", "Female", "Combined Total"])
+    writer.writerow(["Registered Learners (Enrolment):", stats.get("male_enrolled", 0), stats.get("female_enrolled", 0), stats.get("total_enrolled", 0)])
+    writer.writerow(["Total Daily Attendance Sum:", stats.get("male_attendance_sum", 0), stats.get("female_attendance_sum", 0), stats.get("combined_attendance_sum", 0)])
+    writer.writerow(["Average Daily Attendance (ADA):", stats.get("ada_male", 0), stats.get("ada_female", 0), stats.get("ada_total", 0)])
+    writer.writerow(["Percentage of Attendance for the Month (PAM):", stats.get("pam_male", "0%"), stats.get("pam_female", "0%"), stats.get("pam_total", "0%")])
+    writer.writerow(["Learners with 5+ Consecutive Days Absent:", stats.get("consec_5_male", 0), stats.get("consec_5_female", 0), stats.get("consec_5_total", 0)])
+    writer.writerow([])
+    writer.writerow(["Prepared by (Class Adviser):", report_data.get("adviser_teacher", ""), "", "Certified Correct (School Head):", report_data.get("principal_name", "School Head")])
+
+    output.seek(0)
+    clean_sec = "".join(c for c in report_data.get("section_name", "Section") if c.isalnum() or c in (' ', '-', '_')).strip().replace(' ', '_')
+    filename = f"DepEd_SF2_Monthly_{clean_sec}_{report_data.get('month_name', 'Month')}_{report_data.get('year', '2026')}.csv"
 
     return Response(
         output.getvalue(),

@@ -2576,6 +2576,305 @@ def get_section_attendance_report_orm(section_id=None, section_name=None, advise
     finally:
         session.close()
 
+def get_monthly_deped_sf2_report_orm(section_id=None, section_name=None, adviser_name=None, month=None, year=None):
+    """
+    Official DepEd School Form 2 (SF2) Monthly Daily Attendance Report Generator.
+    Complies with DepEd Order No. 4, s. 2014 & DepEd Order No. 58, s. 2017.
+    Aggregates all gate kiosk scans into an automated month-long 1-31 attendance grid
+    with Male/Female segregation, ADA (Average Daily Attendance), and PAM (Percentage of Attendance).
+    """
+    import calendar
+    from datetime import datetime, date, time as dtime
+    session = Session()
+    try:
+        now = pht_now()
+        target_year = int(year) if year and str(year).isdigit() else now.year
+        target_month = int(month) if month and str(month).isdigit() else now.month
+        if target_month < 1 or target_month > 12:
+            target_month = now.month
+
+        _, total_days = calendar.monthrange(target_year, target_month)
+        month_name = calendar.month_name[target_month].upper()
+        school_year = f"{target_year}-{target_year + 1}" if target_month >= 6 else f"{target_year - 1}-{target_year}"
+
+        # 1. School Metadata
+        school_cfg = smile_config.load_school_settings()
+        school_name = school_cfg.get("school_name", smile_config.SCHOOL_NAME)
+        school_id = school_cfg.get("school_id", "152008")
+        deped_region = school_cfg.get("deped_region", "Region I • Ilocos Region")
+        school_division = school_cfg.get("school_division", "SDO Pangasinan II")
+        school_district = school_cfg.get("school_district", "Umingan II")
+        principal_user = session.query(User).filter(User.role == 'PRINCIPAL').first()
+        principal_name = school_cfg.get("principal_name") or (principal_user.full_name if principal_user else "Dr. Maria Clara Santos, CESO V")
+
+        # 2. Resolve Target Section
+        target_section = None
+        if section_id:
+            try:
+                target_section = session.query(Section).filter_by(id=int(section_id)).first()
+            except (ValueError, TypeError):
+                pass
+        
+        if not target_section and section_name:
+            target_section = session.query(Section).filter(
+                (Section.section_name.ilike(f"%{section_name}%")) |
+                (Section.grade_level.ilike(f"%{section_name}%"))
+            ).first()
+
+        if not target_section and adviser_name:
+            clean_adv = adviser_name.replace("Mrs.", "").replace("Mr.", "").replace("Ms.", "").replace("Dr.", "").strip()
+            target_section = session.query(Section).filter(Section.adviser_teacher.ilike(f"%{clean_adv}%")).first()
+
+        if not target_section:
+            target_section = session.query(Section).order_by(Section.id.asc()).first()
+
+        sec_name = f"{target_section.grade_level} - {target_section.section_name}" if target_section else "General Section"
+        grade_level = target_section.grade_level if target_section else "All Grades"
+        section_only_name = target_section.section_name if target_section else "All Sections"
+        adviser_teacher = target_section.adviser_teacher if (target_section and target_section.adviser_teacher) else (adviser_name or "Class Adviser")
+
+        # 3. Calendar Days Meta (Day 1 to 31)
+        days_meta = []
+        total_weekdays = 0
+        elapsed_school_days = 0
+
+        for d in range(1, total_days + 1):
+            dt = date(target_year, target_month, d)
+            dow = dt.strftime("%a")
+            dow_code = dt.strftime("%a")[:2].upper()
+            if dow == "Thu":
+                dow_code = "TH"
+            is_weekend = dt.weekday() >= 5
+            is_future = (target_year > now.year) or (target_year == now.year and target_month > now.month) or (target_year == now.year and target_month == now.month and d > now.day)
+            is_school_day = not is_weekend
+            is_elapsed = is_school_day and not is_future
+
+            if is_school_day:
+                total_weekdays += 1
+            if is_elapsed:
+                elapsed_school_days += 1
+
+            days_meta.append({
+                "day": d,
+                "date": dt.strftime("%Y-%m-%d"),
+                "dow": dow,
+                "dow_code": dow_code,
+                "is_weekend": is_weekend,
+                "is_future": is_future,
+                "is_school_day": is_school_day,
+                "is_elapsed": is_elapsed
+            })
+
+        # 4. Query All Active Students in this section
+        std_query = session.query(Student).filter(Student.is_active == True)
+        if target_section:
+            sec_label = f"{target_section.grade_level} - {target_section.section_name}"
+            std_query = std_query.filter(
+                (Student.section_id == target_section.id) |
+                (Student.grade_section == sec_label) |
+                (Student.section_name == target_section.section_name)
+            )
+
+        all_students = std_query.all()
+        student_lrns = [s.lrn for s in all_students]
+
+        # 5. Fetch all Kiosk Attendance Logs for these students in this month
+        month_start_dt = datetime(target_year, target_month, 1, 0, 0, 0)
+        month_end_dt = datetime(target_year, target_month, total_days, 23, 59, 59)
+        
+        logs_map = {}
+        if student_lrns:
+            logs = session.query(AttendanceLog).filter(
+                AttendanceLog.timestamp >= month_start_dt,
+                AttendanceLog.timestamp <= month_end_dt,
+                AttendanceLog.lrn.in_(student_lrns)
+            ).order_by(AttendanceLog.timestamp.asc()).all()
+
+            for l in logs:
+                day_num = l.timestamp.day
+                key = (l.lrn, day_num)
+                if key not in logs_map:
+                    logs_map[key] = []
+                logs_map[key].append(l)
+
+        # 6. Fetch Parent Excuse Notes for these students
+        excuse_map = {}
+        if student_lrns:
+            notes = session.query(ExcuseNote).filter(
+                ExcuseNote.lrn.in_(student_lrns)
+            ).all()
+            for n in notes:
+                excuse_map[(n.lrn, str(n.date_effective).strip())] = n
+
+        # 7. Segregate into Male and Female groups (Official DepEd SF2 requirement)
+        males = []
+        females = []
+        for s in all_students:
+            g = (s.gender or '').strip().lower()
+            if g in ['female', 'f', 'girl']:
+                females.append(s)
+            else:
+                males.append(s)
+
+        males.sort(key=lambda s: ((s.last_name or '').upper(), (s.first_name or '').upper()))
+        females.sort(key=lambda s: ((s.last_name or '').upper(), (s.first_name or '').upper()))
+
+        def process_learner_list(learner_list):
+            processed = []
+            for idx, st in enumerate(learner_list, 1):
+                days_data = []
+                total_present = 0
+                total_absent = 0
+                total_tardy = 0
+                consecutive_absent = 0
+                max_consecutive_absent = 0
+
+                for dm in days_meta:
+                    d = dm["day"]
+                    if dm["is_weekend"]:
+                        days_data.append({"day": d, "code": "", "type": "weekend", "title": "Weekend"})
+                    elif dm["is_future"]:
+                        days_data.append({"day": d, "code": "", "type": "future", "title": "Not yet elapsed"})
+                    else:
+                        day_logs = logs_map.get((st.lrn, d), [])
+                        if day_logs:
+                            total_present += 1
+                            consecutive_absent = 0
+                            time_in_log = next((l for l in day_logs if l.scan_type == "TIME_IN"), day_logs[0])
+                            arrival_t = time_in_log.timestamp.strftime("%I:%M %p")
+                            is_late = (time_in_log.timestamp.hour > 7 or (time_in_log.timestamp.hour == 7 and time_in_log.timestamp.minute > 45))
+                            if is_late:
+                                total_tardy += 1
+                                days_data.append({"day": d, "code": "T", "type": "tardy", "title": f"Tardy (Arrival: {arrival_t})"})
+                            else:
+                                days_data.append({"day": d, "code": "✓", "type": "present", "title": f"Present (Arrival: {arrival_t})"})
+                        else:
+                            total_absent += 1
+                            consecutive_absent += 1
+                            if consecutive_absent > max_consecutive_absent:
+                                max_consecutive_absent = consecutive_absent
+                            
+                            ex_note = excuse_map.get((st.lrn, dm["date"]))
+                            if ex_note:
+                                days_data.append({"day": d, "code": "E", "type": "excused", "title": f"Excused: {ex_note.reason} - {ex_note.details}"})
+                            else:
+                                days_data.append({"day": d, "code": "X", "type": "absent", "title": "Absent (No Gate Kiosk Scan Recorded)"})
+
+                remarks = []
+                if max_consecutive_absent >= 5:
+                    remarks.append("⚠️ 5+ Consecutive Absences")
+                if total_tardy >= 3:
+                    remarks.append(f"{total_tardy}x Tardy")
+
+                processed.append({
+                    "no": idx,
+                    "lrn": st.lrn,
+                    "full_name": f"{st.last_name}, {st.first_name} {st.middle_name or ''}".strip(),
+                    "last_name": st.last_name,
+                    "first_name": st.first_name,
+                    "middle_name": st.middle_name or "",
+                    "gender": st.gender or "N/A",
+                    "days": days_data,
+                    "total_present": total_present,
+                    "total_absent": total_absent,
+                    "total_tardy": total_tardy,
+                    "max_consecutive_absent": max_consecutive_absent,
+                    "remarks": "; ".join(remarks)
+                })
+            return processed
+
+        processed_males = process_learner_list(males)
+        processed_females = process_learner_list(females)
+
+        # 8. Compute Daily Total Present Per Day
+        daily_male_totals = []
+        daily_female_totals = []
+        daily_combined_totals = []
+
+        for d_idx, dm in enumerate(days_meta):
+            if dm["is_weekend"] or dm["is_future"]:
+                daily_male_totals.append({"day": dm["day"], "count": "", "is_school_day": False})
+                daily_female_totals.append({"day": dm["day"], "count": "", "is_school_day": False})
+                daily_combined_totals.append({"day": dm["day"], "count": "", "is_school_day": False})
+            else:
+                m_count = sum(1 for m in processed_males if m["days"][d_idx]["type"] in ["present", "tardy"])
+                f_count = sum(1 for f in processed_females if f["days"][d_idx]["type"] in ["present", "tardy"])
+                daily_male_totals.append({"day": dm["day"], "count": m_count, "is_school_day": True})
+                daily_female_totals.append({"day": dm["day"], "count": f_count, "is_school_day": True})
+                daily_combined_totals.append({"day": dm["day"], "count": m_count + f_count, "is_school_day": True})
+
+        # 9. Compute DepEd SF2 Official Statistical Formulas
+        calc_school_days = max(1, elapsed_school_days)
+        male_attendance_sum = sum(d["count"] for d in daily_male_totals if isinstance(d["count"], int))
+        female_attendance_sum = sum(d["count"] for d in daily_female_totals if isinstance(d["count"], int))
+        combined_attendance_sum = male_attendance_sum + female_attendance_sum
+
+        ada_male = round(male_attendance_sum / calc_school_days, 1)
+        ada_female = round(female_attendance_sum / calc_school_days, 1)
+        ada_total = round(combined_attendance_sum / calc_school_days, 1)
+
+        male_count = len(males)
+        female_count = len(females)
+        total_enrolled = male_count + female_count
+
+        pam_male = round((ada_male / male_count * 100), 2) if male_count > 0 else 0.0
+        pam_female = round((ada_female / female_count * 100), 2) if female_count > 0 else 0.0
+        pam_total = round((ada_total / total_enrolled * 100), 2) if total_enrolled > 0 else 0.0
+
+        consec_5_male = sum(1 for m in processed_males if m["max_consecutive_absent"] >= 5)
+        consec_5_female = sum(1 for f in processed_females if f["max_consecutive_absent"] >= 5)
+        consec_5_total = consec_5_male + consec_5_female
+
+        return {
+            "school_name": school_name,
+            "school_id": school_id,
+            "school_division": school_division,
+            "deped_region": deped_region,
+            "school_district": school_district,
+            "grade_level": grade_level,
+            "section_name": sec_name,
+            "section_only_name": section_only_name,
+            "section_id": target_section.id if target_section else None,
+            "adviser_teacher": adviser_teacher,
+            "principal_name": principal_name,
+            "month": target_month,
+            "month_name": month_name,
+            "year": target_year,
+            "school_year": school_year,
+            "total_days": total_days,
+            "total_school_days": total_weekdays,
+            "elapsed_school_days": elapsed_school_days,
+            "days_meta": days_meta,
+            "males": processed_males,
+            "females": processed_females,
+            "male_count": male_count,
+            "female_count": female_count,
+            "total_enrolled": total_enrolled,
+            "daily_male_totals": daily_male_totals,
+            "daily_female_totals": daily_female_totals,
+            "daily_combined_totals": daily_combined_totals,
+            "statistics": {
+                "male_enrolled": male_count,
+                "female_enrolled": female_count,
+                "total_enrolled": total_enrolled,
+                "school_days": elapsed_school_days,
+                "male_attendance_sum": male_attendance_sum,
+                "female_attendance_sum": female_attendance_sum,
+                "combined_attendance_sum": combined_attendance_sum,
+                "ada_male": ada_male,
+                "ada_female": ada_female,
+                "ada_total": ada_total,
+                "pam_male": f"{pam_male:.1f}%",
+                "pam_female": f"{pam_female:.1f}%",
+                "pam_total": f"{pam_total:.1f}%",
+                "consec_5_male": consec_5_male,
+                "consec_5_female": consec_5_female,
+                "consec_5_total": consec_5_total
+            }
+        }
+    finally:
+        session.close()
+
 
 def get_database_stats_orm():
     session = Session()
@@ -5055,3 +5354,4 @@ auto_assign_all_staff_codes = auto_assign_all_staff_codes_orm
 generate_next_staff_code = generate_next_staff_code_orm
 recalibrate_staff_attendance_geotags = recalibrate_staff_attendance_geotags_orm
 ensure_postgresql_rls = ensure_postgresql_rls_orm
+get_monthly_deped_sf2_report = get_monthly_deped_sf2_report_orm
