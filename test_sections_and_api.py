@@ -11,19 +11,23 @@ class TestSectionsAndAPI(unittest.TestCase):
 
     def test_sections_count_and_grades(self):
         sections = get_all_sections_orm()
-        self.assertGreaterEqual(len(sections), 25, "Should have at least 25 sections for K-12")
+        self.assertEqual(len(sections), 26, "Should have exactly 26 sections (2 per grade for 13 K-12 grades)")
         
         kinder = get_sections_by_grade_orm("Kindergarten")
+        self.assertEqual(len(kinder), 2, "Kindergarten should have exactly 2 sections")
         self.assertTrue(any(s["section_name"] == "Sunflower" for s in kinder), "Kindergarten should have Sunflower")
         
         grade1 = get_sections_by_grade_orm("Grade 1")
+        self.assertEqual(len(grade1), 2, "Grade 1 should have exactly 2 sections")
         self.assertTrue(any(s["section_name"] == "Masipag" for s in grade1), "Grade 1 should have Masipag")
         self.assertFalse(any(s["section_name"] == "Gold" for s in grade1), "Grade 1 should NOT contain Grade 10 sections like Gold")
 
         grade10 = get_sections_by_grade_orm("Grade 10")
+        self.assertEqual(len(grade10), 2, "Grade 10 should have exactly 2 sections")
         self.assertTrue(any(s["section_name"] == "Gold" for s in grade10), "Grade 10 should have Gold")
 
         grade12 = get_sections_by_grade_orm("Grade 12")
+        self.assertEqual(len(grade12), 2, "Grade 12 should have exactly 2 sections")
         self.assertTrue(any(s["section_name"] == "STEM - Einstein" for s in grade12), "Grade 12 should have STEM - Einstein")
 
     def test_api_sections_get(self):
@@ -31,7 +35,7 @@ class TestSectionsAndAPI(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data.get("success"))
-        self.assertGreaterEqual(len(data.get("sections", [])), 25)
+        self.assertEqual(len(data.get("sections", [])), 26)
 
         # Test grade level filter
         resp_g1 = self.client.get('/api/sections?grade_level=Grade%201')
@@ -389,7 +393,7 @@ class TestProgressiveAutomationsAndPush(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data.get("success"))
         self.assertIn("total_sections", data)
-        self.assertGreaterEqual(data["total_sections"], 25)
+        self.assertEqual(data["total_sections"], 26)
 
 if __name__ == '__main__':
     unittest.main()

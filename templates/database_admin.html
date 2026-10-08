@@ -156,11 +156,15 @@
     </div>
 
     <!-- Tab 2: Sections Table -->
-    <div id="sectionsTab" class="tab-content hidden p-5 overflow-x-auto space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-slate-100">
-        <div class="flex items-center space-x-2">
-          <span class="text-xs font-bold text-slate-700 uppercase">Filter Grade:</span>
-          <select id="sectionGradeFilter" onchange="filterSectionsTable(this.value)" class="text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium focus:ring-2 focus:ring-deped-blue/30">
+    <!-- Tab 2: Sections Table -->
+    <div id="sectionsTab" class="tab-content hidden p-5 space-y-4">
+      <!-- Header bar with filter on the left and actions on the right -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
+        <div class="flex items-center space-x-2.5">
+          <label for="sectionGradeFilter" class="text-xs font-bold text-slate-700 uppercase whitespace-nowrap flex items-center">
+            <i class="fa-solid fa-filter text-deped-blue mr-1.5"></i> Filter Grade:
+          </label>
+          <select id="sectionGradeFilter" onchange="filterSectionsTable(this.value)" class="text-xs px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
             <option value="ALL">All Grade Levels ({{ sections|length }} Total)</option>
             <option value="Kindergarten">Kindergarten</option>
             <option value="Grade 1">Grade 1</option>
@@ -176,51 +180,82 @@
             <option value="Grade 11">Grade 11</option>
             <option value="Grade 12">Grade 12</option>
           </select>
-        <div class="flex items-center space-x-2">
-          <button onclick="cleanSyncSections()" id="btnCleanSyncSec" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+          <button type="button" onclick="cleanSyncSections()" id="btnCleanSyncSec" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
             <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Clean & Sync Advisers
           </button>
-          <button onclick="openAddSectionModal()" class="px-3 py-1.5 bg-deped-blue hover:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
+          <button type="button" onclick="openAddSectionModal()" class="px-3.5 py-1.5 bg-deped-blue hover:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
             <i class="fa-solid fa-plus mr-1.5"></i> Add New Section
           </button>
         </div>
       </div>
 
-      <table class="w-full text-left text-xs border-collapse" id="sectionsTable">
-        <thead>
-          <tr class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-200">
-            <th class="py-2.5 px-3">ID</th>
-            <th class="py-2.5 px-3">Grade Level</th>
-            <th class="py-2.5 px-3">Section Name</th>
-            <th class="py-2.5 px-3">Adviser Teacher</th>
-            <th class="py-2.5 px-3">Classroom / Location</th>
-            <th class="py-2.5 px-3 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          {% for sec in sections %}
-          <tr class="hover:bg-blue-50/30 section-row" data-grade="{{ sec.grade_level }}">
-            <td class="py-2.5 px-3 font-mono font-bold text-slate-500">{{ sec.id }}</td>
-            <td class="py-2.5 px-3 font-semibold text-slate-800">{{ sec.grade_level }}</td>
-            <td class="py-2.5 px-3 font-bold text-deped-blue">{{ sec.section_name }}</td>
-            <td class="py-2.5 px-3 text-slate-600">{{ sec.adviser_teacher or '—' }}</td>
-            <td class="py-2.5 px-3 font-mono text-slate-500">{{ sec.room_number or '—' }}</td>
-            <td class="py-2.5 px-3 text-right whitespace-nowrap">
-              <div class="flex items-center justify-end space-x-1.5">
-                <button onclick="openEditSectionModal({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}', '{{ sec.adviser_teacher }}', '{{ sec.room_number }}')"
-                        class="px-2.5 py-1 text-[11px] font-bold text-deped-blue hover:text-white hover:bg-deped-blue rounded transition border border-blue-200 hover:border-transparent inline-flex items-center">
-                  <i class="fa-solid fa-pen-to-square mr-1 text-[10px]"></i> Edit
-                </button>
-                <button onclick="deleteSection({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}')"
-                        class="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:text-white hover:bg-rose-600 rounded transition border border-rose-200 hover:border-transparent inline-flex items-center">
-                  <i class="fa-solid fa-trash-can mr-1 text-[10px]"></i> Delete
-                </button>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <!-- Responsive Table Container -->
+      <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-xs">
+        <table class="w-full text-left text-xs border-collapse divide-y divide-slate-200" id="sectionsTable">
+          <thead class="bg-slate-50 text-slate-600 uppercase tracking-wider font-semibold">
+            <tr>
+              <th class="py-3 px-3 text-center w-16">ID</th>
+              <th class="py-3 px-4 text-left w-36">Grade Level</th>
+              <th class="py-3 px-4 text-left w-44">Section Name</th>
+              <th class="py-3 px-4 text-left min-w-[200px]">Class Adviser Teacher</th>
+              <th class="py-3 px-4 text-left min-w-[180px]">Classroom / Location</th>
+              <th class="py-3 px-4 text-center w-36">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for sec in sections %}
+            <tr class="hover:bg-blue-50/40 transition section-row" data-grade="{{ sec.grade_level }}">
+              <td class="py-3 px-3 text-center font-mono font-bold text-slate-500">{{ sec.id }}</td>
+              <td class="py-3 px-4 text-left whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-deped-darkblue border border-blue-200 shadow-2xs">
+                  {{ sec.grade_level }}
+                </span>
+              </td>
+              <td class="py-3 px-4 text-left font-bold text-slate-900 text-xs">
+                {{ sec.section_name }}
+              </td>
+              <td class="py-3 px-4 text-left">
+                {% if sec.adviser_teacher %}
+                <div class="flex items-center text-slate-900 font-bold text-xs">
+                  <i class="fa-solid fa-chalkboard-user text-emerald-600 mr-2 text-xs shrink-0"></i>
+                  <span class="truncate">{{ sec.adviser_teacher }}</span>
+                </div>
+                {% else %}
+                <span class="text-slate-400 italic text-xs flex items-center">
+                  <i class="fa-solid fa-user-slash text-slate-300 mr-1.5 text-xs shrink-0"></i>
+                  No Adviser Assigned
+                </span>
+                {% endif %}
+              </td>
+              <td class="py-3 px-4 text-left">
+                {% if sec.room_number %}
+                <div class="flex items-center text-slate-600 font-medium text-xs">
+                  <i class="fa-solid fa-door-open text-slate-400 mr-1.5 text-xs shrink-0"></i>
+                  <span>{{ sec.room_number }}</span>
+                </div>
+                {% else %}
+                <span class="text-slate-400 italic text-xs">—</span>
+                {% endif %}
+              </td>
+              <td class="py-3 px-4 text-center whitespace-nowrap">
+                <div class="flex items-center justify-center space-x-2">
+                  <button type="button" onclick="openEditSectionModal({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}', '{{ sec.adviser_teacher }}', '{{ sec.room_number }}')"
+                          class="px-2.5 py-1 text-xs font-semibold text-deped-blue hover:text-white hover:bg-deped-blue rounded-lg transition border border-blue-200 inline-flex items-center shadow-2xs">
+                    <i class="fa-solid fa-pen-to-square mr-1 text-[11px]"></i> Edit
+                  </button>
+                  <button type="button" onclick="deleteSection({{ sec.id }}, '{{ sec.grade_level }}', '{{ sec.section_name }}')"
+                          class="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-white hover:bg-rose-600 rounded-lg transition border border-rose-200 inline-flex items-center shadow-2xs">
+                    <i class="fa-solid fa-trash-can mr-1 text-[11px]"></i> Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Tab 3: Attendance Logs Table -->

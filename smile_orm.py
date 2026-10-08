@@ -756,71 +756,56 @@ def get_db_session():
         session.close()
 
 DEFAULT_SECTIONS = [
-    # Kindergarten
+    # Kindergarten (2 sections)
     {"grade_level": "Kindergarten", "section_name": "Sunflower", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 1"},
     {"grade_level": "Kindergarten", "section_name": "Sampaguita", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 2"},
-    {"grade_level": "Kindergarten", "section_name": "Ilang-Ilang", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 3"},
 
-    # Grade 1
+    # Grade 1 (2 sections)
     {"grade_level": "Grade 1", "section_name": "Mabait", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 101"},
     {"grade_level": "Grade 1", "section_name": "Masipag", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 102"},
-    {"grade_level": "Grade 1", "section_name": "Matulungin", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 103"},
 
-    # Grade 2
-    {"grade_level": "Grade 2", "section_name": "Mahinahon", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 201"},
+    # Grade 2 (2 sections)
     {"grade_level": "Grade 2", "section_name": "Magalang", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 202"},
     {"grade_level": "Grade 2", "section_name": "Mapagkumbaba", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 203"},
 
-    # Grade 3
+    # Grade 3 (2 sections)
     {"grade_level": "Grade 3", "section_name": "Maka-Diyos", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 101"},
     {"grade_level": "Grade 3", "section_name": "Makabayan", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 102"},
-    {"grade_level": "Grade 3", "section_name": "Makatao", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 103"},
 
-    # Grade 4
+    # Grade 4 (2 sections)
     {"grade_level": "Grade 4", "section_name": "Aguinaldo", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 201"},
     {"grade_level": "Grade 4", "section_name": "Bonifacio", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 202"},
-    {"grade_level": "Grade 4", "section_name": "Jacinto", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 203"},
 
-    # Grade 5
+    # Grade 5 (2 sections)
     {"grade_level": "Grade 5", "section_name": "Rizal", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 101"},
     {"grade_level": "Grade 5", "section_name": "Del Pilar", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 102"},
-    {"grade_level": "Grade 5", "section_name": "Lopez Jaena", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 103"},
 
-    # Grade 6
+    # Grade 6 (2 sections)
     {"grade_level": "Grade 6", "section_name": "Diamond", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 201"},
     {"grade_level": "Grade 6", "section_name": "Pearl", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 202"},
-    {"grade_level": "Grade 6", "section_name": "Emerald", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 203"},
 
-    # Grade 7
-    {"grade_level": "Grade 7", "section_name": "Daisy", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 101"},
+    # Grade 7 (2 sections)
     {"grade_level": "Grade 7", "section_name": "Camia", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 102"},
     {"grade_level": "Grade 7", "section_name": "Sampaguita", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 103"},
 
-    # Grade 8
+    # Grade 8 (2 sections)
     {"grade_level": "Grade 8", "section_name": "Narra", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 201"},
     {"grade_level": "Grade 8", "section_name": "Molave", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 202"},
-    {"grade_level": "Grade 8", "section_name": "Yakal", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 203"},
 
-    # Grade 9
+    # Grade 9 (2 sections)
     {"grade_level": "Grade 9", "section_name": "Ruby", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 101"},
     {"grade_level": "Grade 9", "section_name": "Sapphire", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 102"},
-    {"grade_level": "Grade 9", "section_name": "Topaz", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 103"},
 
-    # Grade 10
-    {"grade_level": "Grade 10", "section_name": "Platinum", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 201"},
+    # Grade 10 (2 sections)
     {"grade_level": "Grade 10", "section_name": "Gold", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 202"},
     {"grade_level": "Grade 10", "section_name": "Silver", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 203"},
 
-    # Grade 11
+    # Grade 11 (2 sections)
     {"grade_level": "Grade 11", "section_name": "STEM - Archimedes", "adviser_teacher": "", "room_number": "SHS Bldg - Room 301"},
-    {"grade_level": "Grade 11", "section_name": "ABM - Luca Pacioli", "adviser_teacher": "", "room_number": "SHS Bldg - Room 302"},
-    {"grade_level": "Grade 11", "section_name": "HUMSS - Socrates", "adviser_teacher": "", "room_number": "SHS Bldg - Room 303"},
     {"grade_level": "Grade 11", "section_name": "TVL - Edison", "adviser_teacher": "", "room_number": "SHS Bldg - Room 304"},
 
-    # Grade 12
+    # Grade 12 (2 sections)
     {"grade_level": "Grade 12", "section_name": "STEM - Einstein", "adviser_teacher": "", "room_number": "SHS Bldg - Room 401"},
-    {"grade_level": "Grade 12", "section_name": "ABM - Keynes", "adviser_teacher": "", "room_number": "SHS Bldg - Room 402"},
-    {"grade_level": "Grade 12", "section_name": "HUMSS - Plato", "adviser_teacher": "", "room_number": "SHS Bldg - Room 403"},
     {"grade_level": "Grade 12", "section_name": "TVL - Tesla", "adviser_teacher": "", "room_number": "SHS Bldg - Room 404"}
 ]
 
@@ -944,6 +929,49 @@ def clean_and_sync_sections_orm():
                     target_sec.adviser_teacher = t.full_name
 
         session.commit()
+
+        # 5. Enforce exactly 2 sections per grade level
+        canonical_2_map = {}
+        for s in DEFAULT_SECTIONS:
+            gl_norm = s["grade_level"].strip().lower()
+            if gl_norm not in canonical_2_map:
+                canonical_2_map[gl_norm] = []
+            canonical_2_map[gl_norm].append(s["section_name"].strip().lower())
+
+        grade_grouped = {}
+        for sec in session.query(Section).all():
+            gl = (sec.grade_level or '').strip().lower()
+            if not gl:
+                continue
+            if gl not in grade_grouped:
+                grade_grouped[gl] = []
+            grade_grouped[gl].append(sec)
+
+        for gl, sec_list in grade_grouped.items():
+            if len(sec_list) > 2:
+                def _sec_score(s):
+                    has_teacher = (
+                        any(t.assigned_section_id == s.id for t in real_teachers) or
+                        bool(s.adviser_teacher and s.adviser_teacher.strip())
+                    )
+                    has_students = session.query(Student).filter_by(section_id=s.id).count() > 0
+                    is_canon = (s.section_name or '').strip().lower() in canonical_2_map.get(gl, [])
+                    score = 0
+                    if has_teacher: score += 100
+                    if has_students: score += 50
+                    if is_canon: score += 20
+                    return (score, -s.id)
+
+                sec_list.sort(key=_sec_score, reverse=True)
+                keepers = sec_list[:2]
+                excess = sec_list[2:]
+
+                for exc in excess:
+                    session.query(Student).filter_by(section_id=exc.id).update({"section_id": keepers[0].id})
+                    session.query(User).filter_by(assigned_section_id=exc.id).update({"assigned_section_id": keepers[0].id})
+                    session.delete(exc)
+
+        session.commit()
         global _SECTIONS_CACHE
         _SECTIONS_CACHE["data"] = None
         _SECTIONS_CACHE["ts"] = 0
@@ -954,7 +982,7 @@ def clean_and_sync_sections_orm():
         session.close()
 
 def get_all_sections_orm():
-    """Returns all real sections from the database with in-memory TTL caching and real teacher sync."""
+    """Returns all real sections from the database (max 2 per grade) with in-memory TTL caching and real teacher sync."""
     global _SECTIONS_CACHE
     now = time.time()
     if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 60:
@@ -1000,9 +1028,30 @@ def get_all_sections_orm():
             }
             res.append(sec_dict)
 
-        _SECTIONS_CACHE["data"] = res
+        # Prioritize real advisers within grade
+        res.sort(key=lambda x: (x["grade_level"].lower(), 0 if x["has_real_adviser"] else 1, x["section_name"]))
+
+        # Limit to strictly 2 sections per grade level
+        by_grade = {}
+        filtered_2 = []
+        for s in res:
+            gl = s["grade_level"].lower()
+            if by_grade.get(gl, 0) < 2:
+                by_grade[gl] = by_grade.get(gl, 0) + 1
+                filtered_2.append(s)
+
+        # Natural pedagogical ordering: Kindergarten -> Grade 1 to 12
+        GRADE_ORDER = {
+            "kindergarten": 0, "kinder": 0,
+            "grade 1": 1, "grade 2": 2, "grade 3": 3, "grade 4": 4,
+            "grade 5": 5, "grade 6": 6, "grade 7": 7, "grade 8": 8,
+            "grade 9": 9, "grade 10": 10, "grade 11": 11, "grade 12": 12
+        }
+        filtered_2.sort(key=lambda x: (GRADE_ORDER.get(x["grade_level"].lower(), 99), x["section_name"]))
+
+        _SECTIONS_CACHE["data"] = filtered_2
         _SECTIONS_CACHE["ts"] = now
-        return res
+        return filtered_2
     finally:
         session.close()
 
