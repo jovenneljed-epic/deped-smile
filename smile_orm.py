@@ -1028,8 +1028,21 @@ def get_all_sections_orm():
             }
             res.append(sec_dict)
 
-        # Prioritize real advisers within grade
-        res.sort(key=lambda x: (x["grade_level"].lower(), 0 if x["has_real_adviser"] else 1, x["section_name"]))
+        # Canonical section names from DEFAULT_SECTIONS
+        canonical_map = {}
+        for ds in DEFAULT_SECTIONS:
+            gl_norm = ds["grade_level"].strip().lower()
+            if gl_norm not in canonical_map:
+                canonical_map[gl_norm] = []
+            canonical_map[gl_norm].append(ds["section_name"].strip().lower())
+
+        # Prioritize: 1) Has real adviser, 2) In canonical DEFAULT_SECTIONS, 3) section_name
+        res.sort(key=lambda x: (
+            x["grade_level"].lower(),
+            0 if x["has_real_adviser"] else 1,
+            0 if x["section_name"].strip().lower() in canonical_map.get(x["grade_level"].lower(), []) else 1,
+            x["section_name"]
+        ))
 
         # Limit to strictly 2 sections per grade level
         by_grade = {}
