@@ -1372,6 +1372,16 @@ def serve_photo(filename):
         pass
     return send_from_directory(BASE_DIR / "static" / "images", "deped_logo.png", mimetype="image/png")
 
+@app.route('/favicon.ico')
+def serve_favicon():
+    """Serves official DepEd / Project S.M.I.L.E. favicon.ico."""
+    return send_from_directory(BASE_DIR / "static", "favicon.ico", mimetype="image/vnd.microsoft.icon")
+
+@app.route('/favicon.svg')
+def serve_favicon_svg():
+    """Serves scalable vector SVG favicon for modern browsers."""
+    return send_from_directory(BASE_DIR / "static", "favicon.svg", mimetype="image/svg+xml")
+
 @app.route('/qr/<lrn>')
 @app.route('/qr/<lrn>.png')
 @app.route('/static/qrcodes/<path:filename>')
