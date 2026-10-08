@@ -48,5 +48,6 @@ Desktop.ini
 # Temporary scratch and tests
 .pytest_cache/
 scratch/
+data/backups/
 *.db-wal
 *.db-shm

@@ -34,25 +34,80 @@ _STAFF_FACES_CACHE = {"data": None, "ts": 0}
 Base = declarative_base()
 
 # -------------------------------------------------------------
-# Enterprise Relational Models (100% Non-Biometric / Data Privacy Safe)
+# Enterprise Relational Models (Multi-Tenant & Data Privacy Safe)
 # -------------------------------------------------------------
+
+class School(Base):
+    """
+    Multi-Tenant School Entity (DepEd Integrated / Elementary / Secondary School).
+    Enables single-database hosting for 30+ schools with full tenant data isolation.
+    """
+    __tablename__ = 'schools'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(String(20), unique=True, nullable=False, index=True) # Official DepEd 6-digit School ID (e.g. "152008")
+    school_name = Column(String(150), nullable=False)                       # Full school name
+    school_short_name = Column(String(50), default="")                     # e.g. "DMCIS"
+    subdomain = Column(String(50), unique=True, nullable=True)             # e.g. "donmontano"
+    district = Column(String(100), default="Umingan II")                   # DepEd District
+    division = Column(String(100), default="SDO Pangasinan II")            # DepEd Division
+    region = Column(String(100), default="Region I • Ilocos Region")       # DepEd Region
+    school_address = Column(String(255), default="Don Montano, Umingan, Pangasinan")
+    principal_name = Column(String(100), default="")
+    contact_phone = Column(String(50), default="")
+    contact_email = Column(String(100), default="")
+    latitude = Column(Float, default=15.9295)
+    longitude = Column(Float, default=120.8613)
+    geofence_radius = Column(Float, default=2500.0)                         # Geofence boundary in meters
+    camera_source = Column(String(100), default="0")                       # Default Kiosk Camera Source (e.g. 0, 1, or RTSP)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=pht_now)
+
+    sections = relationship("Section", back_populates="school_rel", cascade="all, delete-orphan")
+    users = relationship("User", back_populates="school_rel")
+    students = relationship("Student", back_populates="school_rel", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "school_id": self.school_id,
+            "school_name": self.school_name,
+            "school_short_name": self.school_short_name or self.school_name,
+            "subdomain": self.subdomain or "",
+            "district": self.district or "",
+            "division": self.division or "",
+            "region": self.region or "",
+            "school_address": self.school_address or "",
+            "principal_name": self.principal_name or "",
+            "contact_phone": self.contact_phone or "",
+            "contact_email": self.contact_email or "",
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "geofence_radius": self.geofence_radius,
+            "camera_source": self.camera_source or "0",
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else ""
+        }
 
 class Section(Base):
     """DepEd Class Section (Grade Level, Room, Adviser)."""
     __tablename__ = 'sections'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     grade_level = Column(String(20), nullable=False)        # e.g. "Grade 10"
     section_name = Column(String(50), nullable=False)       # e.g. "Rizal"
     adviser_teacher = Column(String(100), default="")       # e.g. "Mrs. Corazon Aquino"
     room_number = Column(String(30), default="")            # e.g. "Bldg 2 - Room 104"
     created_at = Column(DateTime, default=pht_now)
 
+    school_rel = relationship("School", back_populates="sections")
     students = relationship("Student", back_populates="section_rel", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "grade_level": self.grade_level,
             "section_name": self.section_name,
             "adviser_teacher": self.adviser_teacher,
@@ -69,6 +124,7 @@ class Student(Base):
     __tablename__ = 'students'
 
     lrn = Column(String(12), primary_key=True, index=True)   # 12-digit DepEd LRN
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     first_name = Column(String(100), nullable=False)
     middle_name = Column(String(100), default="")            # Learner middle name
     last_name = Column(String(100), nullable=False)
@@ -90,6 +146,7 @@ class Student(Base):
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=pht_now)
 
+    school_rel = relationship("School", back_populates="students")
     section_rel = relationship("Section", back_populates="students")
     attendance_records = relationship("AttendanceLog", back_populates="student_rel", cascade="all, delete-orphan")
 
@@ -112,6 +169,7 @@ class Student(Base):
 
         return {
             "lrn": self.lrn,
+            "school_id": getattr(self, "school_id", 1),
             "first_name": self.first_name,
             "middle_name": self.middle_name or "",
             "last_name": self.last_name,
@@ -139,6 +197,7 @@ class AttendanceLog(Base):
     __tablename__ = 'attendance_logs'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     lrn = Column(String(12), ForeignKey('students.lrn'), nullable=False, index=True)
     student_name = Column(String(120), nullable=False)
     grade_section = Column(String(80), default="")
@@ -169,6 +228,7 @@ class AttendanceLog(Base):
 
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "lrn": self.lrn,
             "student_name": self.student_name,
             "grade_section": self.grade_section,
@@ -189,6 +249,7 @@ class SmsLog(Base):
     __tablename__ = 'sms_logs'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     recipient_phone = Column(String(20), nullable=False, index=True)
     student_lrn = Column(String(12), nullable=True)
     message_body = Column(Text, nullable=False)
@@ -200,6 +261,7 @@ class SmsLog(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "recipient_phone": self.recipient_phone,
             "student_lrn": self.student_lrn,
             "message_body": self.message_body,
@@ -214,6 +276,7 @@ class ExcuseNote(Base):
     __tablename__ = 'excuse_notes'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     lrn = Column(String(12), ForeignKey('students.lrn'), nullable=False, index=True)
     parent_name = Column(String(100), nullable=False)
     parent_phone = Column(String(20), nullable=False)
@@ -228,6 +291,7 @@ class ExcuseNote(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "lrn": self.lrn,
             "parent_name": self.parent_name,
             "parent_phone": self.parent_phone,
@@ -243,6 +307,7 @@ class Announcement(Base):
     __tablename__ = 'announcements'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     title = Column(String(150), nullable=False)
     category = Column(String(40), default="ANNOUNCEMENT") # WEATHER_ALERT, DEPED_MEMO, ANNOUNCEMENT, EVENT
     content = Column(Text, nullable=False)
@@ -255,6 +320,7 @@ class Announcement(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "title": self.title,
             "category": self.category,
             "content": self.content,
@@ -271,6 +337,7 @@ class SchoolEvent(Base):
     __tablename__ = 'school_events'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     title = Column(String(150), nullable=False)
     category = Column(String(40), default="ACADEMIC") # ACADEMIC, SPORTS, CULTURAL, PTA, HOLIDAY, GENERAL
     description = Column(Text, nullable=False)
@@ -302,6 +369,7 @@ class SchoolEvent(Base):
 
         return {
             "id": self.id,
+            "school_id": getattr(self, "school_id", 1),
             "title": self.title,
             "category": self.category,
             "description": self.description,
@@ -327,6 +395,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(120), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -342,12 +411,15 @@ class User(Base):
     created_at = Column(DateTime, default=pht_now)
     last_login = Column(DateTime, nullable=True)
 
+    school_rel = relationship("School", back_populates="users")
     assigned_section = relationship("Section", foreign_keys=[assigned_section_id])
     staff_attendance_records = relationship("StaffAttendanceLog", back_populates="user_rel", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
+            "school_name": self.school_rel.school_name if getattr(self, 'school_rel', None) else "",
             "username": self.username,
             "email": self.email,
             "employee_number": getattr(self, 'employee_number', '') or self.username,
@@ -372,6 +444,7 @@ class StaffAttendanceLog(Base):
     __tablename__ = 'staff_attendance_logs'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     staff_name = Column(String(100), nullable=False)
     role = Column(String(30), nullable=False) # TEACHER, STAFF, NON_TEACHING, PRINCIPAL, GUARD, SUPER_ADMIN
@@ -392,6 +465,7 @@ class StaffAttendanceLog(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
             "user_id": self.user_id,
             "staff_name": self.staff_name,
             "role": self.role,
@@ -488,6 +562,7 @@ class PushSubscription(Base):
     __tablename__ = 'push_subscriptions'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     lrn = Column(String(12), nullable=True, index=True) # Linked Student LRN or "ALL"
     parent_phone = Column(String(50), nullable=True, index=True)
     endpoint = Column(Text, nullable=False, unique=True)
@@ -500,6 +575,7 @@ class PushSubscription(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
             "lrn": self.lrn,
             "parent_phone": self.parent_phone,
             "endpoint": self.endpoint,
@@ -517,6 +593,7 @@ class ParentDeviceToken(Base):
     __tablename__ = 'parent_device_tokens'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     token = Column(String(250), unique=True, nullable=False, index=True) # ExponentPushToken[...]
     lrn = Column(String(12), nullable=True, index=True)                  # Linked learner LRN or "ALL"
     platform = Column(String(30), default="android")                     # android, ios
@@ -528,6 +605,7 @@ class ParentDeviceToken(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
             "token": self.token,
             "lrn": self.lrn or "",
             "platform": self.platform,
@@ -541,6 +619,7 @@ class ParentNotification(Base):
     __tablename__ = 'parent_notifications'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     lrn = Column(String(12), nullable=True, index=True)
     title = Column(String(150), nullable=False)
     body = Column(Text, nullable=False)
@@ -572,6 +651,7 @@ class ParentNotification(Base):
         return {
             "id": f"wf-{self.id}",
             "raw_id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
             "lrn": self.lrn or "",
             "type": self.category,
             "title": self.title,
@@ -588,6 +668,7 @@ class Incident(Base):
     __tablename__ = 'incidents'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     lrn = Column(String(12), nullable=True, index=True)
     title = Column(String(150), nullable=False)
     incident_type = Column(String(50), default="PARENT_SAFETY_CONCERN")
@@ -600,6 +681,7 @@ class Incident(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "school_id": getattr(self, 'school_id', 1),
             "lrn": self.lrn or "",
             "title": self.title,
             "incident_type": self.incident_type,
@@ -619,6 +701,7 @@ class AutomationWorkflow(Base):
     __tablename__ = 'push_workflows'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    school_id = Column(Integer, ForeignKey('schools.id'), nullable=False, default=1, index=True)
     workflow_key = Column(String(80), unique=True, index=True)
     title = Column(String(150), nullable=False)
     category = Column(String(50), default="DAILY_REMINDER", index=True) # PRINCIPAL_ANNOUNCEMENT, DAILY_REMINDER, WEEKLY_REMINDER, MONTHLY_REMINDER, EVENT_REMINDER, EMERGENCY
@@ -857,141 +940,155 @@ DEMO_ADVISER_NAMES = {
     'mrs. mercedes zobel', 'atty. claro m. recto', 'engr. ramon barba'
 }
 
-def clean_and_sync_sections_orm():
+def clean_and_sync_sections_orm(school_id=None):
     """
     Cleanses, deduplicates, and synchronizes the sections table with REAL registered teachers.
     1. Removes all fake / historical hero demo adviser names.
-    2. Merges and deduplicates sections having duplicate (grade_level, section_name).
+    2. Merges and deduplicates sections having duplicate (school_id, grade_level, section_name).
     3. Links sections with real teachers from the users table.
     """
     session = Session()
     try:
-        # 1. Fetch all real registered teachers
-        real_teachers = session.query(User).filter(
-            func.upper(User.role) == 'TEACHER',
-            User.is_active == True
-        ).all()
-        real_teacher_names_lower = {t.full_name.strip().lower(): t for t in real_teachers if t.full_name}
+        # Determine target school IDs
+        if school_id:
+            target_school_ids = [int(school_id)]
+        else:
+            sch_ids = [s.id for s in session.query(School.id).all()]
+            target_school_ids = sch_ids if sch_ids else [1]
 
-        # 2. Fetch all sections
-        all_secs = session.query(Section).order_by(Section.id.asc()).all()
-        
-        # Group by (grade_level, section_name) normalized
-        grouped = {}
-        for sec in all_secs:
-            gl = (sec.grade_level or '').strip()
-            sn = (sec.section_name or '').strip()
-            if not gl or not sn:
-                continue
-            key = (gl.lower(), sn.lower())
-            if key not in grouped:
-                grouped[key] = []
-            grouped[key].append(sec)
+        for sid in target_school_ids:
+            # 1. Fetch all real registered teachers for this school
+            real_teachers = session.query(User).filter(
+                User.school_id == sid,
+                func.upper(User.role) == 'TEACHER',
+                User.is_active == True
+            ).all()
+            real_teacher_names_lower = {t.full_name.strip().lower(): t for t in real_teachers if t.full_name}
 
-        # 3. Deduplicate
-        for key, sec_list in grouped.items():
-            if len(sec_list) > 1:
-                # Find keeper: prefer one that has a real registered teacher, or has students, or lowest id
-                keeper = None
-                for s in sec_list:
-                    if any(t.assigned_section_id == s.id for t in real_teachers):
-                        keeper = s
-                        break
-                if not keeper:
+            # 2. Fetch all sections for this school
+            all_secs = session.query(Section).filter_by(school_id=sid).order_by(Section.id.asc()).all()
+            
+            # Group by (grade_level, section_name) normalized
+            grouped = {}
+            for sec in all_secs:
+                gl = (sec.grade_level or '').strip()
+                sn = (sec.section_name or '').strip()
+                if not gl or not sn:
+                    continue
+                key = (gl.lower(), sn.lower())
+                if key not in grouped:
+                    grouped[key] = []
+                grouped[key].append(sec)
+
+            # 3. Deduplicate
+            for key, sec_list in grouped.items():
+                if len(sec_list) > 1:
+                    keeper = None
                     for s in sec_list:
-                        if session.query(Student).filter_by(section_id=s.id).count() > 0:
+                        if any(t.assigned_section_id == s.id for t in real_teachers):
                             keeper = s
                             break
-                if not keeper:
-                    keeper = sec_list[0]
+                    if not keeper:
+                        for s in sec_list:
+                            if session.query(Student).filter_by(section_id=s.id).count() > 0:
+                                keeper = s
+                                break
+                    if not keeper:
+                        keeper = sec_list[0]
 
-                # Move foreign keys and delete duplicates
-                for dup in sec_list:
-                    if dup.id != keeper.id:
-                        session.query(Student).filter_by(section_id=dup.id).update({"section_id": keeper.id})
-                        session.query(User).filter_by(assigned_section_id=dup.id).update({"assigned_section_id": keeper.id})
-                        session.delete(dup)
+                    # Move foreign keys and delete duplicates
+                    for dup in sec_list:
+                        if dup.id != keeper.id:
+                            session.query(Student).filter_by(section_id=dup.id).update({"section_id": keeper.id})
+                            session.query(User).filter_by(assigned_section_id=dup.id).update({"assigned_section_id": keeper.id})
+                            session.delete(dup)
 
-        session.commit()
+            session.commit()
 
-        # 4. Clean fake demo adviser names and sync with real teachers
-        all_cleaned_secs = session.query(Section).all()
-        for sec in all_cleaned_secs:
-            adv_clean = (sec.adviser_teacher or "").strip().lower()
-            if adv_clean in DEMO_ADVISER_NAMES or adv_clean not in real_teacher_names_lower:
-                sec.adviser_teacher = ""
+            # 4. Clean fake demo adviser names and sync with real teachers
+            all_cleaned_secs = session.query(Section).filter_by(school_id=sid).all()
+            for sec in all_cleaned_secs:
+                adv_clean = (sec.adviser_teacher or "").strip().lower()
+                if adv_clean in DEMO_ADVISER_NAMES or adv_clean not in real_teacher_names_lower:
+                    sec.adviser_teacher = ""
 
-        # Now link with real registered teachers
-        for t in real_teachers:
-            if t.assigned_section_id:
-                target_sec = session.query(Section).filter_by(id=t.assigned_section_id).first()
-                if target_sec:
-                    target_sec.adviser_teacher = t.full_name
+            for t in real_teachers:
+                if t.assigned_section_id:
+                    target_sec = session.query(Section).filter_by(id=t.assigned_section_id, school_id=sid).first()
+                    if target_sec:
+                        target_sec.adviser_teacher = t.full_name
 
-        session.commit()
+            session.commit()
 
-        # 5. Enforce exactly 2 sections per grade level
-        canonical_2_map = {}
-        for s in DEFAULT_SECTIONS:
-            gl_norm = s["grade_level"].strip().lower()
-            if gl_norm not in canonical_2_map:
-                canonical_2_map[gl_norm] = []
-            canonical_2_map[gl_norm].append(s["section_name"].strip().lower())
+            # 5. Enforce exactly 2 sections per grade level
+            canonical_2_map = {}
+            for s in DEFAULT_SECTIONS:
+                gl_norm = s["grade_level"].strip().lower()
+                if gl_norm not in canonical_2_map:
+                    canonical_2_map[gl_norm] = []
+                canonical_2_map[gl_norm].append(s["section_name"].strip().lower())
 
-        grade_grouped = {}
-        for sec in session.query(Section).all():
-            gl = (sec.grade_level or '').strip().lower()
-            if not gl:
-                continue
-            if gl not in grade_grouped:
-                grade_grouped[gl] = []
-            grade_grouped[gl].append(sec)
+            grade_grouped = {}
+            for sec in session.query(Section).filter_by(school_id=sid).all():
+                gl = (sec.grade_level or '').strip().lower()
+                if not gl:
+                    continue
+                if gl not in grade_grouped:
+                    grade_grouped[gl] = []
+                grade_grouped[gl].append(sec)
 
-        for gl, sec_list in grade_grouped.items():
-            if len(sec_list) > 2:
-                def _sec_score(s):
-                    has_teacher = (
-                        any(t.assigned_section_id == s.id for t in real_teachers) or
-                        bool(s.adviser_teacher and s.adviser_teacher.strip())
-                    )
-                    has_students = session.query(Student).filter_by(section_id=s.id).count() > 0
-                    is_canon = (s.section_name or '').strip().lower() in canonical_2_map.get(gl, [])
-                    score = 0
-                    if has_teacher: score += 100
-                    if has_students: score += 50
-                    if is_canon: score += 20
-                    return (score, -s.id)
+            for gl, sec_list in grade_grouped.items():
+                if len(sec_list) > 2:
+                    def _sec_score(s):
+                        has_teacher = (
+                            any(t.assigned_section_id == s.id for t in real_teachers) or
+                            bool(s.adviser_teacher and s.adviser_teacher.strip())
+                        )
+                        has_students = session.query(Student).filter_by(section_id=s.id).count() > 0
+                        is_canon = (s.section_name or '').strip().lower() in canonical_2_map.get(gl, [])
+                        score = 0
+                        if has_teacher: score += 100
+                        if has_students: score += 50
+                        if is_canon: score += 20
+                        return (score, -s.id)
 
-                sec_list.sort(key=_sec_score, reverse=True)
-                keepers = sec_list[:2]
-                excess = sec_list[2:]
+                    sec_list.sort(key=_sec_score, reverse=True)
+                    keepers = sec_list[:2]
+                    excess = sec_list[2:]
 
-                for exc in excess:
-                    session.query(Student).filter_by(section_id=exc.id).update({"section_id": keepers[0].id})
-                    session.query(User).filter_by(assigned_section_id=exc.id).update({"assigned_section_id": keepers[0].id})
-                    session.delete(exc)
+                    for exc in excess:
+                        session.query(Student).filter_by(section_id=exc.id).update({"section_id": keepers[0].id})
+                        session.query(User).filter_by(assigned_section_id=exc.id).update({"assigned_section_id": keepers[0].id})
+                        session.delete(exc)
 
-        session.commit()
+            session.commit()
+
         global _SECTIONS_CACHE
-        _SECTIONS_CACHE["data"] = None
-        _SECTIONS_CACHE["ts"] = 0
+        if isinstance(_SECTIONS_CACHE, dict):
+            _SECTIONS_CACHE.clear()
+        else:
+            _SECTIONS_CACHE = {}
     except Exception as e:
         session.rollback()
         print(f"[!] clean_and_sync_sections_orm note: {e}")
     finally:
         session.close()
 
-def get_all_sections_orm():
-    """Returns all real sections from the database (max 2 per grade) with in-memory TTL caching and real teacher sync."""
+def get_all_sections_orm(school_id=None):
+    """Returns all real sections for the specified school (max 2 per grade) with in-memory TTL caching and real teacher sync."""
+    sid = int(school_id) if school_id else 1
     global _SECTIONS_CACHE
     now = time.time()
-    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 60:
-        return _SECTIONS_CACHE["data"]
+    if isinstance(_SECTIONS_CACHE, dict) and sid in _SECTIONS_CACHE:
+        entry = _SECTIONS_CACHE[sid]
+        if (now - entry.get("ts", 0)) < 60:
+            return entry.get("data", [])
 
     session = Session()
     try:
-        # Fetch real registered teachers
+        # Fetch real registered teachers for this school
         real_teachers = session.query(User).filter(
+            User.school_id == sid,
             func.upper(User.role) == 'TEACHER',
             User.is_active == True
         ).all()
@@ -1000,7 +1097,7 @@ def get_all_sections_orm():
             if t.assigned_section_id:
                 teacher_map[t.assigned_section_id] = t.full_name
 
-        sections = session.query(Section).order_by(Section.grade_level.asc(), Section.section_name.asc()).all()
+        sections = session.query(Section).filter_by(school_id=sid).order_by(Section.grade_level.asc(), Section.section_name.asc()).all()
         
         seen = set()
         res = []
@@ -1019,6 +1116,7 @@ def get_all_sections_orm():
 
             sec_dict = {
                 "id": sec.id,
+                "school_id": sec.school_id or sid,
                 "grade_level": gl,
                 "section_name": sn,
                 "adviser_teacher": real_adv,
@@ -1062,32 +1160,36 @@ def get_all_sections_orm():
         }
         filtered_2.sort(key=lambda x: (GRADE_ORDER.get(x["grade_level"].lower(), 99), x["section_name"]))
 
-        _SECTIONS_CACHE["data"] = filtered_2
-        _SECTIONS_CACHE["ts"] = now
+        if not isinstance(_SECTIONS_CACHE, dict):
+            _SECTIONS_CACHE = {}
+        _SECTIONS_CACHE[sid] = {"data": filtered_2, "ts": now}
         return filtered_2
     finally:
         session.close()
 
-def get_sections_by_grade_orm(grade_level):
+def get_sections_by_grade_orm(grade_level, school_id=None):
     """Returns deduplicated real sections filtered by grade level with real teacher advisers."""
-    all_secs = get_all_sections_orm()
+    all_secs = get_all_sections_orm(school_id=school_id)
     gl_clean = str(grade_level).strip().lower()
     return [s for s in all_secs if s["grade_level"].strip().lower() == gl_clean]
 
-def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=""):
-    """Inserts or updates a class section in the database."""
+def save_section_orm(grade_level, section_name, adviser_teacher="", room_number="", school_id=1):
+    """Inserts or updates a class section in the database scoped by school_id."""
+    sid = int(school_id) if school_id else 1
     global _SECTIONS_CACHE
-    _SECTIONS_CACHE["data"] = None
+    if isinstance(_SECTIONS_CACHE, dict):
+        _SECTIONS_CACHE.pop(sid, None)
     session = Session()
     try:
         gl = str(grade_level).strip()
         sn = str(section_name).strip()
         sec = session.query(Section).filter(
+            Section.school_id == sid,
             func.lower(Section.grade_level) == gl.lower(),
             func.lower(Section.section_name) == sn.lower()
         ).first()
         if not sec:
-            sec = Section(grade_level=gl, section_name=sn)
+            sec = Section(school_id=sid, grade_level=gl, section_name=sn)
             session.add(sec)
         
         adv_clean = str(adviser_teacher).strip() if adviser_teacher else ""
@@ -1099,9 +1201,10 @@ def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=
             sec.room_number = str(room_number).strip()
         session.flush()
 
-        # Link real teacher if adviser_teacher matches a registered teacher
+        # Link real teacher if adviser_teacher matches a registered teacher in this school
         if adv_clean:
             teacher_user = session.query(User).filter(
+                User.school_id == sid,
                 func.upper(User.role) == 'TEACHER',
                 func.lower(User.full_name) == adv_clean.lower()
             ).first()
@@ -1194,34 +1297,98 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
 def auto_migrate_columns_orm():
     """
     Guarantees all database columns and tables exist across SQLite and Cloud PostgreSQL (Supabase/Neon).
+    Includes Multi-Tenant schema migration with School #1 (Don Montano CIS) preservation.
     Executes in a single batched network roundtrip for sub-50ms cloud performance.
     """
     from sqlalchemy import text
     dialect = engine.dialect.name.lower()
 
-    # 1. Staff Attendance Logs table
+    # 1. Ensure core tenant and support tables exist
+    try:
+        School.__table__.create(engine, checkfirst=True)
+    except Exception:
+        pass
+
     try:
         StaffAttendanceLog.__table__.create(engine, checkfirst=True)
     except Exception:
         pass
 
-    # 2. Columns auto-migration
+    # 2. Seed School #1 (Don Montano Central Integrated School) if not present
+    try:
+        with get_db_session() as s:
+            dmcis = s.query(School).filter_by(id=1).first()
+            if not dmcis:
+                dmcis_by_code = s.query(School).filter_by(school_id="152008").first()
+                if not dmcis_by_code:
+                    dmcis = School(
+                        id=1,
+                        school_id="152008",
+                        school_name="Don Montano Central Integrated School",
+                        school_short_name="DMCIS",
+                        subdomain="donmontano",
+                        district="Umingan II",
+                        division="SDO Pangasinan II",
+                        region="Region I • Ilocos Region",
+                        school_address="Don Montano, Umingan, Pangasinan",
+                        principal_name="Dr. Maria Clara Santos, CESO V",
+                        contact_phone="09170000002",
+                        contact_email="principal@donmontano.edu.ph",
+                        latitude=15.9295,
+                        longitude=120.8613,
+                        geofence_radius=2500.0,
+                        is_active=True
+                    )
+                    s.add(dmcis)
+                    s.commit()
+    except Exception as _sch_err:
+        pass
+
+    # 3. Non-destructive column additions & multi-tenant foreign keys
     try:
         with engine.begin() as conn:
             if "postgres" in dialect:
                 conn.execute(text("""
                     ALTER TABLE users 
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1,
                         ADD COLUMN IF NOT EXISTS employee_number VARCHAR(50),
                         ADD COLUMN IF NOT EXISTS designation VARCHAR(100) DEFAULT '',
                         ADD COLUMN IF NOT EXISTS assigned_section_id INTEGER,
                         ADD COLUMN IF NOT EXISTS face_embedding TEXT,
                         ADD COLUMN IF NOT EXISTS photo_path TEXT DEFAULT '',
                         ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
+                    ALTER TABLE sections
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
                     ALTER TABLE students 
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1,
                         ADD COLUMN IF NOT EXISTS grade_level VARCHAR(30) DEFAULT '',
                         ADD COLUMN IF NOT EXISTS section_name VARCHAR(60) DEFAULT '',
                         ADD COLUMN IF NOT EXISTS class_adviser VARCHAR(100) DEFAULT '';
+                    ALTER TABLE attendance_logs
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1,
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged BOOLEAN DEFAULT FALSE,
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged_at TIMESTAMP,
+                        ADD COLUMN IF NOT EXISTS parent_acknowledged_by VARCHAR(100) DEFAULT '';
+                    ALTER TABLE staff_attendance_logs
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE sms_logs
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE excuse_notes
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE announcements
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE school_events
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE incidents
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE push_subscriptions
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE parent_device_tokens
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
+                    ALTER TABLE parent_notifications
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1;
                     ALTER TABLE push_workflows
+                        ADD COLUMN IF NOT EXISTS school_id INTEGER DEFAULT 1,
                         ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'DAILY_REMINDER',
                         ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'ALL',
                         ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'NORMAL',
@@ -1232,12 +1399,25 @@ def auto_migrate_columns_orm():
                         ADD COLUMN IF NOT EXISTS created_at TIMESTAMP;
                     ALTER TABLE workflow_executions
                         ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'ALL';
-                    ALTER TABLE attendance_logs
-                        ADD COLUMN IF NOT EXISTS parent_acknowledged BOOLEAN DEFAULT FALSE,
-                        ADD COLUMN IF NOT EXISTS parent_acknowledged_at TIMESTAMP,
-                        ADD COLUMN IF NOT EXISTS parent_acknowledged_by VARCHAR(100) DEFAULT '';
                 """))
             elif "sqlite" in dialect:
+                # Multi-tenant tables that require school_id column
+                multi_tenant_tables = [
+                    "users", "sections", "students", "attendance_logs",
+                    "staff_attendance_logs", "sms_logs", "excuse_notes",
+                    "announcements", "school_events", "incidents",
+                    "push_subscriptions", "parent_device_tokens",
+                    "parent_notifications", "push_workflows"
+                ]
+                for tbl in multi_tenant_tables:
+                    try:
+                        t_res = conn.execute(text(f"PRAGMA table_info({tbl});")).fetchall()
+                        t_cols = [r[1] for r in t_res]
+                        if t_cols and "school_id" not in t_cols:
+                            conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN school_id INTEGER DEFAULT 1;"))
+                    except Exception:
+                        pass
+
                 # Users columns
                 u_res = conn.execute(text("PRAGMA table_info(users);")).fetchall()
                 u_existing = [r[1] for r in u_res]
@@ -1301,6 +1481,13 @@ def auto_migrate_columns_orm():
                         try: conn.execute(text(f"ALTER TABLE attendance_logs ADD COLUMN {c_name} {c_type};"))
                         except Exception: pass
 
+            # Backfill any NULL school_id to 1 (Don Montano CIS)
+            for tbl in ["users", "sections", "students", "attendance_logs", "staff_attendance_logs", "sms_logs"]:
+                try:
+                    conn.execute(text(f"UPDATE {tbl} SET school_id = 1 WHERE school_id IS NULL;"))
+                except Exception:
+                    pass
+
             # Backfill standard employee numbers for recognized faculty & staff
             staff_emp_defaults = {
                 "admin": "ADMIN-001",
@@ -1326,6 +1513,189 @@ def auto_migrate_columns_orm():
                 pass
     except Exception as ex:
         print(f"[!] Auto-migration batch note: {ex}")
+
+# -------------------------------------------------------------
+# Multi-Tenant School Management Helpers
+# -------------------------------------------------------------
+
+def get_school_by_id_orm(school_id=1):
+    """Returns single school record as dict by primary key ID."""
+    session = Session()
+    try:
+        sch = session.query(School).filter_by(id=int(school_id)).first()
+        return sch.to_dict() if sch else None
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+def get_school_by_code_orm(code="152008"):
+    """Returns single school record as dict by DepEd 6-digit School ID."""
+    session = Session()
+    try:
+        sch = session.query(School).filter_by(school_id=str(code).strip()).first()
+        return sch.to_dict() if sch else None
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+def get_all_schools_orm(active_only=False):
+    """
+    Returns all registered schools with enrolled student, section, and faculty counts.
+    Used for Division-wide / Multi-Tenant dashboards and school switcher.
+    """
+    session = Session()
+    try:
+        q = session.query(School)
+        if active_only:
+            q = q.filter_by(is_active=True)
+        schools = q.order_by(School.id.asc()).all()
+        
+        result = []
+        for s in schools:
+            sd = s.to_dict()
+            # Aggregate counts for this tenant
+            sd["total_students"] = session.query(func.count(Student.lrn)).filter(Student.school_id == s.id, Student.is_active == True).scalar() or 0
+            sd["total_sections"] = session.query(func.count(Section.id)).filter(Section.school_id == s.id).scalar() or 0
+            sd["total_teachers"] = session.query(func.count(User.id)).filter(User.school_id == s.id, func.upper(User.role) == 'TEACHER', User.is_active == True).scalar() or 0
+            result.append(sd)
+        return result
+    finally:
+        session.close()
+
+def create_school_orm(school_id, school_name, school_short_name="", district="Umingan II", 
+                      division="SDO Pangasinan II", region="Region I • Ilocos Region", 
+                      school_address="", principal_name="", contact_phone="", contact_email="", 
+                      latitude=15.9295, longitude=120.8613, geofence_radius=2500.0, 
+                      camera_source="0", seed_default_sections=True):
+    """
+    Onboards a new school into the multi-tenant system:
+    1. Creates the School record.
+    2. Automatically seeds default 26 K-12 DepEd class sections for the new school.
+    3. Provisions default Principal and Administrator accounts scoped to this school.
+    """
+    session = Session()
+    try:
+        code_clean = str(school_id).strip()
+        name_clean = str(school_name).strip()
+        if not code_clean or not name_clean:
+            return False, "School ID and School Name are required."
+
+        # Check for existing school code
+        existing = session.query(School).filter((School.school_id == code_clean) | (func.lower(School.school_name) == name_clean.lower())).first()
+        if existing:
+            return False, f"School '{name_clean}' or School ID '{code_clean}' already exists."
+
+        subdomain = name_clean.lower().replace(" ", "").replace(".", "").replace("-", "")[:30]
+
+        new_school = School(
+            school_id=code_clean,
+            school_name=name_clean,
+            school_short_name=school_short_name.strip() or name_clean[:10].upper(),
+            subdomain=subdomain,
+            district=district.strip(),
+            division=division.strip(),
+            region=region.strip(),
+            school_address=school_address.strip(),
+            principal_name=principal_name.strip(),
+            contact_phone=contact_phone.strip(),
+            contact_email=contact_email.strip(),
+            latitude=float(latitude) if latitude else 15.9295,
+            longitude=float(longitude) if longitude else 120.8613,
+            geofence_radius=float(geofence_radius) if geofence_radius else 2500.0,
+            camera_source=str(camera_source or "0"),
+            is_active=True
+        )
+        session.add(new_school)
+        session.flush() # get new_school.id
+
+        new_sid = new_school.id
+
+        # Seed 26 canonical K-12 sections for this school
+        if seed_default_sections:
+            for s in DEFAULT_SECTIONS:
+                sec = Section(
+                    school_id=new_sid,
+                    grade_level=s["grade_level"],
+                    section_name=s["section_name"],
+                    adviser_teacher="",
+                    room_number=s["room_number"]
+                )
+                session.add(sec)
+
+        # Provision School Principal Account
+        clean_user_slug = f"principal_{code_clean}"
+        existing_user = session.query(User).filter_by(username=clean_user_slug).first()
+        if not existing_user:
+            prin_user = User(
+                school_id=new_sid,
+                username=clean_user_slug,
+                email=f"principal.{code_clean}@deped.gov.ph",
+                password_hash=generate_password_hash("principal123"),
+                full_name=principal_name.strip() or f"Principal - {name_clean}",
+                role="PRINCIPAL",
+                employee_number=f"PRIN-{code_clean[-4:]}",
+                is_active=True,
+                phone_number=contact_phone.strip()
+            )
+            session.add(prin_user)
+        else:
+            existing_user.school_id = new_sid
+            existing_user.is_active = True
+
+        session.commit()
+        return True, new_school.to_dict()
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
+def update_school_orm(school_id, **kwargs):
+    """Updates school profile, geofence, coordinates, or principal information."""
+    session = Session()
+    try:
+        sch = session.query(School).filter_by(id=int(school_id)).first()
+        if not sch:
+            return False, "School not found."
+
+        if "school_name" in kwargs and kwargs["school_name"]:
+            sch.school_name = kwargs["school_name"].strip()
+        if "school_short_name" in kwargs and kwargs["school_short_name"]:
+            sch.school_short_name = kwargs["school_short_name"].strip()
+        if "district" in kwargs:
+            sch.district = kwargs["district"].strip()
+        if "division" in kwargs:
+            sch.division = kwargs["division"].strip()
+        if "region" in kwargs:
+            sch.region = kwargs["region"].strip()
+        if "school_address" in kwargs:
+            sch.school_address = kwargs["school_address"].strip()
+        if "principal_name" in kwargs:
+            sch.principal_name = kwargs["principal_name"].strip()
+        if "contact_phone" in kwargs:
+            sch.contact_phone = kwargs["contact_phone"].strip()
+        if "contact_email" in kwargs:
+            sch.contact_email = kwargs["contact_email"].strip()
+        if "latitude" in kwargs and kwargs["latitude"] is not None:
+            sch.latitude = float(kwargs["latitude"])
+        if "longitude" in kwargs and kwargs["longitude"] is not None:
+            sch.longitude = float(kwargs["longitude"])
+        if "geofence_radius" in kwargs and kwargs["geofence_radius"] is not None:
+            sch.geofence_radius = float(kwargs["geofence_radius"])
+        if "camera_source" in kwargs and kwargs["camera_source"] is not None:
+            sch.camera_source = str(kwargs["camera_source"]).strip()
+        if "is_active" in kwargs:
+            sch.is_active = bool(kwargs["is_active"])
+
+        session.commit()
+        return True, sch.to_dict()
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
 
 # -------------------------------------------------------------
 # Progressive Push Automations & School Reminders Data
@@ -1835,15 +2205,18 @@ def init_orm_db(force=False):
 def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="", parent_phone="", 
                      rfid_card_uid="", gender="Unspecified", track="Junior High", 
                      photo_path="", embedding_array=None, middle_name="", grade_level="",
-                     section_name="", class_adviser="", birthdate="", **kwargs):
-    """Registers student with LRN, parent contact, photo, and 128-d biometric face embedding."""
+                     section_name="", class_adviser="", birthdate="", school_id=1, **kwargs):
+    """Registers student with LRN, parent contact, photo, and 128-d biometric face embedding scoped to school_id."""
     session = Session()
     lrn_clean = str(lrn).strip()
+    sid = int(school_id or kwargs.get("school_id") or 1)
     try:
         student = session.query(Student).filter_by(lrn=lrn_clean).first()
         if not student:
-            student = Student(lrn=lrn_clean)
+            student = Student(lrn=lrn_clean, school_id=sid)
             session.add(student)
+        else:
+            student.school_id = sid
 
         student.first_name = (first_name or "").strip()[:100]
         student.middle_name = (middle_name or kwargs.get("middle_name", "") or "").strip()[:100]
@@ -1861,9 +2234,12 @@ def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="
 
         if g_level and s_name:
             student.grade_section = f"{g_level} - {s_name}"[:150]
-            # Real database connection to Section
-            sec = session.query(Section).filter_by(grade_level=g_level, section_name=s_name).first()
+            # Real database connection to Section scoped to this school
+            sec = session.query(Section).filter_by(school_id=sid, grade_level=g_level, section_name=s_name).first()
             if not sec:
+                sec = session.query(Section).filter(Section.school_id == sid, Section.grade_level == g_level, Section.section_name.ilike(s_name)).first()
+            if not sec:
+                # Fallback without school filter if section only existed in DMCIS
                 sec = session.query(Section).filter(Section.grade_level == g_level, Section.section_name.ilike(s_name)).first()
             if sec:
                 student.section_id = sec.id
@@ -1947,11 +2323,14 @@ def delete_student_orm(lrn):
     finally:
         session.close()
 
-def get_all_enrolled_students_orm():
-    """Returns all active students with deserialized numpy face embeddings."""
+def get_all_enrolled_students_orm(school_id=None):
+    """Returns active students with deserialized numpy face embeddings scoped by school_id."""
     session = Session()
     try:
-        students = session.query(Student).filter_by(is_active=True).all()
+        q = session.query(Student).filter_by(is_active=True)
+        if school_id:
+            q = q.filter_by(school_id=int(school_id))
+        students = q.all()
         result = []
         for s in students:
             d = s.to_dict()
@@ -1967,37 +2346,45 @@ def get_all_enrolled_students_orm():
     finally:
         session.close()
 
-def get_enrolled_students_count_orm():
+def get_enrolled_students_count_orm(school_id=None):
     """Ultra-fast count of enrolled students without loading objects or embeddings (2ms) with TTL caching."""
-    now = time.time()
-    if _STUDENT_COUNT_CACHE["count"] is not None and (now - _STUDENT_COUNT_CACHE["ts"]) < 60:
-        return _STUDENT_COUNT_CACHE["count"]
     session = Session()
     try:
-        cnt = session.query(func.count(Student.lrn)).filter_by(is_active=True).scalar() or 0
+        q = session.query(func.count(Student.lrn)).filter_by(is_active=True)
+        if school_id:
+            q = q.filter_by(school_id=int(school_id))
+            return q.scalar() or 0
+        now = time.time()
+        if _STUDENT_COUNT_CACHE["count"] is not None and (now - _STUDENT_COUNT_CACHE["ts"]) < 60:
+            return _STUDENT_COUNT_CACHE["count"]
+        cnt = q.scalar() or 0
         _STUDENT_COUNT_CACHE["count"] = cnt
         _STUDENT_COUNT_CACHE["ts"] = now
         return cnt
     finally:
         session.close()
 
-def get_students_directory_orm():
-    """Fast student directory listing omitting heavy JSON/NumPy face embeddings."""
+def get_students_directory_orm(school_id=None):
+    """Fast student directory listing omitting heavy JSON/NumPy face embeddings scoped by school_id."""
     session = Session()
     try:
-        students = session.query(
-            Student.lrn, Student.first_name, Student.middle_name, Student.last_name,
+        q = session.query(
+            Student.lrn, Student.school_id, Student.first_name, Student.middle_name, Student.last_name,
             Student.gender, Student.grade_level, Student.section_name, Student.class_adviser,
             Student.grade_section, Student.parent_name, Student.parent_phone,
             Student.rfid_card_uid, Student.qr_code_path, Student.photo_path,
             Student.is_active, Student.created_at
-        ).filter_by(is_active=True).all()
+        ).filter_by(is_active=True)
+        if school_id:
+            q = q.filter_by(school_id=int(school_id))
+        students = q.all()
         
         result = []
         for s in students:
             full_name = f"{s.first_name} {s.middle_name} {s.last_name}".strip() if s.middle_name else f"{s.first_name} {s.last_name}".strip()
             result.append({
                 "lrn": s.lrn,
+                "school_id": getattr(s, 'school_id', 1),
                 "first_name": s.first_name,
                 "middle_name": s.middle_name or "",
                 "last_name": s.last_name,
@@ -2307,11 +2694,26 @@ def check_can_scan_orm(lrn, cooldown_seconds=COOLDOWN_SECONDS, current_time=None
     eval_res = evaluate_daily_scan_rule_orm(lrn, cooldown_seconds=cooldown_seconds, current_time=current_time)
     return eval_res["can_scan"], eval_res.get("cooldown_remaining"), eval_res.get("scan_type")
 
-def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method="QR_CODE", sms_status="PENDING"):
-    """Records an attendance log transaction."""
+def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method="QR_CODE", sms_status="PENDING", school_id=None):
+    """Records an attendance log transaction scoped to the student's school."""
     session = Session()
     try:
+        sid = 1
+        sch_name = "Don Montano Central Integrated School"
+        sch_short = "DMCIS"
+        if school_id:
+            sid = int(school_id)
+        else:
+            st = session.query(Student).filter_by(lrn=str(lrn).strip()).first()
+            if st and st.school_id:
+                sid = st.school_id
+        sch = session.query(School).filter_by(id=sid).first()
+        if sch:
+            sch_name = sch.school_name
+            sch_short = sch.school_short_name or sch.school_name
+
         log = AttendanceLog(
+            school_id=sid,
             lrn=str(lrn),
             student_name=student_name,
             grade_section=grade_section,
@@ -2333,7 +2735,7 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
             dispatch_web_push_notification(
                 lrn=str(lrn),
                 title=f"DepEd Gate Alert: {student_name}",
-                body=f"Official Gate Scan Verified: {student_name} has {action_word} Don Montano CIS Gate 1 at {now_pht}.",
+                body=f"Official Gate Scan Verified: {student_name} has {action_word} {sch_short} Gate 1 at {now_pht}.",
                 tag=f"scan-{lrn}-{int(time.time())}",
                 data_url=f"/parent?lrn={lrn}"
             )
@@ -2346,7 +2748,7 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
             icon_emoji = "🟢" if is_entry else "🟠"
             action_desc = "entered" if is_entry else "safely departed from"
             push_title = f"{icon_emoji} Gate Attendance: {'Time-In' if is_entry else 'Time-Out'}"
-            push_body = f"{student_name} {action_desc} Don Montano Central Integrated School Gate 1 at {now_pht}."
+            push_body = f"{student_name} {action_desc} {sch_name} Gate 1 at {now_pht}."
             dispatch_expo_push_notification(
                 title=push_title,
                 body=push_body,
@@ -2360,7 +2762,7 @@ def record_attendance_orm(lrn, student_name, scan_type, grade_section="", method
                     "timestamp": now_pht,
                     "time_formatted": now_pht,
                     "device_id": "Gate 1 Main Guard Post",
-                    "verification_method": verification_method or "Smart QR / RFID"
+                    "verification_method": method or "Smart QR / RFID"
                 },
                 channel_id="gate-attendance-channel",
                 category_id="GATE_ALERT_CATEGORY"
@@ -2446,34 +2848,40 @@ def record_sms_orm(recipient_phone, student_lrn, message_body, status, gateway="
     finally:
         session.close()
 
-def get_today_summary_orm():
-    """Returns today's gate scan metrics with high-speed 15s in-memory TTL caching."""
-    now = time.time()
-    if _TODAY_SUMMARY_CACHE["data"] is not None and (now - _TODAY_SUMMARY_CACHE["ts"]) < 15.0:
-        return _TODAY_SUMMARY_CACHE["data"]
+def get_today_summary_orm(school_id=None):
+    """Returns today's gate scan metrics with high-speed 15s in-memory TTL caching scoped by school_id."""
+    sid = int(school_id) if school_id else 1
     session = Session()
     try:
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        total_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
-        unique_students = session.query(func.count(func.distinct(AttendanceLog.lrn))).filter(AttendanceLog.timestamp >= today_start).scalar() or 0
-        recent_logs = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).order_by(desc(AttendanceLog.id)).limit(10).all()
-        res = {
+        q_scans = session.query(func.count(AttendanceLog.id)).filter(AttendanceLog.timestamp >= today_start)
+        q_students = session.query(func.count(func.distinct(AttendanceLog.lrn))).filter(AttendanceLog.timestamp >= today_start)
+        q_recent = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel))
+        if sid:
+            q_scans = q_scans.filter(AttendanceLog.school_id == sid)
+            q_students = q_students.filter(AttendanceLog.school_id == sid)
+            q_recent = q_recent.filter(AttendanceLog.school_id == sid)
+
+        total_scans = q_scans.scalar() or 0
+        unique_students = q_students.scalar() or 0
+        recent_logs = q_recent.order_by(desc(AttendanceLog.id)).limit(10).all()
+        return {
             "total_scans": total_scans,
             "unique_students": unique_students,
             "recent_scans": [r.to_dict() for r in recent_logs]
         }
-        _TODAY_SUMMARY_CACHE["data"] = res
-        _TODAY_SUMMARY_CACHE["ts"] = now
-        return res
     finally:
         session.close()
 
-def get_today_attendance_logs_orm(limit=None):
-    """Returns today's attendance logs with student info from the active ORM database."""
+def get_today_attendance_logs_orm(limit=None, school_id=None):
+    """Returns today's attendance logs with student info from the active ORM database scoped by school_id."""
     session = Session()
     try:
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        query = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).filter(AttendanceLog.timestamp >= today_start).order_by(desc(AttendanceLog.id))
+        query = session.query(AttendanceLog).options(joinedload(AttendanceLog.student_rel)).filter(AttendanceLog.timestamp >= today_start)
+        if school_id:
+            query = query.filter(AttendanceLog.school_id == int(school_id))
+        query = query.order_by(desc(AttendanceLog.id))
         if limit:
             query = query.limit(limit)
         logs = query.all()
@@ -2499,11 +2907,14 @@ def get_recent_sms_logs_orm(limit=50):
     finally:
         session.close()
 
-def get_all_attendance_logs_for_export_orm():
-    """Returns all attendance logs formatted for DepEd SF2 CSV export."""
+def get_all_attendance_logs_for_export_orm(school_id=None):
+    """Returns all attendance logs formatted for DepEd SF2 CSV export scoped by school_id."""
     session = Session()
     try:
-        logs = session.query(AttendanceLog).order_by(AttendanceLog.id.asc()).all()
+        query = session.query(AttendanceLog)
+        if school_id:
+            query = query.filter(AttendanceLog.school_id == int(school_id))
+        logs = query.order_by(AttendanceLog.id.asc()).all()
         res = []
         for l in logs:
             st = l.student_rel
@@ -2846,6 +3257,18 @@ def get_monthly_deped_sf2_report_orm(section_id=None, section_name=None, adviser
 
         if not target_section:
             target_section = session.query(Section).order_by(Section.id.asc()).first()
+
+        # Update school metadata from target section's school tenant if available
+        if target_section and target_section.school_id:
+            sch = session.query(School).filter_by(id=target_section.school_id).first()
+            if sch:
+                school_name = sch.school_name
+                school_id = sch.school_id
+                deped_region = sch.region
+                school_division = sch.division
+                school_district = sch.district
+                if sch.principal_name:
+                    principal_name = sch.principal_name
 
         sec_name = f"{target_section.grade_level} - {target_section.section_name}" if target_section else "General Section"
         grade_level = target_section.grade_level if target_section else "All Grades"
@@ -3582,12 +4005,13 @@ def auto_assign_all_staff_codes_orm():
     finally:
         session.close()
 
-def create_user_orm(username, email, password, full_name, role="TEACHER", phone_number="", assigned_section_id=None, employee_number=None):
-    """Creates a new user account with hashed password and DepEd employee code."""
+def create_user_orm(username, email, password, full_name, role="TEACHER", phone_number="", assigned_section_id=None, employee_number=None, school_id=1, **kwargs):
+    """Creates a new user account with hashed password, DepEd employee code, and school_id."""
     session = Session()
     try:
         u_clean = username.strip().lower()
         e_clean = email.strip().lower()
+        sid = int(school_id or kwargs.get("school_id") or 1)
         existing = session.query(User).filter((User.username == u_clean) | (User.email == e_clean)).first()
         if existing:
             return False, f"Username '{u_clean}' or email '{e_clean}' is already registered."
@@ -3602,6 +4026,7 @@ def create_user_orm(username, email, password, full_name, role="TEACHER", phone_
             emp_clean = generate_next_staff_code_orm(role_clean)
         
         user = User(
+            school_id=sid,
             username=u_clean,
             email=e_clean,
             password_hash=generate_password_hash(password.strip()),
@@ -3675,12 +4100,17 @@ def get_user_by_id_orm(user_id):
     finally:
         session.close()
 
-def get_all_users_orm():
-    """Returns all users, ensuring every account has an assigned DepEd employee/teacher code."""
+def get_all_users_orm(school_id=None):
+    """Returns users for a school (or all if not filtered), ensuring every account has an assigned employee code."""
     auto_assign_all_staff_codes_orm()
     session = Session()
     try:
-        users = session.query(User).order_by(User.id.asc()).all()
+        q = session.query(User)
+        if school_id:
+            sid = int(school_id)
+            # Include school staff plus division super admins
+            q = q.filter(or_(User.school_id == sid, User.role.in_(['SUPER_ADMIN', 'DIVISION_ADMIN'])))
+        users = q.order_by(User.id.asc()).all()
         return [u.to_dict() for u in users]
     finally:
         session.close()
@@ -3692,6 +4122,9 @@ def update_user_orm(user_id, **kwargs):
         user = session.query(User).filter_by(id=int(user_id)).first()
         if not user:
             return False, "User not found."
+        
+        if "school_id" in kwargs and kwargs["school_id"]:
+            user.school_id = int(kwargs["school_id"])
         
         # Username update with duplicate check
         if "username" in kwargs and kwargs["username"]:
@@ -4052,10 +4485,20 @@ def record_staff_attendance_orm(user_id, scan_type="AUTO", lat=None, lon=None, a
         # Determine school period (AM or PM)
         period = "AM" if now.hour < 12 else "PM"
 
-        # Verify GPS Geotag
-        is_verified, dist_meters, geotag_status = verify_school_geotag(lat, lon)
+        # Fetch school coordinates for this user
+        user_school_id = getattr(user, 'school_id', 1) or 1
+        sch = session.query(School).filter_by(id=user_school_id).first()
+        sch_lat = sch.latitude if sch else None
+        sch_lon = sch.longitude if sch else None
+        sch_rad = sch.geofence_radius if sch else None
+
+        # Verify GPS Geotag against tenant's designated campus boundaries
+        is_verified, dist_meters, geotag_status = verify_school_geotag(
+            lat, lon, school_lat=sch_lat, school_lon=sch_lon, radius_meters=sch_rad
+        )
 
         log = StaffAttendanceLog(
+            school_id=user_school_id,
             user_id=user.id,
             staff_name=user.full_name,
             role=user.role,
@@ -4266,18 +4709,21 @@ def get_staff_dtr_logs_orm(user_id=None, month=None, year=None, limit=100):
     finally:
         session.close()
 
-def get_today_all_staff_logs_orm(limit=50):
+def get_today_all_staff_logs_orm(limit=50, school_id=None):
     """
-    Returns today's attendance logs across ALL teaching and non-teaching personnel.
+    Returns today's attendance logs across teaching and non-teaching personnel, scoped by school_id.
     Used by the Central Multi-Account Scanner kiosk in Admin / Principal view.
     """
     session = Session()
     try:
         now = pht_now()
         today_start = datetime.combine(now.date(), datetime.min.time())
-        logs = session.query(StaffAttendanceLog).filter(
+        q = session.query(StaffAttendanceLog).filter(
             StaffAttendanceLog.timestamp >= today_start
-        ).order_by(StaffAttendanceLog.timestamp.desc()).limit(limit).all()
+        )
+        if school_id:
+            q = q.filter(StaffAttendanceLog.school_id == int(school_id))
+        logs = q.order_by(StaffAttendanceLog.timestamp.desc()).limit(limit).all()
 
         results = []
         for l in logs:
@@ -4291,7 +4737,7 @@ def get_today_all_staff_logs_orm(limit=50):
     finally:
         session.close()
 
-def get_campus_staff_attendance_summary_orm():
+def get_campus_staff_attendance_summary_orm(school_id=None):
     """
     Calculates today's overall faculty & staff attendance statistics for the school.
     Returns:
@@ -4308,14 +4754,20 @@ def get_campus_staff_attendance_summary_orm():
 
         # Total active staff
         staff_roles = ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD', 'SUPER_ADMIN']
-        users = session.query(User).filter(User.is_active == True, User.role.in_(staff_roles)).all()
+        q_users = session.query(User).filter(User.is_active == True, User.role.in_(staff_roles))
+        if school_id:
+            q_users = q_users.filter(or_(User.school_id == int(school_id), User.role.in_(['SUPER_ADMIN', 'DIVISION_ADMIN'])))
+        users = q_users.all()
         total_staff = len(users)
         enrolled_faces = sum(1 for u in users if u.face_embedding)
 
         # Today's distinct staff logged
-        today_logs = session.query(StaffAttendanceLog).filter(
+        q_logs = session.query(StaffAttendanceLog).filter(
             StaffAttendanceLog.timestamp >= today_start
-        ).order_by(StaffAttendanceLog.timestamp.asc()).all()
+        )
+        if school_id:
+            q_logs = q_logs.filter(StaffAttendanceLog.school_id == int(school_id))
+        today_logs = q_logs.order_by(StaffAttendanceLog.timestamp.asc()).all()
 
         distinct_user_ids = set()
         latest_status_by_user = {}

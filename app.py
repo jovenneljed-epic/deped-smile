@@ -38,7 +38,9 @@ from smile_orm import (
     get_staff_dtr_logs_orm, get_today_all_staff_logs_orm,
     get_campus_staff_attendance_summary_orm,
     get_section_attendance_report_orm,
-    get_monthly_deped_sf2_report_orm
+    get_monthly_deped_sf2_report_orm,
+    get_all_schools_orm, get_school_by_id_orm, get_school_by_code_orm,
+    create_school_orm, update_school_orm
 )
 from smile_sms import (
     send_via_semaphore, send_via_twilio, send_via_android_gateway,
@@ -224,15 +226,68 @@ def role_required(*allowed_roles):
         return decorated_function
     return decorator
 
+def get_current_school_id() -> int:
+    """
+    Resolves active tenant school_id based on priority:
+    1. Super Admin / Division Admin explicit school switch stored in session['active_school_id']
+    2. Logged-in user's assigned school in session['school_id']
+    3. Explicit school_id passed via query parameters (?school_id=X) e.g. for Kiosks/API
+    4. Default School ID = 1 (Don Montano Central Integrated School)
+    """
+    try:
+        # Query parameter override (e.g. for kiosk devices or API calls)
+        if request:
+            q_sid = request.args.get('school_id', type=int)
+            if q_sid and q_sid > 0:
+                return q_sid
+    except Exception:
+        pass
+
+    # Session active school (from Super Admin school switcher)
+    if 'active_school_id' in session and session['active_school_id']:
+        try:
+            return int(session['active_school_id'])
+        except (ValueError, TypeError):
+            pass
+
+    # Logged-in user's school
+    if 'school_id' in session and session['school_id']:
+        try:
+            return int(session['school_id'])
+        except (ValueError, TypeError):
+            pass
+
+    return 1
+
+def get_current_school() -> dict:
+    """Returns the School dict of the currently active tenant."""
+    sid = get_current_school_id()
+    school = get_school_by_id_orm(sid)
+    if not school:
+        school = get_school_by_id_orm(1)
+    return school or {}
+
 @app.context_processor
 def inject_user_context():
     role = session.get("role")
+    sid = get_current_school_id()
+    active_school = get_school_by_id_orm(sid) or {}
+    
+    # If user is SUPER_ADMIN or DIVISION_ADMIN, load all schools list for the switcher dropdown
+    schools_list = []
+    if role in ["SUPER_ADMIN", "DIVISION_ADMIN"]:
+        try:
+            schools_list = get_all_schools_orm()
+        except Exception:
+            schools_list = []
+
     return {
         "current_user": {
             "id": session.get("user_id"),
             "username": session.get("username"),
             "full_name": session.get("full_name"),
             "role": role,
+            "school_id": sid,
             "assigned_section_id": session.get("assigned_section_id"),
             "assigned_section_name": session.get("assigned_section_name"),
             "designation": session.get("designation", ""),
@@ -242,7 +297,12 @@ def inject_user_context():
             "is_staff": role in ["STAFF", "NON_TEACHING"],
             "can_manage_system": role in ["SUPER_ADMIN", "PRINCIPAL"],
             "is_guard": role in ["SUPER_ADMIN", "GUARD"]
-        } if "user_id" in session else None
+        } if "user_id" in session else None,
+        "active_school": active_school,
+        "school_info": active_school,
+        "school_name": active_school.get("school_name", smile_config.SCHOOL_NAME),
+        "school_short_name": active_school.get("school_short_name", smile_config.SCHOOL_SHORT_NAME),
+        "all_schools": schools_list
     }
 
 # -------------------------------------------------------------
@@ -276,6 +336,8 @@ def login_page():
     session['username'] = user['username']
     session['full_name'] = user['full_name']
     session['role'] = user['role']
+    session['school_id'] = user.get('school_id', 1)
+    session['active_school_id'] = user.get('school_id', 1)
     session['assigned_section_id'] = user.get('assigned_section_id')
     session['assigned_section_name'] = user.get('assigned_section_name')
     session['designation'] = user.get('designation', '')
@@ -294,6 +356,94 @@ def logout_page():
     """Terminates staff session."""
     session.clear()
     return redirect(url_for('login_page'))
+
+# -------------------------------------------------------------
+# Enterprise Multi-Tenant School Management Routes
+# -------------------------------------------------------------
+
+@app.route('/admin/switch-school/<int:school_id>', methods=['GET', 'POST'])
+@role_required("SUPER_ADMIN", "DIVISION_ADMIN")
+def switch_school(school_id):
+    """Dynamically switch active school context for Super Administrators and Division Admins."""
+    sch = get_school_by_id_orm(school_id)
+    if sch:
+        session['active_school_id'] = sch['id']
+        session['active_school_name'] = sch['school_name']
+    
+    # Return JSON if requested via AJAX, otherwise redirect to previous page
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"success": True, "school_id": school_id, "school": sch})
+    
+    referrer = request.referrer or url_for('dashboard')
+    return redirect(referrer)
+
+@app.route('/api/schools', methods=['GET'])
+def api_get_schools():
+    """Returns list of all onboarded schools and their tenant statistics."""
+    try:
+        schools = get_all_schools_orm()
+        return jsonify({"status": "success", "schools": schools, "count": len(schools)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/schools', methods=['POST'])
+@role_required("SUPER_ADMIN", "DIVISION_ADMIN")
+def api_create_school():
+    """Onboards a new DepEd school with canonical K-12 sections and principal account."""
+    data = request.get_json(silent=True) or request.form.to_dict()
+    school_id = data.get("school_id")
+    school_name = data.get("school_name")
+    school_short_name = data.get("school_short_name", "")
+    district = data.get("district", "Umingan II")
+    division = data.get("division", "SDO Pangasinan II")
+    region = data.get("region", "Region I • Ilocos Region")
+    school_address = data.get("school_address", "")
+    principal_name = data.get("principal_name", "")
+    contact_phone = data.get("contact_phone", "")
+    contact_email = data.get("contact_email", "")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    geofence_radius = data.get("geofence_radius")
+
+    ok, msg = create_school_orm(
+        school_id=school_id,
+        school_name=school_name,
+        school_short_name=school_short_name,
+        district=district,
+        division=division,
+        region=region,
+        school_address=school_address,
+        principal_name=principal_name,
+        contact_phone=contact_phone,
+        contact_email=contact_email,
+        latitude=float(latitude) if latitude else 15.9295,
+        longitude=float(longitude) if longitude else 120.8613,
+        geofence_radius=float(geofence_radius) if geofence_radius else 2500.0
+    )
+    if not ok:
+        return jsonify({"status": "error", "message": msg}), 400
+    return jsonify({"status": "success", "message": "School onboarded successfully!", "school": msg})
+
+@app.route('/api/schools/<int:school_id>', methods=['GET'])
+def api_get_school(school_id):
+    """Returns single school tenant metadata."""
+    sch = get_school_by_id_orm(school_id)
+    if not sch:
+        return jsonify({"status": "error", "message": "School not found"}), 404
+    return jsonify({"status": "success", "school": sch})
+
+@app.route('/api/schools/<int:school_id>/update', methods=['POST'])
+@role_required("SUPER_ADMIN", "DIVISION_ADMIN", "PRINCIPAL")
+def api_update_school(school_id):
+    """Updates school tenant configuration, geofence boundary, or principal details."""
+    if session.get("role") == "PRINCIPAL" and session.get("school_id") != school_id:
+        return jsonify({"status": "error", "message": "Unauthorized to modify another school."}), 403
+
+    data = request.get_json(silent=True) or request.form.to_dict()
+    ok, msg = update_school_orm(school_id, **data)
+    if not ok:
+        return jsonify({"status": "error", "message": msg}), 400
+    return jsonify({"status": "success", "message": "School settings saved successfully!", "school": msg})
 
 # -------------------------------------------------------------
 # Staff Profile & Class Advisory Section Management
@@ -853,8 +1003,9 @@ def kiosk():
 def enroll_page():
     """Interactive Student Registration Form with Live Webcam Capture & Real Database Sections."""
     from smile_orm import get_all_sections_orm, get_all_users_orm
-    sections = get_all_sections_orm()
-    all_users = get_all_users_orm()
+    sid = get_current_school_id()
+    sections = get_all_sections_orm(school_id=sid)
+    all_users = get_all_users_orm(school_id=sid)
     real_teachers = [u for u in all_users if u.get('role') == 'TEACHER' and u.get('is_active', True)]
     
     assigned_section_id = session.get('assigned_section_id')
@@ -865,9 +1016,10 @@ def enroll_page():
                 assigned_section = s
                 break
 
+    sch = get_current_school()
     return render_template(
         'enroll.html',
-        school_name=SCHOOL_NAME,
+        school_name=sch.get('school_name', SCHOOL_NAME),
         grade_levels=smile_config.GRADE_LEVELS,
         curriculum_strands=smile_config.CURRICULUM_STRANDS,
         sections=sections,
@@ -881,8 +1033,10 @@ def enroll_page():
 def students_directory():
     """Directory of enrolled students with photos and parent contacts - High Performance."""
     from smile_orm import get_students_directory_orm
-    students = get_students_directory_orm()
-    return render_template('students.html', school_name=SCHOOL_NAME, students=students)
+    sid = get_current_school_id()
+    students = get_students_directory_orm(school_id=sid)
+    sch = get_current_school()
+    return render_template('students.html', school_name=sch.get('school_name', SCHOOL_NAME), students=students)
 
 @app.route('/sms')
 @admin_required
@@ -1047,18 +1201,25 @@ def parent_portal(lrn=None):
 @admin_required
 def database_explorer():
     """Enterprise Database Management and SQL Explorer (Super Admin Only)."""
-    from smile_orm import Session, Student, AttendanceLog, SmsLog, get_database_stats_orm, get_all_sections_orm, get_all_users_orm
+    from smile_orm import Session, Student, AttendanceLog, SmsLog, get_database_stats_orm, get_all_sections_orm, get_all_users_orm, get_all_schools_orm, get_school_by_id_orm
+    sid = get_current_school_id()
+    active_sch = get_school_by_id_orm(sid) or {}
+    all_schs = get_all_schools_orm()
     orm_session = Session()
     try:
         db_stats = get_database_stats_orm()
-        students = [s.to_dict() for s in orm_session.query(Student).all()]
-        sections = get_all_sections_orm()
-        attendance_logs = [a.to_dict() for a in orm_session.query(AttendanceLog).order_by(AttendanceLog.id.desc()).limit(100).all()]
-        all_users = get_all_users_orm()
+        # Filter records for active school tenant
+        students = [s.to_dict() for s in orm_session.query(Student).filter_by(school_id=sid).all()]
+        sections = get_all_sections_orm(school_id=sid)
+        attendance_logs = [a.to_dict() for a in orm_session.query(AttendanceLog).filter_by(school_id=sid).order_by(AttendanceLog.id.desc()).limit(100).all()]
+        all_users = get_all_users_orm(school_id=sid)
         real_teachers = [u for u in all_users if u.get('role') == 'TEACHER' and u.get('is_active', True)]
         return render_template(
             'database_admin.html',
-            school_name=SCHOOL_NAME,
+            school_name=active_sch.get('school_name', SCHOOL_NAME),
+            active_school=active_sch,
+            active_school_id=sid,
+            schools=all_schs,
             db_stats=db_stats,
             students=students,
             sections=sections,
@@ -1120,35 +1281,38 @@ def api_db_enable_rls():
 
 @app.route('/api/sections', methods=['GET'])
 def api_get_sections():
-    """Returns real sections from database with optional grade_level filter."""
+    """Returns real sections from database with optional grade_level filter scoped to tenant."""
     grade = request.args.get('grade_level', '').strip()
+    sid = get_current_school_id()
     from smile_orm import get_all_sections_orm, get_sections_by_grade_orm
     try:
         if grade:
-            secs = get_sections_by_grade_orm(grade)
+            secs = get_sections_by_grade_orm(grade, school_id=sid)
         else:
-            secs = get_all_sections_orm()
-        return jsonify({"success": True, "sections": secs, "total": len(secs)})
+            secs = get_all_sections_orm(school_id=sid)
+        return jsonify({"success": True, "school_id": sid, "sections": secs, "total": len(secs)})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/sections', methods=['POST'])
 def api_create_section():
-    """Creates or updates a class section in the real database."""
+    """Creates or updates a class section in the real database scoped to tenant."""
     data = request.json or request.form or {}
     grade_level = data.get('grade_level', '').strip()
     section_name = data.get('section_name', '').strip()
     adviser_teacher = data.get('adviser_teacher', '').strip()
     room_number = data.get('room_number', '').strip()
+    sid = int(data.get('school_id') or get_current_school_id())
 
     if not grade_level or not section_name:
         return jsonify({"success": False, "message": "Grade Level and Section Name are required."}), 400
 
     from smile_orm import save_section_orm
     try:
-        sec = save_section_orm(grade_level, section_name, adviser_teacher, room_number)
+        sec = save_section_orm(grade_level, section_name, adviser_teacher=adviser_teacher, room_number=room_number, school_id=sid)
         return jsonify({
             "success": True, 
+            "school_id": sid,
             "section": sec, 
             "message": f"Section {grade_level} - {section_name} saved successfully!"
         })
@@ -1200,13 +1364,15 @@ def api_delete_section(section_id):
 @app.route('/api/sections/clean-sync', methods=['POST'])
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER')
 def api_clean_sync_sections():
-    """Admin endpoint to clean demo advisers and re-sync real teachers to sections."""
+    """Admin endpoint to clean demo advisers and re-sync real teachers to sections for current school."""
     from smile_orm import clean_and_sync_sections_orm, get_all_sections_orm
+    sid = get_current_school_id()
     try:
-        clean_and_sync_sections_orm()
-        secs = get_all_sections_orm()
+        clean_and_sync_sections_orm(school_id=sid)
+        secs = get_all_sections_orm(school_id=sid)
         return jsonify({
             "success": True, 
+            "school_id": sid,
             "message": "Sections cleaned of demo names, deduplicated, and synchronized with real registered teachers.",
             "total_sections": len(secs),
             "sections": secs
