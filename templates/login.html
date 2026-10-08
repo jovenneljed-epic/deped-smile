@@ -205,6 +205,34 @@
     <form method="POST" action="/login" class="space-y-4" id="loginForm" onsubmit="handleFormSubmit()">
       <input type="hidden" name="next" value="{{ next_url or '' }}">
 
+      <!-- Multi-Tenant School Selector -->
+      {% if all_schools and all_schools|length > 0 %}
+      <div>
+        <label for="selectSchool" class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider text-amber-300 mb-1.5">
+          <span class="flex items-center gap-1.5">
+            <i class="fa-solid fa-school-flag text-amber-400"></i> DepEd Campus / School Tenant
+          </span>
+          <span class="text-[9px] text-cyan-400 font-bold bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-800">30+ SCHOOLS SUPPORTED</span>
+        </label>
+        <div class="relative group">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-amber-400/80 text-sm pointer-events-none">
+            <i class="fa-solid fa-building-columns"></i>
+          </span>
+          <select name="school_id" id="selectSchool"
+                  class="w-full pl-10 pr-8 py-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-amber-100 font-semibold focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition shadow-inner appearance-none cursor-pointer">
+            {% for s in all_schools %}
+            <option value="{{ s.id }}">
+              🏫 {{ s.school_name }} (DepEd ID: {{ s.school_id }})
+            </option>
+            {% endfor %}
+          </select>
+          <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-amber-400/60 pointer-events-none text-xs">
+            <i class="fa-solid fa-chevron-down"></i>
+          </span>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Username Field -->
       <div>
         <label for="inputUsername" class="flex items-center justify-between text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-300 mb-1.5">

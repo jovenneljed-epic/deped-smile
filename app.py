@@ -313,13 +313,15 @@ def inject_user_context():
 def login_page():
     """Staff & Administrator Authentication Portal."""
     next_url = request.args.get('next', '')
+    all_schs = get_all_schools_orm()
     if request.method == 'GET':
         if 'user_id' in session:
             return redirect(url_for('dashboard'))
-        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, next_url=next_url)
+        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, next_url=next_url, all_schools=all_schs)
 
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
+    selected_school_id = request.form.get('school_id', type=int)
     
     try:
         user, msg = authenticate_user_orm(username, password)
@@ -330,14 +332,15 @@ def login_page():
         msg = f"System Error: {str(auth_err)}"
 
     if not user:
-        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, error=msg, next_url=next_url)
+        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, error=msg, next_url=next_url, all_schools=all_schs)
 
     session['user_id'] = user['id']
     session['username'] = user['username']
     session['full_name'] = user['full_name']
     session['role'] = user['role']
-    session['school_id'] = user.get('school_id', 1)
-    session['active_school_id'] = user.get('school_id', 1)
+    user_sid = user.get('school_id') or selected_school_id or 1
+    session['school_id'] = user_sid
+    session['active_school_id'] = selected_school_id or user_sid
     session['assigned_section_id'] = user.get('assigned_section_id')
     session['assigned_section_name'] = user.get('assigned_section_name')
     session['designation'] = user.get('designation', '')

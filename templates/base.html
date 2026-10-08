@@ -227,7 +227,7 @@
           <div class="h-4 w-px bg-white/20 mx-0.5"></div>
 
           <!-- Super Admin Multi-School Quick Switcher -->
-          {% if current_user and (current_user.is_admin or current_user.role == 'DIVISION_ADMIN') and all_schools and all_schools|length > 1 %}
+          {% if current_user and (current_user.is_admin or current_user.role in ['SUPER_ADMIN', 'DIVISION_ADMIN']) and all_schools and all_schools|length > 0 %}
           <div class="relative shrink-0">
             <select onchange="window.location.href='/admin/switch-school/' + this.value" class="bg-blue-950/90 hover:bg-blue-900 text-amber-300 font-bold text-[11px] rounded-lg px-2.5 py-1.5 border border-amber-400/40 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer shadow-sm">
               {% for sch in all_schools %}

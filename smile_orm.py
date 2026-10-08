@@ -1314,33 +1314,113 @@ def auto_migrate_columns_orm():
     except Exception:
         pass
 
-    # 2. Seed School #1 (Don Montano Central Integrated School) if not present
+    # 2. Seed Initial Schools if not present
+    SAMPLE_DEPED_SCHOOLS = [
+        {
+            "id": 1,
+            "school_id": "152008",
+            "school_name": "Don Montano Central Integrated School",
+            "school_short_name": "DMCIS",
+            "subdomain": "donmontano",
+            "district": "Umingan II",
+            "division": "SDO Pangasinan II",
+            "region": "Region I • Ilocos Region",
+            "school_address": "Don Montano, Umingan, Pangasinan",
+            "principal_name": "Dr. Maria Clara Santos, CESO V",
+            "contact_phone": "09170000002",
+            "contact_email": "principal@donmontano.edu.ph",
+            "latitude": 15.9295,
+            "longitude": 120.8613,
+            "geofence_radius": 2500.0
+        },
+        {
+            "id": 2,
+            "school_id": "152009",
+            "school_name": "Umingan Central National High School",
+            "school_short_name": "UCNHS",
+            "subdomain": "umingancentral",
+            "district": "Umingan I",
+            "division": "SDO Pangasinan II",
+            "region": "Region I • Ilocos Region",
+            "school_address": "Poblacion West, Umingan, Pangasinan",
+            "principal_name": "Dr. Juan Dela Cruz, EdD",
+            "contact_phone": "09181112233",
+            "contact_email": "principal@ucnhs.deped.gov.ph",
+            "latitude": 15.9350,
+            "longitude": 120.8450,
+            "geofence_radius": 1500.0
+        },
+        {
+            "id": 3,
+            "school_id": "300452",
+            "school_name": "Flores National High School",
+            "school_short_name": "FNHS",
+            "subdomain": "floresnhs",
+            "district": "San Manuel",
+            "division": "SDO Pangasinan II",
+            "region": "Region I • Ilocos Region",
+            "school_address": "Flores, San Manuel, Pangasinan",
+            "principal_name": "Mam Marites Gonzales, PhD",
+            "contact_phone": "09192223344",
+            "contact_email": "principal@flores.deped.gov.ph",
+            "latitude": 16.0645,
+            "longitude": 120.6720,
+            "geofence_radius": 2000.0
+        },
+        {
+            "id": 4,
+            "school_id": "300453",
+            "school_name": "San Leon National High School",
+            "school_short_name": "SLNHS",
+            "subdomain": "sanleonnhs",
+            "district": "Umingan II",
+            "division": "SDO Pangasinan II",
+            "region": "Region I • Ilocos Region",
+            "school_address": "San Leon, Umingan, Pangasinan",
+            "principal_name": "Sir Robert Aquino, MAEd",
+            "contact_phone": "09173334455",
+            "contact_email": "principal@sanleon.deped.gov.ph",
+            "latitude": 15.9120,
+            "longitude": 120.8120,
+            "geofence_radius": 1800.0
+        }
+    ]
+
     try:
         with get_db_session() as s:
-            dmcis = s.query(School).filter_by(id=1).first()
-            if not dmcis:
-                dmcis_by_code = s.query(School).filter_by(school_id="152008").first()
-                if not dmcis_by_code:
-                    dmcis = School(
-                        id=1,
-                        school_id="152008",
-                        school_name="Don Montano Central Integrated School",
-                        school_short_name="DMCIS",
-                        subdomain="donmontano",
-                        district="Umingan II",
-                        division="SDO Pangasinan II",
-                        region="Region I • Ilocos Region",
-                        school_address="Don Montano, Umingan, Pangasinan",
-                        principal_name="Dr. Maria Clara Santos, CESO V",
-                        contact_phone="09170000002",
-                        contact_email="principal@donmontano.edu.ph",
-                        latitude=15.9295,
-                        longitude=120.8613,
-                        geofence_radius=2500.0,
+            for sc in SAMPLE_DEPED_SCHOOLS:
+                target_sch = s.query(School).filter_by(school_id=sc["school_id"]).first()
+                if not target_sch:
+                    target_sch = School(
+                        school_id=sc["school_id"],
+                        school_name=sc["school_name"],
+                        school_short_name=sc["school_short_name"],
+                        subdomain=sc["subdomain"],
+                        district=sc["district"],
+                        division=sc["division"],
+                        region=sc["region"],
+                        school_address=sc["school_address"],
+                        principal_name=sc["principal_name"],
+                        contact_phone=sc["contact_phone"],
+                        contact_email=sc["contact_email"],
+                        latitude=sc["latitude"],
+                        longitude=sc["longitude"],
+                        geofence_radius=sc["geofence_radius"],
                         is_active=True
                     )
-                    s.add(dmcis)
-                    s.commit()
+                    s.add(target_sch)
+                    s.flush()
+                # Ensure 26 canonical K-12 sections exist for this school
+                existing_sec_count = s.query(Section).filter_by(school_id=target_sch.id).count()
+                if existing_sec_count == 0:
+                    for sec_meta in DEFAULT_SECTIONS:
+                        s.add(Section(
+                            school_id=target_sch.id,
+                            grade_level=sec_meta["grade_level"],
+                            section_name=sec_meta["section_name"],
+                            room_number=sec_meta.get("room_number", "")
+                        ))
+            s.commit()
     except Exception as _sch_err:
         pass
 
