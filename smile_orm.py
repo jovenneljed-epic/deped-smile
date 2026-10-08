@@ -1519,10 +1519,17 @@ def auto_migrate_columns_orm():
 # -------------------------------------------------------------
 
 def get_school_by_id_orm(school_id=1):
-    """Returns single school record as dict by primary key ID."""
+    """Returns single school record as dict by primary key ID with automatic cold-start resilience."""
     session = Session()
     try:
-        sch = session.query(School).filter_by(id=int(school_id)).first()
+        try:
+            sch = session.query(School).filter_by(id=int(school_id)).first()
+        except Exception:
+            auto_migrate_columns_orm()
+            sch = session.query(School).filter_by(id=int(school_id)).first()
+        if not sch and int(school_id) == 1:
+            auto_migrate_columns_orm()
+            sch = session.query(School).filter_by(id=1).first()
         return sch.to_dict() if sch else None
     except Exception:
         return None
@@ -1547,10 +1554,17 @@ def get_all_schools_orm(active_only=False):
     """
     session = Session()
     try:
-        q = session.query(School)
-        if active_only:
-            q = q.filter_by(is_active=True)
-        schools = q.order_by(School.id.asc()).all()
+        try:
+            q = session.query(School)
+            if active_only:
+                q = q.filter_by(is_active=True)
+            schools = q.order_by(School.id.asc()).all()
+        except Exception:
+            auto_migrate_columns_orm()
+            q = session.query(School)
+            if active_only:
+                q = q.filter_by(is_active=True)
+            schools = q.order_by(School.id.asc()).all()
         
         result = []
         for s in schools:
