@@ -852,8 +852,10 @@ def kiosk():
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def enroll_page():
     """Interactive Student Registration Form with Live Webcam Capture & Real Database Sections."""
-    from smile_orm import get_all_sections_orm
+    from smile_orm import get_all_sections_orm, get_all_users_orm
     sections = get_all_sections_orm()
+    all_users = get_all_users_orm()
+    real_teachers = [u for u in all_users if u.get('role') == 'TEACHER' and u.get('is_active', True)]
     
     assigned_section_id = session.get('assigned_section_id')
     assigned_section = None
@@ -869,6 +871,7 @@ def enroll_page():
         grade_levels=smile_config.GRADE_LEVELS,
         curriculum_strands=smile_config.CURRICULUM_STRANDS,
         sections=sections,
+        teachers=real_teachers,
         assigned_section=assigned_section
     )
 
@@ -1044,19 +1047,22 @@ def parent_portal(lrn=None):
 @admin_required
 def database_explorer():
     """Enterprise Database Management and SQL Explorer (Super Admin Only)."""
-    from smile_orm import Session, Section, Student, AttendanceLog, SmsLog, get_database_stats_orm
+    from smile_orm import Session, Student, AttendanceLog, SmsLog, get_database_stats_orm, get_all_sections_orm, get_all_users_orm
     orm_session = Session()
     try:
         db_stats = get_database_stats_orm()
         students = [s.to_dict() for s in orm_session.query(Student).all()]
-        sections = [sec.to_dict() for sec in orm_session.query(Section).order_by(Section.id.asc()).all()]
+        sections = get_all_sections_orm()
         attendance_logs = [a.to_dict() for a in orm_session.query(AttendanceLog).order_by(AttendanceLog.id.desc()).limit(100).all()]
+        all_users = get_all_users_orm()
+        real_teachers = [u for u in all_users if u.get('role') == 'TEACHER' and u.get('is_active', True)]
         return render_template(
             'database_admin.html',
             school_name=SCHOOL_NAME,
             db_stats=db_stats,
             students=students,
             sections=sections,
+            teachers=real_teachers,
             attendance_logs=attendance_logs
         )
     finally:
@@ -1190,6 +1196,24 @@ def api_delete_section(section_id):
         return jsonify({"success": success, "message": msg}), status_code
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/sections/clean-sync', methods=['POST'])
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER')
+def api_clean_sync_sections():
+    """Admin endpoint to clean demo advisers and re-sync real teachers to sections."""
+    from smile_orm import clean_and_sync_sections_orm, get_all_sections_orm
+    try:
+        clean_and_sync_sections_orm()
+        secs = get_all_sections_orm()
+        return jsonify({
+            "success": True, 
+            "message": "Sections cleaned of demo names, deduplicated, and synchronized with real registered teachers.",
+            "total_sections": len(secs),
+            "sections": secs
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 
 

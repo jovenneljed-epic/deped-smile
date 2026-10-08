@@ -176,10 +176,14 @@
             <option value="Grade 11">Grade 11</option>
             <option value="Grade 12">Grade 12</option>
           </select>
+        <div class="flex items-center space-x-2">
+          <button onclick="cleanSyncSections()" id="btnCleanSyncSec" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
+            <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Clean & Sync Advisers
+          </button>
+          <button onclick="openAddSectionModal()" class="px-3 py-1.5 bg-deped-blue hover:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
+            <i class="fa-solid fa-plus mr-1.5"></i> Add New Section
+          </button>
         </div>
-        <button onclick="openAddSectionModal()" class="px-3 py-1.5 bg-deped-blue hover:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center">
-          <i class="fa-solid fa-plus mr-1.5"></i> Add New Section
-        </button>
       </div>
 
       <table class="w-full text-left text-xs border-collapse" id="sectionsTable">
@@ -424,7 +428,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Adviser Teacher</label>
-          <input type="text" name="adviser_teacher" id="modalAdviserTeacher" placeholder="e.g. Mrs. Elena Santos"
+          <input type="text" name="adviser_teacher" id="modalAdviserTeacher" list="adminRealTeachersDatalist" placeholder="Select or enter registered teacher"
                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
         </div>
 
@@ -500,7 +504,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Class Adviser Teacher</label>
-          <input type="text" id="editAdviserTeacher" placeholder="e.g. Mrs. Elena Santos"
+          <input type="text" id="editAdviserTeacher" list="adminRealTeachersDatalist" placeholder="Select or enter registered teacher"
                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
         </div>
 
@@ -523,6 +527,12 @@
 
     </div>
   </div>
+
+  <datalist id="adminRealTeachersDatalist">
+    {% for t in teachers %}
+    <option value="{{ t.full_name }}">{{ t.full_name }} ({{ t.employee_number or 'Teacher' }})</option>
+    {% endfor %}
+  </datalist>
 
 </div>
 {% endblock %}
@@ -657,6 +667,31 @@
       }
     } catch(err) {
       alert('Network error: ' + err.message);
+    }
+  }
+
+  async function cleanSyncSections() {
+    const btn = document.getElementById('btnCleanSyncSec');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Cleaning...';
+    }
+    try {
+      const resp = await fetch('/api/sections/clean-sync', { method: 'POST' });
+      const data = await resp.json();
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert('Sync error: ' + (data.message || 'Unknown error'));
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrows-rotate mr-1.5"></i> Clean & Sync Advisers';
+      }
     }
   }
 

@@ -757,71 +757,71 @@ def get_db_session():
 
 DEFAULT_SECTIONS = [
     # Kindergarten
-    {"grade_level": "Kindergarten", "section_name": "Sunflower", "adviser_teacher": "Mrs. Maria Santos", "room_number": "Kinder Bldg - Room 1"},
-    {"grade_level": "Kindergarten", "section_name": "Sampaguita", "adviser_teacher": "Ms. Jocelyn Reyes", "room_number": "Kinder Bldg - Room 2"},
-    {"grade_level": "Kindergarten", "section_name": "Ilang-Ilang", "adviser_teacher": "Mrs. Liza Dizon", "room_number": "Kinder Bldg - Room 3"},
+    {"grade_level": "Kindergarten", "section_name": "Sunflower", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 1"},
+    {"grade_level": "Kindergarten", "section_name": "Sampaguita", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 2"},
+    {"grade_level": "Kindergarten", "section_name": "Ilang-Ilang", "adviser_teacher": "", "room_number": "Kinder Bldg - Room 3"},
 
     # Grade 1
-    {"grade_level": "Grade 1", "section_name": "Mabait", "adviser_teacher": "Mrs. Erlinda Flores", "room_number": "Elem Bldg 1 - Room 101"},
-    {"grade_level": "Grade 1", "section_name": "Masipag", "adviser_teacher": "Ms. Marites Garcia", "room_number": "Elem Bldg 1 - Room 102"},
-    {"grade_level": "Grade 1", "section_name": "Matulungin", "adviser_teacher": "Mrs. Rosalina Cruz", "room_number": "Elem Bldg 1 - Room 103"},
+    {"grade_level": "Grade 1", "section_name": "Mabait", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 101"},
+    {"grade_level": "Grade 1", "section_name": "Masipag", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 102"},
+    {"grade_level": "Grade 1", "section_name": "Matulungin", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 103"},
 
     # Grade 2
-    {"grade_level": "Grade 2", "section_name": "Mahinahon", "adviser_teacher": "Mr. Roberto Mendoza", "room_number": "Elem Bldg 1 - Room 201"},
-    {"grade_level": "Grade 2", "section_name": "Magalang", "adviser_teacher": "Mrs. Corazon Bautista", "room_number": "Elem Bldg 1 - Room 202"},
-    {"grade_level": "Grade 2", "section_name": "Mapagkumbaba", "adviser_teacher": "Ms. Lilibeth Ramos", "room_number": "Elem Bldg 1 - Room 203"},
+    {"grade_level": "Grade 2", "section_name": "Mahinahon", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 201"},
+    {"grade_level": "Grade 2", "section_name": "Magalang", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 202"},
+    {"grade_level": "Grade 2", "section_name": "Mapagkumbaba", "adviser_teacher": "", "room_number": "Elem Bldg 1 - Room 203"},
 
     # Grade 3
-    {"grade_level": "Grade 3", "section_name": "Maka-Diyos", "adviser_teacher": "Mrs. Teresa Villanueva", "room_number": "Elem Bldg 2 - Room 101"},
-    {"grade_level": "Grade 3", "section_name": "Makabayan", "adviser_teacher": "Mr. Danilo Castro", "room_number": "Elem Bldg 2 - Room 102"},
-    {"grade_level": "Grade 3", "section_name": "Makatao", "adviser_teacher": "Ms. Aileen Morales", "room_number": "Elem Bldg 2 - Room 103"},
+    {"grade_level": "Grade 3", "section_name": "Maka-Diyos", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 101"},
+    {"grade_level": "Grade 3", "section_name": "Makabayan", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 102"},
+    {"grade_level": "Grade 3", "section_name": "Makatao", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 103"},
 
     # Grade 4
-    {"grade_level": "Grade 4", "section_name": "Aguinaldo", "adviser_teacher": "Mr. Noel Soriano", "room_number": "Elem Bldg 2 - Room 201"},
-    {"grade_level": "Grade 4", "section_name": "Bonifacio", "adviser_teacher": "Mrs. Carmencita Navarro", "room_number": "Elem Bldg 2 - Room 202"},
-    {"grade_level": "Grade 4", "section_name": "Jacinto", "adviser_teacher": "Ms. Rowena Dela Rosa", "room_number": "Elem Bldg 2 - Room 203"},
+    {"grade_level": "Grade 4", "section_name": "Aguinaldo", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 201"},
+    {"grade_level": "Grade 4", "section_name": "Bonifacio", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 202"},
+    {"grade_level": "Grade 4", "section_name": "Jacinto", "adviser_teacher": "", "room_number": "Elem Bldg 2 - Room 203"},
 
     # Grade 5
-    {"grade_level": "Grade 5", "section_name": "Rizal", "adviser_teacher": "Mrs. Gloria Macapagal", "room_number": "Elem Bldg 3 - Room 101"},
-    {"grade_level": "Grade 5", "section_name": "Del Pilar", "adviser_teacher": "Mr. Ferdinand Marcos", "room_number": "Elem Bldg 3 - Room 102"},
-    {"grade_level": "Grade 5", "section_name": "Lopez Jaena", "adviser_teacher": "Ms. Shirley Tan", "room_number": "Elem Bldg 3 - Room 103"},
+    {"grade_level": "Grade 5", "section_name": "Rizal", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 101"},
+    {"grade_level": "Grade 5", "section_name": "Del Pilar", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 102"},
+    {"grade_level": "Grade 5", "section_name": "Lopez Jaena", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 103"},
 
     # Grade 6
-    {"grade_level": "Grade 6", "section_name": "Diamond", "adviser_teacher": "Mrs. Elena Santos", "room_number": "Elem Bldg 3 - Room 201"},
-    {"grade_level": "Grade 6", "section_name": "Pearl", "adviser_teacher": "Mr. Wilfredo Gonzales", "room_number": "Elem Bldg 3 - Room 202"},
-    {"grade_level": "Grade 6", "section_name": "Emerald", "adviser_teacher": "Ms. Catherine Pascual", "room_number": "Elem Bldg 3 - Room 203"},
+    {"grade_level": "Grade 6", "section_name": "Diamond", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 201"},
+    {"grade_level": "Grade 6", "section_name": "Pearl", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 202"},
+    {"grade_level": "Grade 6", "section_name": "Emerald", "adviser_teacher": "", "room_number": "Elem Bldg 3 - Room 203"},
 
     # Grade 7
-    {"grade_level": "Grade 7", "section_name": "Daisy", "adviser_teacher": "Mrs. Corazon Aquino", "room_number": "JHS Bldg 1 - Room 101"},
-    {"grade_level": "Grade 7", "section_name": "Camia", "adviser_teacher": "Mr. Emilio Aguinaldo", "room_number": "JHS Bldg 1 - Room 102"},
-    {"grade_level": "Grade 7", "section_name": "Sampaguita", "adviser_teacher": "Ms. Evelyn Hernandez", "room_number": "JHS Bldg 1 - Room 103"},
+    {"grade_level": "Grade 7", "section_name": "Daisy", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 101"},
+    {"grade_level": "Grade 7", "section_name": "Camia", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 102"},
+    {"grade_level": "Grade 7", "section_name": "Sampaguita", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 103"},
 
     # Grade 8
-    {"grade_level": "Grade 8", "section_name": "Narra", "adviser_teacher": "Ms. Gabriela Silang", "room_number": "JHS Bldg 1 - Room 201"},
-    {"grade_level": "Grade 8", "section_name": "Molave", "adviser_teacher": "Mr. Antonio Luna", "room_number": "JHS Bldg 1 - Room 202"},
-    {"grade_level": "Grade 8", "section_name": "Yakal", "adviser_teacher": "Mrs. Rebecca David", "room_number": "JHS Bldg 1 - Room 203"},
+    {"grade_level": "Grade 8", "section_name": "Narra", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 201"},
+    {"grade_level": "Grade 8", "section_name": "Molave", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 202"},
+    {"grade_level": "Grade 8", "section_name": "Yakal", "adviser_teacher": "", "room_number": "JHS Bldg 1 - Room 203"},
 
     # Grade 9
-    {"grade_level": "Grade 9", "section_name": "Ruby", "adviser_teacher": "Mrs. Melchora Aquino", "room_number": "JHS Bldg 2 - Room 101"},
-    {"grade_level": "Grade 9", "section_name": "Sapphire", "adviser_teacher": "Mr. Jose Burgos", "room_number": "JHS Bldg 2 - Room 102"},
-    {"grade_level": "Grade 9", "section_name": "Topaz", "adviser_teacher": "Ms. Flordeliza Diaz", "room_number": "JHS Bldg 2 - Room 103"},
+    {"grade_level": "Grade 9", "section_name": "Ruby", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 101"},
+    {"grade_level": "Grade 9", "section_name": "Sapphire", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 102"},
+    {"grade_level": "Grade 9", "section_name": "Topaz", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 103"},
 
     # Grade 10
-    {"grade_level": "Grade 10", "section_name": "Platinum", "adviser_teacher": "Dr. Jose Rizal", "room_number": "JHS Bldg 2 - Room 201"},
-    {"grade_level": "Grade 10", "section_name": "Gold", "adviser_teacher": "Mr. Apolinario Mabini", "room_number": "JHS Bldg 2 - Room 202"},
-    {"grade_level": "Grade 10", "section_name": "Silver", "adviser_teacher": "Ms. Miriam Santiago", "room_number": "JHS Bldg 2 - Room 203"},
+    {"grade_level": "Grade 10", "section_name": "Platinum", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 201"},
+    {"grade_level": "Grade 10", "section_name": "Gold", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 202"},
+    {"grade_level": "Grade 10", "section_name": "Silver", "adviser_teacher": "", "room_number": "JHS Bldg 2 - Room 203"},
 
     # Grade 11
-    {"grade_level": "Grade 11", "section_name": "STEM - Archimedes", "adviser_teacher": "Engr. Fe Del Mundo", "room_number": "SHS Bldg - Room 301"},
-    {"grade_level": "Grade 11", "section_name": "ABM - Luca Pacioli", "adviser_teacher": "Mr. Washington SyCip", "room_number": "SHS Bldg - Room 302"},
-    {"grade_level": "Grade 11", "section_name": "HUMSS - Socrates", "adviser_teacher": "Prof. Randy David", "room_number": "SHS Bldg - Room 303"},
-    {"grade_level": "Grade 11", "section_name": "TVL - Edison", "adviser_teacher": "Engr. Diosdado Banatao", "room_number": "SHS Bldg - Room 304"},
+    {"grade_level": "Grade 11", "section_name": "STEM - Archimedes", "adviser_teacher": "", "room_number": "SHS Bldg - Room 301"},
+    {"grade_level": "Grade 11", "section_name": "ABM - Luca Pacioli", "adviser_teacher": "", "room_number": "SHS Bldg - Room 302"},
+    {"grade_level": "Grade 11", "section_name": "HUMSS - Socrates", "adviser_teacher": "", "room_number": "SHS Bldg - Room 303"},
+    {"grade_level": "Grade 11", "section_name": "TVL - Edison", "adviser_teacher": "", "room_number": "SHS Bldg - Room 304"},
 
     # Grade 12
-    {"grade_level": "Grade 12", "section_name": "STEM - Einstein", "adviser_teacher": "Dr. Angel Alcala", "room_number": "SHS Bldg - Room 401"},
-    {"grade_level": "Grade 12", "section_name": "ABM - Keynes", "adviser_teacher": "Mrs. Mercedes Zobel", "room_number": "SHS Bldg - Room 402"},
-    {"grade_level": "Grade 12", "section_name": "HUMSS - Plato", "adviser_teacher": "Atty. Claro M. Recto", "room_number": "SHS Bldg - Room 403"},
-    {"grade_level": "Grade 12", "section_name": "TVL - Tesla", "adviser_teacher": "Engr. Ramon Barba", "room_number": "SHS Bldg - Room 404"}
+    {"grade_level": "Grade 12", "section_name": "STEM - Einstein", "adviser_teacher": "", "room_number": "SHS Bldg - Room 401"},
+    {"grade_level": "Grade 12", "section_name": "ABM - Keynes", "adviser_teacher": "", "room_number": "SHS Bldg - Room 402"},
+    {"grade_level": "Grade 12", "section_name": "HUMSS - Plato", "adviser_teacher": "", "room_number": "SHS Bldg - Room 403"},
+    {"grade_level": "Grade 12", "section_name": "TVL - Tesla", "adviser_teacher": "", "room_number": "SHS Bldg - Room 404"}
 ]
 
 def seed_default_sections_orm():
@@ -855,17 +855,151 @@ def seed_default_sections_orm():
     finally:
         session.close()
 
+DEMO_ADVISER_NAMES = {
+    'mrs. maria santos', 'ms. jocelyn reyes', 'mrs. liza dizon',
+    'mrs. erlinda flores', 'ms. marites garcia', 'mrs. rosalina cruz',
+    'mr. roberto mendoza', 'mrs. corazon bautista', 'ms. lilibeth ramos',
+    'mrs. teresa villanueva', 'mr. danilo castro', 'ms. aileen morales',
+    'mr. noel soriano', 'mrs. carmencita navarro', 'ms. rowena dela rosa',
+    'mrs. gloria macapagal', 'mr. ferdinand marcos', 'ms. shirley tan',
+    'mrs. elena santos', 'mr. wilfredo gonzales', 'ms. catherine pascual',
+    'mrs. corazon aquino', 'mrs. corazon c. aquino', 'mr. emilio aguinaldo',
+    'ms. evelyn hernandez', 'ms. gabriela silang', 'mr. antonio luna',
+    'mrs. rebecca david', 'mrs. melchora aquino', 'mr. jose burgos',
+    'ms. flordeliza diaz', 'dr. jose rizal', 'mr. apolinario mabini',
+    'ms. miriam santiago', 'engr. fe del mundo', 'mr. washington sycip',
+    'prof. randy david', 'engr. diosdado banatao', 'dr. angel alcala',
+    'mrs. mercedes zobel', 'atty. claro m. recto', 'engr. ramon barba'
+}
+
+def clean_and_sync_sections_orm():
+    """
+    Cleanses, deduplicates, and synchronizes the sections table with REAL registered teachers.
+    1. Removes all fake / historical hero demo adviser names.
+    2. Merges and deduplicates sections having duplicate (grade_level, section_name).
+    3. Links sections with real teachers from the users table.
+    """
+    session = Session()
+    try:
+        # 1. Fetch all real registered teachers
+        real_teachers = session.query(User).filter(
+            func.upper(User.role) == 'TEACHER',
+            User.is_active == True
+        ).all()
+        real_teacher_names_lower = {t.full_name.strip().lower(): t for t in real_teachers if t.full_name}
+
+        # 2. Fetch all sections
+        all_secs = session.query(Section).order_by(Section.id.asc()).all()
+        
+        # Group by (grade_level, section_name) normalized
+        grouped = {}
+        for sec in all_secs:
+            gl = (sec.grade_level or '').strip()
+            sn = (sec.section_name or '').strip()
+            if not gl or not sn:
+                continue
+            key = (gl.lower(), sn.lower())
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(sec)
+
+        # 3. Deduplicate
+        for key, sec_list in grouped.items():
+            if len(sec_list) > 1:
+                # Find keeper: prefer one that has a real registered teacher, or has students, or lowest id
+                keeper = None
+                for s in sec_list:
+                    if any(t.assigned_section_id == s.id for t in real_teachers):
+                        keeper = s
+                        break
+                if not keeper:
+                    for s in sec_list:
+                        if session.query(Student).filter_by(section_id=s.id).count() > 0:
+                            keeper = s
+                            break
+                if not keeper:
+                    keeper = sec_list[0]
+
+                # Move foreign keys and delete duplicates
+                for dup in sec_list:
+                    if dup.id != keeper.id:
+                        session.query(Student).filter_by(section_id=dup.id).update({"section_id": keeper.id})
+                        session.query(User).filter_by(assigned_section_id=dup.id).update({"assigned_section_id": keeper.id})
+                        session.delete(dup)
+
+        session.commit()
+
+        # 4. Clean fake demo adviser names and sync with real teachers
+        all_cleaned_secs = session.query(Section).all()
+        for sec in all_cleaned_secs:
+            adv_clean = (sec.adviser_teacher or "").strip().lower()
+            if adv_clean in DEMO_ADVISER_NAMES or adv_clean not in real_teacher_names_lower:
+                sec.adviser_teacher = ""
+
+        # Now link with real registered teachers
+        for t in real_teachers:
+            if t.assigned_section_id:
+                target_sec = session.query(Section).filter_by(id=t.assigned_section_id).first()
+                if target_sec:
+                    target_sec.adviser_teacher = t.full_name
+
+        session.commit()
+        global _SECTIONS_CACHE
+        _SECTIONS_CACHE["data"] = None
+        _SECTIONS_CACHE["ts"] = 0
+    except Exception as e:
+        session.rollback()
+        print(f"[!] clean_and_sync_sections_orm note: {e}")
+    finally:
+        session.close()
+
 def get_all_sections_orm():
-    """Returns all real sections from the database with in-memory TTL caching."""
+    """Returns all real sections from the database with in-memory TTL caching and real teacher sync."""
     global _SECTIONS_CACHE
     now = time.time()
-    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 120:
+    if _SECTIONS_CACHE["data"] is not None and (now - _SECTIONS_CACHE["ts"]) < 60:
         return _SECTIONS_CACHE["data"]
 
     session = Session()
     try:
-        sections = session.query(Section).order_by(Section.id.asc()).all()
-        res = [sec.to_dict() for sec in sections]
+        # Fetch real registered teachers
+        real_teachers = session.query(User).filter(
+            func.upper(User.role) == 'TEACHER',
+            User.is_active == True
+        ).all()
+        teacher_map = {}
+        for t in real_teachers:
+            if t.assigned_section_id:
+                teacher_map[t.assigned_section_id] = t.full_name
+
+        sections = session.query(Section).order_by(Section.grade_level.asc(), Section.section_name.asc()).all()
+        
+        seen = set()
+        res = []
+        for sec in sections:
+            gl = (sec.grade_level or '').strip()
+            sn = (sec.section_name or '').strip()
+            key = (gl.lower(), sn.lower())
+            if key in seen or not gl or not sn:
+                continue
+            seen.add(key)
+
+            # Determine real adviser
+            real_adv = teacher_map.get(sec.id) or sec.adviser_teacher or ""
+            if real_adv.strip().lower() in DEMO_ADVISER_NAMES:
+                real_adv = ""
+
+            sec_dict = {
+                "id": sec.id,
+                "grade_level": gl,
+                "section_name": sn,
+                "adviser_teacher": real_adv,
+                "has_real_adviser": bool(real_adv),
+                "room_number": sec.room_number or "",
+                "full_section": f"{gl} - {sn}"
+            }
+            res.append(sec_dict)
+
         _SECTIONS_CACHE["data"] = res
         _SECTIONS_CACHE["ts"] = now
         return res
@@ -873,22 +1007,10 @@ def get_all_sections_orm():
         session.close()
 
 def get_sections_by_grade_orm(grade_level):
-    """Returns sections filtered by grade level without fuzzy overlap between Grade 1 and Grade 10-12."""
-    session = Session()
-    try:
-        gl_clean = str(grade_level).strip()
-        possible_keys = [gl_clean]
-        if gl_clean.isdigit():
-            possible_keys.append(f"Grade {gl_clean}")
-        if gl_clean.lower() in ["kinder", "kindergarten"]:
-            possible_keys.extend(["Kinder", "Kindergarten"])
-        
-        sections = session.query(Section).filter(
-            func.lower(Section.grade_level).in_([k.lower() for k in possible_keys])
-        ).order_by(Section.section_name.asc()).all()
-        return [sec.to_dict() for sec in sections]
-    finally:
-        session.close()
+    """Returns deduplicated real sections filtered by grade level with real teacher advisers."""
+    all_secs = get_all_sections_orm()
+    gl_clean = str(grade_level).strip().lower()
+    return [s for s in all_secs if s["grade_level"].strip().lower() == gl_clean]
 
 def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=""):
     """Inserts or updates a class section in the database."""
@@ -898,14 +1020,32 @@ def save_section_orm(grade_level, section_name, adviser_teacher="", room_number=
     try:
         gl = str(grade_level).strip()
         sn = str(section_name).strip()
-        sec = session.query(Section).filter_by(grade_level=gl, section_name=sn).first()
+        sec = session.query(Section).filter(
+            func.lower(Section.grade_level) == gl.lower(),
+            func.lower(Section.section_name) == sn.lower()
+        ).first()
         if not sec:
             sec = Section(grade_level=gl, section_name=sn)
             session.add(sec)
-        if adviser_teacher:
-            sec.adviser_teacher = str(adviser_teacher).strip()
-        if room_number:
+        
+        adv_clean = str(adviser_teacher).strip() if adviser_teacher else ""
+        if adv_clean.lower() in DEMO_ADVISER_NAMES:
+            adv_clean = ""
+        sec.adviser_teacher = adv_clean
+
+        if room_number is not None:
             sec.room_number = str(room_number).strip()
+        session.flush()
+
+        # Link real teacher if adviser_teacher matches a registered teacher
+        if adv_clean:
+            teacher_user = session.query(User).filter(
+                func.upper(User.role) == 'TEACHER',
+                func.lower(User.full_name) == adv_clean.lower()
+            ).first()
+            if teacher_user:
+                teacher_user.assigned_section_id = sec.id
+
         session.commit()
         return sec.to_dict()
     except Exception:
@@ -956,7 +1096,19 @@ def update_section_orm(section_id, grade_level=None, section_name=None, adviser_
         if section_name is not None:
             sec.section_name = str(section_name).strip()
         if adviser_teacher is not None:
-            sec.adviser_teacher = str(adviser_teacher).strip()
+            adv_clean = str(adviser_teacher).strip()
+            if adv_clean.lower() in DEMO_ADVISER_NAMES:
+                adv_clean = ""
+            sec.adviser_teacher = adv_clean
+            if adv_clean:
+                teacher_user = session.query(User).filter(
+                    func.upper(User.role) == 'TEACHER',
+                    func.lower(User.full_name) == adv_clean.lower()
+                ).first()
+                if teacher_user:
+                    teacher_user.assigned_section_id = sec.id
+            else:
+                session.query(User).filter_by(assigned_section_id=sec.id).update({"assigned_section_id": None})
         if room_number is not None:
             sec.room_number = str(room_number).strip()
 
@@ -1548,6 +1700,11 @@ def init_orm_db(force=False):
                     ensure_postgresql_rls_orm()
                 except Exception:
                     pass
+
+            try:
+                clean_and_sync_sections_orm()
+            except Exception as _cs_err:
+                print(f"[!] clean_and_sync_sections_orm note: {_cs_err}")
 
             _db_initialized = True
             return
@@ -4284,9 +4441,9 @@ def seed_default_users_orm():
             },
             {
                 "username": "teacher",
-                "email": "teacher.flores@donmontano.edu.ph",
+                "email": "teacher.aviguela@donmontano.edu.ph",
                 "password": "teacher123",
-                "full_name": "Mrs. Erlinda Flores (Grade 1 Adviser)",
+                "full_name": "Mam Jovelyn D. Aviguela",
                 "role": "TEACHER",
                 "employee_number": "TCH-1001",
                 "phone_number": "09170000003",

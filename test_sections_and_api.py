@@ -345,6 +345,52 @@ class TestProgressiveAutomationsAndPush(unittest.TestCase):
         self.assertFalse(poll_data2.get("has_new_notification"))
 
 
+    def test_real_teachers_and_sections_dedup(self):
+        """Verifies that sections contain no demo names and are deduplicated."""
+        from smile_orm import get_all_sections_orm, DEMO_ADVISER_NAMES, clean_and_sync_sections_orm
+        clean_and_sync_sections_orm()
+        sections = get_all_sections_orm()
+        
+        # Verify no demo names in adviser_teacher
+        for sec in sections:
+            adv = sec.get("adviser_teacher", "").strip().lower()
+            if adv:
+                self.assertNotIn(adv, DEMO_ADVISER_NAMES, f"Found demo adviser name: {adv} in section {sec}")
+
+        # Verify no duplicate (grade_level, section_name) pairs
+        seen_keys = set()
+        for sec in sections:
+            key = (sec["grade_level"].lower(), sec["section_name"].lower())
+            self.assertNotIn(key, seen_keys, f"Found duplicate section: {key}")
+            seen_keys.add(key)
+
+        # Verify enroll page does not contain demo adviser names
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+
+        enroll_res = self.client.get('/enroll')
+        self.assertEqual(enroll_res.status_code, 200)
+        self.assertNotIn(b"Mrs. Erlinda Flores", enroll_res.data)
+        self.assertNotIn(b"Mrs. Elena Santos", enroll_res.data)
+        self.assertNotIn(b"Ms. Marites Garcia", enroll_res.data)
+        self.assertIn(b"realTeachersDatalist", enroll_res.data)
+
+    def test_clean_sync_endpoint(self):
+        """Tests the POST /api/sections/clean-sync endpoint."""
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "SUPER_ADMIN"
+
+        res = self.client.post('/api/sections/clean-sync')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("total_sections", data)
+        self.assertGreaterEqual(data["total_sections"], 25)
+
 if __name__ == '__main__':
     unittest.main()
 

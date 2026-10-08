@@ -189,8 +189,14 @@
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Class Adviser Teacher * <span class="text-[10px] text-emerald-600 font-semibold" id="adviserDbTag">(Real DB Synced)</span>
                 </label>
-                <input type="text" name="class_adviser" id="inputClassAdviser" required placeholder="e.g. Mrs. Elena Santos"
+                <input type="text" name="class_adviser" id="inputClassAdviser" required placeholder="Select section or choose registered teacher"
+                       list="realTeachersDatalist"
                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+                <datalist id="realTeachersDatalist">
+                  {% for t in teachers %}
+                  <option value="{{ t.full_name }}">{{ t.full_name }} ({{ t.employee_number or 'Teacher' }})</option>
+                  {% endfor %}
+                </datalist>
               </div>
             </div>
 
@@ -508,8 +514,18 @@
       return;
     }
 
-    // Filter matching sections from real database
-    const matching = allDbSections.filter(s => s.grade_level.toLowerCase() === grade.toLowerCase());
+    // Filter matching sections from real database and deduplicate
+    const rawMatching = allDbSections.filter(s => (s.grade_level || '').toLowerCase() === grade.toLowerCase());
+    const seenSecNames = new Set();
+    const matching = [];
+    rawMatching.forEach(s => {
+      const normName = (s.section_name || '').trim().toLowerCase();
+      if (!normName) return;
+      if (!seenSecNames.has(normName)) {
+        seenSecNames.add(normName);
+        matching.push(s);
+      }
+    });
 
     secSelect.innerHTML = '';
     
@@ -522,7 +538,8 @@
       matching.forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.section_name;
-        opt.textContent = `${s.section_name} (Adviser: ${s.adviser_teacher || 'TBA'})`;
+        const adviserLabel = s.adviser_teacher ? `(Adviser: ${s.adviser_teacher})` : '(No Adviser Assigned)';
+        opt.textContent = `${s.section_name} ${adviserLabel}`;
         opt.dataset.adviser = s.adviser_teacher || '';
         opt.dataset.room = s.room_number || '';
         secSelect.appendChild(opt);
@@ -550,9 +567,7 @@
     const adviser = selectedOption?.dataset?.adviser || '';
     
     const adviserInput = document.getElementById('inputClassAdviser');
-    if (adviser) {
-      adviserInput.value = adviser;
-    }
+    adviserInput.value = adviser;
 
     updateGradeSectionCombined();
   }
