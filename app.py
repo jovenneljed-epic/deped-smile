@@ -614,10 +614,45 @@ def admin_save_school_settings():
             except (ValueError, TypeError): pass
 
         smile_config.save_school_settings(payload)
-        from smile_orm import recalibrate_staff_attendance_geotags_orm
+        from smile_orm import recalibrate_staff_attendance_geotags_orm, update_school_orm
+        active_sid = get_current_school_id()
+        update_school_orm(
+            active_sid,
+            school_name=school_name,
+            school_address=school_address,
+            division=school_division,
+            region=deped_region,
+            latitude=payload.get("school_latitude"),
+            longitude=payload.get("school_longitude"),
+            geofence_radius=payload.get("geofence_radius"),
+            camera_source=payload.get("camera_source")
+        )
         recalibrate_staff_attendance_geotags_orm()
 
     return redirect(url_for('admin_settings', msg="School profile, Public Domain settings updated successfully, campus GPS coordinates, geofence perimeter, and CCTV settings."))
+
+@app.route('/admin/schools', methods=['GET'])
+@admin_required
+def admin_schools():
+    """Super Admin: Enterprise Schools & Campuses Multi-Tenant Management Portal."""
+    schools = get_all_schools_orm()
+    active_school_id = get_current_school_id()
+    active_school = get_school_by_id_orm(active_school_id) or (schools[0] if schools else None)
+    total_students_all = sum(s.get('total_students', 0) for s in schools)
+    total_sections_all = sum(s.get('total_sections', 0) for s in schools)
+    total_teachers_all = sum(s.get('total_teachers', 0) for s in schools)
+    total_staff_all = sum(s.get('total_staff', 0) for s in schools)
+    return render_template(
+        'admin_schools.html',
+        school_name=smile_config.SCHOOL_NAME,
+        schools=schools,
+        active_school=active_school,
+        active_school_id=active_school_id,
+        total_students_all=total_students_all,
+        total_sections_all=total_sections_all,
+        total_teachers_all=total_teachers_all,
+        total_staff_all=total_staff_all
+    )
 
 @app.route('/admin/events')
 @admin_required
@@ -646,13 +681,19 @@ def admin_billing():
 @admin_required
 def admin_users():
     """Super Admin: Staff User Management & Account Settings Portal."""
-    users = get_all_users_orm()
+    selected_school_id = request.args.get('school_id', type=int)
+    schools = get_all_schools_orm()
+    active_school_id = get_current_school_id()
+    users = get_all_users_orm(school_id=selected_school_id if selected_school_id else None)
     sections = get_all_sections_orm()
     return render_template(
         'admin_users.html',
         school_name=smile_config.SCHOOL_NAME,
         users=users,
-        sections=sections
+        sections=sections,
+        schools=schools,
+        active_school_id=active_school_id,
+        selected_school_id=selected_school_id
     )
 
 @app.route('/api/admin/users', methods=['POST'])
@@ -668,6 +709,11 @@ def api_admin_create_user():
     phone_number = data.get('phone_number', '').strip()
     assigned_section_id = data.get('assigned_section_id')
     employee_number = data.get('employee_number', '').strip()
+    school_id = data.get('school_id') or get_current_school_id()
+    try:
+        school_id = int(school_id)
+    except (ValueError, TypeError):
+        school_id = 1
 
     if not username or not full_name or not email or not password:
         return jsonify({"success": False, "message": "Full Name, Username, Email, and Password are required."}), 400
@@ -680,7 +726,8 @@ def api_admin_create_user():
         role=role,
         phone_number=phone_number,
         assigned_section_id=assigned_section_id,
-        employee_number=employee_number or None
+        employee_number=employee_number or None,
+        school_id=school_id
     )
     if not success:
         return jsonify({"success": False, "message": user_or_msg}), 400
@@ -744,6 +791,12 @@ def api_admin_update_user(user_id):
 
     if 'assigned_section_id' in data:
         update_fields['assigned_section_id'] = data['assigned_section_id']
+
+    if 'school_id' in data and data['school_id']:
+        try:
+            update_fields['school_id'] = int(data['school_id'])
+        except (ValueError, TypeError):
+            pass
 
     if 'is_active' in data:
         new_active = bool(data['is_active'])

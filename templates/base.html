@@ -204,6 +204,10 @@
                     {% if current_user and current_user.is_admin %}
                     <div class="my-1 border-t border-slate-800"></div>
                     <p class="text-[9px] font-black uppercase tracking-wider text-slate-400 px-3 pt-1">Super Admin</p>
+                    <a href="/admin/schools" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-indigo-500/20 hover:text-indigo-300 transition font-bold text-indigo-300 {% if request.path == '/admin/schools' %}bg-indigo-500/20{% endif %}">
+                      <i class="fa-solid fa-school-flag text-indigo-400 w-4 text-center"></i>
+                      <span>Schools &amp; Campuses</span>
+                    </a>
                     <a href="/admin/billing" class="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-amber-400/20 hover:text-amber-300 transition font-bold text-amber-400 {% if request.path == '/admin/billing' %}bg-amber-400/20{% endif %}">
                       <i class="fa-solid fa-coins text-amber-400 w-4 text-center"></i>
                       <span>Billing & Subscriptions</span>
@@ -452,6 +456,10 @@
       <div class="pt-2 border-t border-white/10 space-y-1.5">
         <p class="text-[10px] font-black uppercase tracking-wider text-rose-300 px-1">Super Admin Controls</p>
         <div class="grid grid-cols-2 gap-2 text-xs">
+          <a href="/admin/schools" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path == '/admin/schools' %}bg-indigo-600 text-white{% else %}bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-900/40{% endif %}">
+            <i class="fa-solid fa-school-flag text-sm w-4 text-center"></i>
+            <span>Schools &amp; Campuses</span>
+          </a>
           <a href="/admin/settings" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path.startswith('/admin/settings') %}bg-rose-600 text-white{% else %}bg-rose-950/40 border border-rose-500/30 text-rose-300 hover:bg-rose-900/40{% endif %}">
             <i class="fa-solid fa-sliders text-sm w-4 text-center"></i>
             <span>Settings</span>
@@ -460,9 +468,9 @@
             <i class="fa-solid fa-coins text-sm w-4 text-center"></i>
             <span>Billing</span>
           </a>
-          <a href="/admin/users" class="col-span-2 p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path == '/admin/users' %}bg-blue-600 text-white{% else %}bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/40{% endif %}">
+          <a href="/admin/users" class="p-2.5 rounded-xl flex items-center gap-2 font-bold transition {% if request.path == '/admin/users' %}bg-blue-600 text-white{% else %}bg-blue-950/40 border border-blue-500/30 text-blue-300 hover:bg-blue-900/40{% endif %}">
             <i class="fa-solid fa-users-gear text-sm w-4 text-center"></i>
-            <span>Staff Accounts Management</span>
+            <span>Staff Accounts</span>
           </a>
         </div>
       </div>

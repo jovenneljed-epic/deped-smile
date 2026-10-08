@@ -463,6 +463,9 @@
           <p class="text-xs text-slate-500">All registered tenant campuses hosted in this single Supabase PostgreSQL / SQLite database</p>
         </div>
         <div class="flex items-center space-x-2">
+          <a href="/admin/schools" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition flex items-center">
+            <i class="fa-solid fa-arrow-up-right-from-square mr-1.5 text-indigo-600"></i> Full Schools Hub
+          </a>
           <button onclick="openOnboardSchoolModal()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center">
             <i class="fa-solid fa-plus-circle mr-1.5"></i> + Onboard New School
           </button>
@@ -512,10 +515,18 @@
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">Inactive</span>
                 {% endif %}
               </td>
-              <td class="py-2.5 px-3 text-right">
-                <button onclick="switchActiveSchool({{ s.id }})" class="px-3 py-1.5 text-xs font-bold rounded-lg {% if s.id == active_school_id %}bg-emerald-100 text-emerald-800 cursor-default border border-emerald-300{% else %}bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition{% endif %}">
-                  {% if s.id == active_school_id %}<i class="fa-solid fa-check mr-1"></i> Active{% else %}Switch To School{% endif %}
-                </button>
+              <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                <div class="flex items-center justify-end gap-1.5">
+                  <a href="/admin/schools" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition inline-flex items-center gap-1">
+                    <i class="fa-solid fa-sliders text-indigo-600"></i> Configure
+                  </a>
+                  <a href="/admin/users?school_id={{ s.id }}" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition inline-flex items-center gap-1">
+                    <i class="fa-solid fa-users-gear text-blue-600"></i> Staff
+                  </a>
+                  <button onclick="switchActiveSchool({{ s.id }})" class="px-2.5 py-1 text-xs font-bold rounded-lg {% if s.id == active_school_id %}bg-emerald-100 text-emerald-800 cursor-default border border-emerald-300{% else %}bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition{% endif %}">
+                    {% if s.id == active_school_id %}<i class="fa-solid fa-check mr-1"></i> Active{% else %}Switch{% endif %}
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}

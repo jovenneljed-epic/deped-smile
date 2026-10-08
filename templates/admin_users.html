@@ -26,6 +26,9 @@
       <button onclick="openAddUserModal()" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
         <i class="fa-solid fa-user-plus"></i> Add Staff Account
       </button>
+      <a href="/admin/schools" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-school-flag"></i> Schools &amp; Campuses
+      </a>
       <a href="/admin/settings" class="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
         <i class="fa-solid fa-gear"></i> System Settings
       </a>
@@ -43,17 +46,51 @@
     </button>
   </div>
 
+  <!-- Multi-Tenant School Accounts Guidance Banner -->
+  <div class="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 text-indigo-950 text-xs flex items-start gap-3 shadow-xs">
+    <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 text-sm font-black shadow-xs">
+      <i class="fa-solid fa-school-flag"></i>
+    </div>
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-indigo-900 uppercase tracking-wide text-[11px]">Multi-Tenant School Accounts:</span>
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">Auto-Provisioned Principals</span>
+      </div>
+      <p class="text-indigo-800 leading-relaxed">
+        Each onboarded school has a dedicated principal account (format: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-bold text-indigo-900">principal_&lt;school_id&gt;</code>, default password: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-bold text-indigo-900">principal123</code>). Use the <strong>Campus filter</strong> below to view staff per school, or assign new teachers and principals to specific campuses.
+      </p>
+    </div>
+  </div>
+
   <!-- Main Management Panel -->
   <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
     
     <!-- Controls Bar: Search & Quick Role Filters -->
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
       
-      <!-- Search Input -->
-      <div class="relative w-full lg:w-72">
-        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
-        <input type="text" id="userSearchInput" oninput="filterStaffTable()" placeholder="Search staff by name, username, email..."
-               class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+      <!-- Search & Campus Filters -->
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2.5">
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-60">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+          <input type="text" id="userSearchInput" oninput="filterStaffTable()" placeholder="Search staff by name..."
+                 class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue font-medium">
+        </div>
+
+        <!-- Campus / School Dropdown Filter -->
+        <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5">
+          <label for="userSchoolFilterSelect" class="text-[10px] font-black uppercase text-indigo-700 whitespace-nowrap flex items-center gap-1">
+            <i class="fa-solid fa-school text-xs"></i> Campus:
+          </label>
+          <select id="userSchoolFilterSelect" onchange="filterStaffBySchool(this.value)" class="bg-white text-slate-800 text-xs font-bold rounded-lg px-2 py-1 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[210px]">
+            <option value="ALL">All Campuses ({{ schools|length }})</option>
+            {% for sch in schools %}
+            <option value="{{ sch.id }}" {% if selected_school_id == sch.id %}selected{% endif %}>
+              {{ sch.school_short_name or sch.school_name }} ({{ sch.school_id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
 
       <!-- Quick Filter Pills -->
@@ -90,6 +127,7 @@
         <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black border-y border-slate-200">
           <tr>
             <th class="py-3.5 px-4">Staff User / Full Name</th>
+            <th class="py-3.5 px-4">Campus / School</th>
             <th class="py-3.5 px-4">Mobile App Login Code</th>
             <th class="py-3.5 px-4">Role Access Level</th>
             <th class="py-3.5 px-4">Contact Phone</th>
@@ -103,6 +141,7 @@
           {% for u in users %}
           <tr class="user-row hover:bg-slate-50/80 transition" 
               data-user-id="{{ u.id }}"
+              data-school-id="{{ u.school_id }}"
               data-username="{{ u.username|lower }}"
               data-fullname="{{ u.full_name|lower }}"
               data-email="{{ u.email|lower }}"
@@ -126,6 +165,14 @@
                   <span class="text-[10px] text-slate-400 font-mono block">{{ u.username }} &bull; {{ u.email }}</span>
                 </div>
               </div>
+            </td>
+
+            <!-- Campus / School Column -->
+            <td class="py-3 px-4">
+              <span class="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1.5 shadow-2xs max-w-[170px] truncate" title="{{ u.school_name or 'Main Campus' }}">
+                <i class="fa-solid fa-school text-[9px] text-indigo-600 shrink-0"></i>
+                <span class="truncate">{{ u.school_name or 'Main Campus' }}</span>
+              </span>
             </td>
 
             <!-- Mobile App Login Code Column -->
@@ -197,7 +244,7 @@
               <div class="inline-flex items-center gap-1.5">
                 
                 <!-- 1. EDIT BUTTON: Available for ALL accounts including own profile -->
-                <button onclick="openEditUserModal({{ u.id }}, '{{ u.username|escape }}', '{{ u.full_name|escape }}', '{{ u.email|escape }}', '{{ u.role }}', '{{ u.phone_number or '' }}', {{ u.assigned_section_id or 'null' }}, {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.id == current_user.id else 'false' }}, '{{ u.employee_number or '' }}')"
+                <button onclick="openEditUserModal({{ u.id }}, '{{ u.username|escape }}', '{{ u.full_name|escape }}', '{{ u.email|escape }}', '{{ u.role }}', '{{ u.phone_number or '' }}', {{ u.assigned_section_id or 'null' }}, {{ 'true' if u.is_active else 'false' }}, {{ 'true' if u.id == current_user.id else 'false' }}, '{{ u.employee_number or '' }}', {{ u.school_id or 1 }})"
                         title="Edit Account Details & Password"
                         class="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-deped-blue font-bold text-xs transition border border-blue-200 flex items-center gap-1">
                   <i class="fa-solid fa-pen-to-square text-[11px]"></i>
@@ -275,6 +322,20 @@
     </div>
 
     <form id="formAddUser" onsubmit="handleAddUser(event)" class="space-y-3.5">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Campus / School Tenant *
+        </label>
+        <select id="addSchoolId" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          {% for sch in schools %}
+          <option value="{{ sch.id }}" {% if sch.id == (selected_school_id or active_school_id) %}selected{% endif %}>
+            {{ sch.school_name }} (DepEd ID: {{ sch.school_id }})
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-[10px] text-slate-400 mt-1">Assigns this account directly to this school tenant's student database and sections.</p>
+      </div>
+
       <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Full Name & Title</label>
         <input type="text" id="addFullName" required placeholder="e.g. Mr. Roberto Mendoza" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
@@ -382,6 +443,19 @@
       <input type="hidden" id="editUserId">
 
       <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+          Campus / School Tenant
+        </label>
+        <select id="editSchoolId" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          {% for sch in schools %}
+          <option value="{{ sch.id }}">
+            {{ sch.school_name }} (DepEd ID: {{ sch.school_id }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Full Name & Title</label>
         <input type="text" id="editFullName" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
       </div>
@@ -487,6 +561,12 @@
 
 <script>
   let currentActiveRoleFilter = 'ALL';
+  let currentActiveSchoolFilter = '{{ selected_school_id if selected_school_id else "ALL" }}';
+
+  function filterStaffBySchool(schId) {
+    currentActiveSchoolFilter = schId;
+    filterStaffTable();
+  }
 
   function showStatusToast(msg) {
     const toast = document.getElementById('statusToast');
@@ -573,6 +653,7 @@
       const role = row.getAttribute('data-role') || '';
       const empNo = row.getAttribute('data-empno') || '';
       const isActive = row.getAttribute('data-active') === 'true';
+      const schId = row.getAttribute('data-school-id') || '';
 
       const matchesSearch = !q || uName.includes(q) || fName.includes(q) || email.includes(q) || empNo.includes(q);
       
@@ -583,7 +664,12 @@
         matchesRole = (role === currentActiveRoleFilter);
       }
 
-      if (matchesSearch && matchesRole) {
+      let matchesSchool = true;
+      if (currentActiveSchoolFilter !== 'ALL') {
+        matchesSchool = (schId === String(currentActiveSchoolFilter));
+      }
+
+      if (matchesSearch && matchesRole && matchesSchool) {
         row.classList.remove('hidden');
         visibleCount++;
       } else {
@@ -625,6 +711,7 @@
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Creating Account...';
 
     const payload = {
+      school_id: parseInt(document.getElementById('addSchoolId').value),
       full_name: document.getElementById('addFullName').value.trim(),
       username: document.getElementById('addUsername').value.trim(),
       email: document.getElementById('addEmail').value.trim(),
@@ -660,7 +747,7 @@
   // -------------------------------------------------------------
   // Edit Staff Account Modal Handlers
   // -------------------------------------------------------------
-  function openEditUserModal(userId, username, fullName, email, role, phone, assignedSecId, isActive, isSelf, empNo) {
+  function openEditUserModal(userId, username, fullName, email, role, phone, assignedSecId, isActive, isSelf, empNo, schoolId) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editFullName').value = fullName;
     document.getElementById('editUsername').value = username;
@@ -668,6 +755,11 @@
     document.getElementById('editPhone').value = phone || '';
     document.getElementById('editEmployeeNumber').value = empNo || '';
     document.getElementById('editPassword').value = '';
+
+    const schSelect = document.getElementById('editSchoolId');
+    if (schSelect && schoolId) {
+      schSelect.value = String(schoolId);
+    }
 
     const roleSelect = document.getElementById('editRole');
     roleSelect.value = role;
@@ -724,6 +816,7 @@
     const isActiveVal = document.querySelector('input[name="editIsActive"]:checked').value === 'true';
 
     const payload = {
+      school_id: parseInt(document.getElementById('editSchoolId').value),
       full_name: document.getElementById('editFullName').value.trim(),
       username: document.getElementById('editUsername').value.trim(),
       email: document.getElementById('editEmail').value.trim(),

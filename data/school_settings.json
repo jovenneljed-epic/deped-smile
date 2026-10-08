@@ -1,14 +1,14 @@
 {
   "school_name": "Don Montano Central Integrated School",
   "school_short_name": "DMCIS",
-  "deped_region": "Region I • Ilocos Region",
-  "school_division": "SDO Pangasinan II",
-  "school_district": "Umingan II",
+  "deped_region": "Region IV-A CALABARZON",
+  "school_division": "",
   "school_id": "152008",
-  "school_address": "Brgy. Don Montano, Umingan, Pangasinan",
-  "system_domain": "https://deped-smile.vercel.app",
+  "school_address": "",
+  "system_domain": "https://smile.donmontanocis.edu.ph",
   "camera_source": "rtsp://192.168.1.165:554/live/ch0",
   "school_latitude": 15.9295,
   "school_longitude": 120.8613,
-  "geofence_radius": 2500
+  "geofence_radius": 2500,
+  "school_district": "Umingan II"
 }

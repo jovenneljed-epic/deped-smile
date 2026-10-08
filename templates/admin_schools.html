@@ -1,0 +1,761 @@
+{% extends 'base.html' %}
+
+{% block title %}Schools & Campuses Management | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white relative overflow-hidden">
+    <div class="space-y-1.5 z-10">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-sm">
+          <i class="fa-solid fa-crown mr-1"></i> Multi-Tenancy Enterprise
+        </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-200 border border-blue-400/30">
+          30+ DepEd Campuses
+        </span>
+      </div>
+      <h1 class="text-xl sm:text-2xl font-black font-heading tracking-tight text-white flex items-center">
+        <i class="fa-solid fa-school-flag text-amber-400 mr-2.5"></i>
+        Schools & Campuses Management Center
+      </h1>
+      <p class="text-xs text-blue-200 max-w-2xl leading-relaxed">
+        Onboard, configure, and maintain individual DepEd school tenants, campus GPS geofences, gate RTSP camera streams, and dedicated principal credentials all in this single unified database.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 z-10 flex-wrap">
+      <button onclick="openOnboardSchoolModal()" class="px-3.5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-plus-circle text-sm"></i> + Onboard New School
+      </button>
+      <a href="/admin/users" class="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
+        <i class="fa-solid fa-users-gear"></i> Staff Accounts
+      </a>
+      <a href="/database" class="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-white/20">
+        <i class="fa-solid fa-database"></i> Database SQL
+      </a>
+    </div>
+  </div>
+
+  <!-- Operational Notification Banner -->
+  <div id="statusToast" class="hidden p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-between shadow-sm transition">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+      <span id="statusToastMsg">School settings updated successfully.</span>
+    </div>
+    <button onclick="document.getElementById('statusToast').classList.add('hidden')" class="text-emerald-700 hover:text-emerald-900 text-xs">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <!-- Metrics Grid -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="glass-card p-4 rounded-2xl border border-slate-200 shadow-xs bg-white">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Campuses</span>
+        <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-school"></i>
+        </span>
+      </div>
+      <h3 class="text-2xl font-black text-indigo-950 mt-1">{{ schools|length }}</h3>
+      <p class="text-[11px] text-emerald-600 font-semibold mt-0.5">
+        <i class="fa-solid fa-circle-check mr-1"></i> Multi-Tenant Ready
+      </p>
+    </div>
+
+    <div class="glass-card p-4 rounded-2xl border border-slate-200 shadow-xs bg-white">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Enrolled Learners</span>
+        <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-user-graduate"></i>
+        </span>
+      </div>
+      <h3 class="text-2xl font-black text-blue-950 mt-1">{{ total_students_all }}</h3>
+      <p class="text-[11px] text-slate-500 mt-0.5">Across all registered schools</p>
+    </div>
+
+    <div class="glass-card p-4 rounded-2xl border border-slate-200 shadow-xs bg-white">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Class Sections</span>
+        <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-chalkboard-user"></i>
+        </span>
+      </div>
+      <h3 class="text-2xl font-black text-amber-900 mt-1">{{ total_sections_all }}</h3>
+      <p class="text-[11px] text-slate-500 mt-0.5">Kinder to Grade 12</p>
+    </div>
+
+    <div class="glass-card p-4 rounded-2xl border border-slate-200 shadow-xs bg-white">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Faculty &amp; Staff</span>
+        <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-black">
+          <i class="fa-solid fa-id-badge"></i>
+        </span>
+      </div>
+      <h3 class="text-2xl font-black text-emerald-950 mt-1">{{ total_staff_all }}</h3>
+      <p class="text-[11px] text-slate-500 mt-0.5">Principals, Teachers, Staff</p>
+    </div>
+  </div>
+
+  <!-- Active School Tenant Context Banner -->
+  <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 border border-blue-800/60">
+    <div class="flex items-center space-x-3.5">
+      <div class="w-12 h-12 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0 shadow">
+        <i class="fa-solid fa-building-columns"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2 flex-wrap">
+          <span class="text-[10px] uppercase font-black tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full">Current Active Tenant</span>
+          <span class="text-xs text-blue-200 font-mono">DepEd School ID: {{ active_school.school_id or '152008' }}</span>
+        </div>
+        <h2 class="text-lg sm:text-xl font-black font-heading text-white mt-0.5">
+          {{ active_school.school_name or 'Don Montano Central Integrated School' }}
+        </h2>
+        <p class="text-xs text-blue-200/80">
+          {{ active_school.district or 'Umingan II' }} &middot; {{ active_school.division or 'SDO Pangasinan II' }} &middot; {{ active_school.region or 'Region I • Ilocos Region' }}
+          {% if active_school.principal_name %} &middot; <span class="text-amber-300 font-bold">Principal: {{ active_school.principal_name }}</span>{% endif %}
+        </p>
+      </div>
+    </div>
+
+    <!-- Switch Active School Context Select -->
+    <div class="flex items-center space-x-2 bg-slate-800/90 p-2 rounded-xl border border-blue-400/30 shrink-0">
+      <label for="adminActiveSchoolSelect" class="text-xs font-bold text-amber-300 pl-1 whitespace-nowrap">Switch Context:</label>
+      <select id="adminActiveSchoolSelect" onchange="switchActiveSchool(this.value)" class="bg-slate-900 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400">
+        {% for sch in schools %}
+        <option value="{{ sch.id }}" {% if sch.id == active_school_id %}selected{% endif %}>
+          {{ sch.school_name }} ({{ sch.school_id }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <!-- Schools Directory Table & Controls -->
+  <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+    
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div class="relative w-full sm:w-80">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+        <input type="text" id="schoolSearchInput" oninput="filterSchoolsTable()" placeholder="Search school name, ID, or district..."
+               class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-500 font-medium">
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500 font-medium">Showing <strong class="text-slate-800" id="schoolCountDisplay">{{ schools|length }}</strong> schools</span>
+      </div>
+    </div>
+
+    <!-- Responsive Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs" id="schoolsMasterTable">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black border-y border-slate-200">
+          <tr>
+            <th class="py-3.5 px-4">School ID</th>
+            <th class="py-3.5 px-4">Official School Name</th>
+            <th class="py-3.5 px-4">District &amp; Division</th>
+            <th class="py-3.5 px-4">Principal &amp; Login</th>
+            <th class="py-3.5 px-4 text-center">Students</th>
+            <th class="py-3.5 px-4 text-center">Sections</th>
+            <th class="py-3.5 px-4 text-center">Faculty</th>
+            <th class="py-3.5 px-4 text-center">Campus Geofence</th>
+            <th class="py-3.5 px-4 text-center">Status</th>
+            <th class="py-3.5 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+          {% for s in schools %}
+          <tr class="school-row hover:bg-indigo-50/30 transition {% if s.id == active_school_id %}bg-indigo-50/40 font-semibold{% endif %}"
+              data-school-id="{{ s.school_id }}"
+              data-school-name="{{ s.school_name|lower }}"
+              data-district="{{ s.district|lower }}"
+              data-division="{{ s.division|lower }}">
+            
+            <!-- School ID -->
+            <td class="py-3 px-4 font-mono font-bold text-indigo-700 whitespace-nowrap">
+              <span class="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200">
+                {{ s.school_id }}
+              </span>
+            </td>
+
+            <!-- School Name & Address -->
+            <td class="py-3 px-4">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-900 text-sm">{{ s.school_name }}</span>
+                {% if s.id == active_school_id %}
+                <span class="px-2 py-0.5 rounded text-[9px] bg-amber-400 text-slate-950 font-black whitespace-nowrap">
+                  CURRENT ACTIVE
+                </span>
+                {% endif %}
+              </div>
+              <p class="text-[11px] text-slate-500 font-normal mt-0.5">{{ s.school_address or 'No campus address set' }}</p>
+            </td>
+
+            <!-- District & Division -->
+            <td class="py-3 px-4 text-slate-600 whitespace-nowrap">
+              <div class="font-bold text-slate-800">{{ s.district }}</div>
+              <div class="text-[10px] text-slate-400">{{ s.division }}</div>
+            </td>
+
+            <!-- Principal Details & Login Username -->
+            <td class="py-3 px-4">
+              <div class="font-bold text-slate-900">{{ s.principal_name or 'Not Assigned' }}</div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200" title="Principal Sign-In Username">
+                  <i class="fa-solid fa-user-shield text-[9px] mr-1"></i>{{ s.principal_username or ('principal_' ~ s.school_id) }}
+                </span>
+                {% if s.contact_phone %}
+                <span class="text-[10px] text-slate-400 font-mono">{{ s.contact_phone }}</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Students Count -->
+            <td class="py-3 px-4 text-center font-bold text-slate-800">{{ s.total_students or 0 }}</td>
+
+            <!-- Sections Count -->
+            <td class="py-3 px-4 text-center font-bold text-slate-800">{{ s.total_sections or 0 }}</td>
+
+            <!-- Faculty Count -->
+            <td class="py-3 px-4 text-center font-bold text-slate-800">{{ s.total_teachers or 0 }}</td>
+
+            <!-- Campus Geofence -->
+            <td class="py-3 px-4 text-center">
+              <div class="font-mono text-slate-700 font-bold">{{ s.geofence_radius or 2500 }}m</div>
+              <a href="https://www.google.com/maps?q={{ s.latitude or 15.9295 }},{{ s.longitude or 120.8613 }}" target="_blank" class="text-[10px] text-indigo-600 hover:text-indigo-800 underline inline-flex items-center gap-1 mt-0.5">
+                <i class="fa-solid fa-location-dot text-[9px]"></i> View Pin
+              </a>
+            </td>
+
+            <!-- Status -->
+            <td class="py-3 px-4 text-center">
+              {% if s.is_active %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                Active
+              </span>
+              {% else %}
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                Inactive
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              <div class="flex items-center justify-end gap-1.5">
+                <!-- Configure School Button -->
+                <button onclick="openEditSchoolModal({{ s.id }})" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold rounded-lg border border-slate-300 transition flex items-center gap-1" title="Configure School Profile, Geofence & Principal">
+                  <i class="fa-solid fa-sliders text-indigo-600"></i>
+                  <span>Configure</span>
+                </button>
+
+                <!-- Manage Staff Accounts Button -->
+                <a href="/admin/users?school_id={{ s.id }}" class="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition flex items-center gap-1" title="Manage Faculty & Staff for this School">
+                  <i class="fa-solid fa-users-gear text-blue-600"></i>
+                  <span>Staff</span>
+                </a>
+
+                <!-- Switch Tenant Context Button -->
+                {% if s.id == active_school_id %}
+                <span class="px-2.5 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg border border-emerald-300 flex items-center gap-1">
+                  <i class="fa-solid fa-check"></i> Active
+                </span>
+                {% else %}
+                <button onclick="switchActiveSchool({{ s.id }})" class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center gap-1" title="Switch your session view to this school">
+                  <i class="fa-solid fa-right-left"></i>
+                  <span>Switch</span>
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Empty Search Results -->
+    <div id="noSchoolsFoundMsg" class="hidden text-center py-8 text-slate-400 space-y-1">
+      <i class="fa-solid fa-school-circle-xmark text-2xl text-slate-300"></i>
+      <p class="text-xs font-bold text-slate-600">No schools match your search query.</p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL 1: ONBOARD NEW SCHOOL                                     -->
+<!-- ============================================================== -->
+<div id="onboardSchoolModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in fade-in duration-150">
+    
+    <!-- Modal Header -->
+    <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-lg font-black shadow">
+          <i class="fa-solid fa-school-flag"></i>
+        </div>
+        <div>
+          <h3 class="font-heading font-black text-base text-white">Onboard New DepEd School</h3>
+          <p class="text-[11px] text-blue-200">Creates isolated campus tenant, 26 class sections & principal account</p>
+        </div>
+      </div>
+      <button onclick="closeOnboardSchoolModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form id="onboardSchoolForm" onsubmit="submitOnboardSchool(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd School ID *</label>
+          <input type="text" id="obSchoolId" required placeholder="e.g. 152009, 300451"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Short Name / Code *</label>
+          <input type="text" id="obShortName" required placeholder="e.g. UCNHS, MNHS"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Official School Name *</label>
+        <input type="text" id="obSchoolName" required placeholder="e.g. Umingan Central National High School"
+               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd District</label>
+          <input type="text" id="obDistrict" value="Umingan II"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd Division</label>
+          <input type="text" id="obDivision" value="SDO Pangasinan II"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campus Physical Address</label>
+        <input type="text" id="obAddress" placeholder="e.g. Poblacion East, Umingan, Pangasinan"
+               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">School Principal Name</label>
+          <input type="text" id="obPrincipal" placeholder="e.g. Dr. Juan Dela Cruz, EdD"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Principal Phone</label>
+          <input type="text" id="obPhone" placeholder="0917XXXXXXX"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Latitude</label>
+          <input type="number" step="any" id="obLat" value="15.9295"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Longitude</label>
+          <input type="number" step="any" id="obLon" value="120.8613"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Geofence (m)</label>
+          <input type="number" id="obRadius" value="2500"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div class="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start space-x-2">
+        <i class="fa-solid fa-circle-info text-indigo-600 mt-0.5"></i>
+        <div>
+          <p class="font-bold">Automated DepEd Provisioning</p>
+          <p class="text-[11px] text-indigo-700 mt-0.5">Onboarding automatically creates 26 DepEd standard class sections (Kinder to Grade 12) and generates a dedicated principal login (<code class="font-mono bg-white px-1 rounded">principal_&lt;school_id&gt;</code>, password: <code class="font-mono bg-white px-1 rounded">principal123</code>).</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end space-x-3">
+        <button type="button" onclick="closeOnboardSchoolModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+          Cancel
+        </button>
+        <button type="submit" id="btnSubmitOnboardSchool" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center">
+          <i class="fa-solid fa-plus-circle mr-1.5"></i> Complete Onboarding
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- MODAL 2: CONFIGURE / EDIT SCHOOL SETTINGS                       -->
+<!-- ============================================================== -->
+<div id="editSchoolModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in fade-in duration-150">
+    
+    <!-- Modal Header -->
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center text-lg font-black shadow">
+          <i class="fa-solid fa-sliders"></i>
+        </div>
+        <div>
+          <h3 class="font-heading font-black text-base text-white" id="editSchoolHeading">Configure School Settings</h3>
+          <p class="text-[11px] text-blue-200">Modify campus profile, geofence coordinates, camera &amp; principal details</p>
+        </div>
+      </div>
+      <button onclick="closeEditSchoolModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Modal Form -->
+    <form id="editSchoolForm" onsubmit="submitEditSchool(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+      <input type="hidden" id="editSchoolPkId">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd School ID</label>
+          <input type="text" id="editSchoolIdCode" disabled
+                 class="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-600 cursor-not-allowed">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Short Name / Code *</label>
+          <input type="text" id="editSchoolShortName" required
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Official School Name *</label>
+        <input type="text" id="editSchoolName" required
+               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd District</label>
+          <input type="text" id="editDistrict"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">DepEd Division</label>
+          <input type="text" id="editDivision"
+                 class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campus Physical Address</label>
+        <input type="text" id="editAddress"
+               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+      </div>
+
+      <!-- Principal Section -->
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+        <h4 class="text-xs font-black uppercase text-slate-800 flex items-center gap-1.5">
+          <i class="fa-solid fa-user-tie text-indigo-600"></i> School Principal Profile
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Principal Full Name</label>
+            <input type="text" id="editPrincipalName" placeholder="Dr. Juan Dela Cruz"
+                   class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Contact Phone</label>
+            <input type="text" id="editContactPhone" placeholder="0917XXXXXXX"
+                   class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 mb-1">Principal DepEd Email</label>
+          <input type="email" id="editContactEmail" placeholder="principal@deped.gov.ph"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-400">
+        </div>
+      </div>
+
+      <!-- Campus GPS Coordinates & Geofence -->
+      <div class="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-black uppercase text-emerald-950 flex items-center gap-1.5">
+            <i class="fa-solid fa-location-dot text-emerald-600"></i> Campus GPS &amp; Geofence Perimeter
+          </h4>
+          <button type="button" onclick="detectEditSchoolGps()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] transition flex items-center gap-1">
+            <i class="fa-solid fa-crosshairs"></i> Detect GPS
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-emerald-950 mb-1">Latitude</label>
+            <input type="number" step="any" id="editLat"
+                   class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-emerald-950 mb-1">Longitude</label>
+            <input type="number" step="any" id="editLon"
+                   class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-emerald-950 mb-1">Radius (meters)</label>
+            <input type="number" id="editRadius"
+                   class="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- Gate Camera CCTV -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Gate Camera RTSP Stream / Device Index</label>
+        <input type="text" id="editCameraSource" placeholder="0 or rtsp://admin:pass@192.168.1.50:554/ch0"
+               class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-400">
+        <p class="text-[10px] text-slate-400 mt-1">Index <code>0</code> for USB/built-in webcam, or RTSP URL for campus network IP camera.</p>
+      </div>
+
+      <!-- Operational Status -->
+      <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+        <div>
+          <span class="block text-xs font-bold text-slate-800 uppercase">Tenant Status</span>
+          <p class="text-[10px] text-slate-500">Inactive schools cannot be accessed by students or parents</p>
+        </div>
+        <select id="editIsActive" class="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800">
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end space-x-3">
+        <button type="button" onclick="closeEditSchoolModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+          Cancel
+        </button>
+        <button type="submit" id="btnSubmitEditSchool" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-md transition flex items-center">
+          <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save School Settings
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showStatusToast(msg) {
+    const toast = document.getElementById('statusToast');
+    const msgEl = document.getElementById('statusToastMsg');
+    if (toast && msgEl) {
+      msgEl.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => { toast.classList.add('hidden'); }, 5000);
+    }
+  }
+
+  function filterSchoolsTable() {
+    const q = document.getElementById('schoolSearchInput').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('.school-row');
+    let visibleCount = 0;
+
+    rows.forEach(r => {
+      const id = r.dataset.schoolId || '';
+      const name = r.dataset.schoolName || '';
+      const dist = r.dataset.district || '';
+      const div = r.dataset.division || '';
+      if (!q || id.includes(q) || name.includes(q) || dist.includes(q) || div.includes(q)) {
+        r.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        r.classList.add('hidden');
+      }
+    });
+
+    const empty = document.getElementById('noSchoolsFoundMsg');
+    if (empty) {
+      empty.classList.toggle('hidden', visibleCount > 0);
+    }
+    const countEl = document.getElementById('schoolCountDisplay');
+    if (countEl) countEl.textContent = visibleCount;
+  }
+
+  function openOnboardSchoolModal() {
+    document.getElementById('onboardSchoolModal').classList.remove('hidden');
+  }
+
+  function closeOnboardSchoolModal() {
+    document.getElementById('onboardSchoolModal').classList.add('hidden');
+    document.getElementById('onboardSchoolForm').reset();
+  }
+
+  async function submitOnboardSchool(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitOnboardSchool');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Provisioning School...';
+
+    const payload = {
+      school_id: document.getElementById('obSchoolId').value.trim(),
+      school_short_name: document.getElementById('obShortName').value.trim(),
+      school_name: document.getElementById('obSchoolName').value.trim(),
+      district: document.getElementById('obDistrict').value.trim(),
+      division: document.getElementById('obDivision').value.trim(),
+      school_address: document.getElementById('obAddress').value.trim(),
+      principal_name: document.getElementById('obPrincipal').value.trim(),
+      contact_phone: document.getElementById('obPhone').value.trim(),
+      latitude: parseFloat(document.getElementById('obLat').value) || 15.9295,
+      longitude: parseFloat(document.getElementById('obLon').value) || 120.8613,
+      geofence_radius: parseFloat(document.getElementById('obRadius').value) || 2500
+    };
+
+    try {
+      const res = await fetch('/api/schools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert(`Success! School "${payload.school_name}" has been onboarded with 26 K-12 class sections and principal account.`);
+        window.location.reload();
+      } else {
+        alert('Onboarding failed: ' + (data.message || 'Error'));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1.5"></i> Complete Onboarding';
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1.5"></i> Complete Onboarding';
+    }
+  }
+
+  async function openEditSchoolModal(schoolId) {
+    try {
+      const res = await fetch(`/api/schools/${schoolId}`);
+      const data = await res.json();
+      if (!data || data.status !== 'success' || !data.school) {
+        alert('Failed to load school details');
+        return;
+      }
+      const s = data.school;
+      document.getElementById('editSchoolPkId').value = s.id;
+      document.getElementById('editSchoolIdCode').value = s.school_id;
+      document.getElementById('editSchoolShortName').value = s.school_short_name || '';
+      document.getElementById('editSchoolName').value = s.school_name || '';
+      document.getElementById('editDistrict').value = s.district || '';
+      document.getElementById('editDivision').value = s.division || '';
+      document.getElementById('editAddress').value = s.school_address || '';
+      document.getElementById('editPrincipalName').value = s.principal_name || '';
+      document.getElementById('editContactPhone').value = s.contact_phone || '';
+      document.getElementById('editContactEmail').value = s.contact_email || '';
+      document.getElementById('editLat').value = s.latitude || 15.9295;
+      document.getElementById('editLon').value = s.longitude || 120.8613;
+      document.getElementById('editRadius').value = s.geofence_radius || 2500;
+      document.getElementById('editCameraSource').value = s.camera_source || '0';
+      document.getElementById('editIsActive').value = s.is_active ? 'true' : 'false';
+      document.getElementById('editSchoolHeading').textContent = `Configure: ${s.school_name}`;
+
+      document.getElementById('editSchoolModal').classList.remove('hidden');
+    } catch(err) {
+      alert('Network error: ' + err.message);
+    }
+  }
+
+  function closeEditSchoolModal() {
+    document.getElementById('editSchoolModal').classList.add('hidden');
+    document.getElementById('editSchoolForm').reset();
+  }
+
+  function detectEditSchoolGps() {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        document.getElementById('editLat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('editLon').value = pos.coords.longitude.toFixed(6);
+        alert(`Detected GPS: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+      },
+      (err) => {
+        alert("Failed to retrieve GPS location: " + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  async function submitEditSchool(e) {
+    e.preventDefault();
+    const id = document.getElementById('editSchoolPkId').value;
+    const btn = document.getElementById('btnSubmitEditSchool');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Saving...';
+
+    const payload = {
+      school_short_name: document.getElementById('editSchoolShortName').value.trim(),
+      school_name: document.getElementById('editSchoolName').value.trim(),
+      district: document.getElementById('editDistrict').value.trim(),
+      division: document.getElementById('editDivision').value.trim(),
+      school_address: document.getElementById('editAddress').value.trim(),
+      principal_name: document.getElementById('editPrincipalName').value.trim(),
+      contact_phone: document.getElementById('editContactPhone').value.trim(),
+      contact_email: document.getElementById('editContactEmail').value.trim(),
+      latitude: parseFloat(document.getElementById('editLat').value) || 15.9295,
+      longitude: parseFloat(document.getElementById('editLon').value) || 120.8613,
+      geofence_radius: parseFloat(document.getElementById('editRadius').value) || 2500,
+      camera_source: document.getElementById('editCameraSource').value.trim(),
+      is_active: document.getElementById('editIsActive').value === 'true'
+    };
+
+    try {
+      const res = await fetch(`/api/schools/${id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert('School settings saved successfully!');
+        window.location.reload();
+      } else {
+        alert('Failed to save settings: ' + (data.message || 'Error'));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i> Save School Settings';
+      }
+    } catch(err) {
+      alert('Network error: ' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i> Save School Settings';
+    }
+  }
+
+  async function switchActiveSchool(schoolId) {
+    if (!schoolId) return;
+    try {
+      const res = await fetch(`/admin/switch-school/${schoolId}`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('Failed to switch school: ' + (data.message || 'Unknown error'));
+      }
+    } catch(err) {
+      window.location.href = `/admin/switch-school/${schoolId}`;
+    }
+  }
+</script>
+{% endblock %}

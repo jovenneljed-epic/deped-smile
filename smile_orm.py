@@ -1420,6 +1420,23 @@ def auto_migrate_columns_orm():
                             section_name=sec_meta["section_name"],
                             room_number=sec_meta.get("room_number", "")
                         ))
+                # Ensure school principal account exists
+                clean_user_slug = f"principal_{target_sch.school_id}"
+                existing_prin = s.query(User).filter((User.school_id == target_sch.id) & (func.upper(User.role) == 'PRINCIPAL')).first()
+                if not existing_prin:
+                    existing_slug = s.query(User).filter_by(username=clean_user_slug).first()
+                    if not existing_slug:
+                        s.add(User(
+                            school_id=target_sch.id,
+                            username=clean_user_slug,
+                            email=f"principal.{target_sch.school_id}@deped.gov.ph",
+                            password_hash=generate_password_hash("principal123"),
+                            full_name=target_sch.principal_name or f"Principal - {target_sch.school_name}",
+                            role="PRINCIPAL",
+                            employee_number=f"PRIN-{str(target_sch.school_id)[-4:]}",
+                            is_active=True,
+                            phone_number=target_sch.contact_phone or ""
+                        ))
             s.commit()
     except Exception as _sch_err:
         pass
@@ -1627,11 +1644,49 @@ def get_school_by_code_orm(code="152008"):
     finally:
         session.close()
 
+def ensure_school_principals_orm():
+    """Ensures each registered school tenant has a provisioned Principal account."""
+    session = Session()
+    try:
+        schools = session.query(School).all()
+        for sch in schools:
+            has_prin = session.query(User).filter(
+                User.school_id == sch.id,
+                func.upper(User.role) == "PRINCIPAL"
+            ).first()
+            if not has_prin:
+                code_str = str(sch.school_id).strip()
+                prin_username = f"principal_{code_str}"
+                existing_u = session.query(User).filter_by(username=prin_username).first()
+                if not existing_u:
+                    new_prin = User(
+                        school_id=sch.id,
+                        username=prin_username,
+                        email=f"principal.{code_str}@deped.gov.ph",
+                        password_hash=generate_password_hash("principal123"),
+                        full_name=sch.principal_name.strip() if sch.principal_name else f"Principal - {sch.school_name}",
+                        role="PRINCIPAL",
+                        employee_number=f"PRIN-{code_str[-4:] if len(code_str) >= 4 else code_str}",
+                        is_active=True,
+                        phone_number=sch.contact_phone.strip() if sch.contact_phone else ""
+                    )
+                    session.add(new_prin)
+                else:
+                    existing_u.school_id = sch.id
+                    existing_u.role = "PRINCIPAL"
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"[!] ensure_school_principals_orm notice: {e}")
+    finally:
+        session.close()
+
 def get_all_schools_orm(active_only=False):
     """
     Returns all registered schools with enrolled student, section, and faculty counts.
     Used for Division-wide / Multi-Tenant dashboards and school switcher.
     """
+    ensure_school_principals_orm()
     session = Session()
     try:
         try:
@@ -1653,6 +1708,11 @@ def get_all_schools_orm(active_only=False):
             sd["total_students"] = session.query(func.count(Student.lrn)).filter(Student.school_id == s.id, Student.is_active == True).scalar() or 0
             sd["total_sections"] = session.query(func.count(Section.id)).filter(Section.school_id == s.id).scalar() or 0
             sd["total_teachers"] = session.query(func.count(User.id)).filter(User.school_id == s.id, func.upper(User.role) == 'TEACHER', User.is_active == True).scalar() or 0
+            sd["total_staff"] = session.query(func.count(User.id)).filter(User.school_id == s.id, User.is_active == True).scalar() or 0
+            prin = session.query(User).filter(User.school_id == s.id, func.upper(User.role) == 'PRINCIPAL').first()
+            sd["principal_username"] = prin.username if prin else f"principal_{s.school_id}"
+            sd["principal_user_id"] = prin.id if prin else None
+            sd["has_principal_account"] = bool(prin)
             result.append(sd)
         return result
     finally:
