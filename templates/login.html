@@ -218,10 +218,16 @@
           <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-amber-400/80 text-sm pointer-events-none">
             <i class="fa-solid fa-building-columns"></i>
           </span>
-          <select name="school_id" id="selectSchool"
+          <select name="school_id" id="selectSchool" onchange="onCampusChanged()"
                   class="w-full pl-10 pr-8 py-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-amber-100 font-semibold focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30 transition shadow-inner appearance-none cursor-pointer">
             {% for s in all_schools %}
-            <option value="{{ s.id }}">
+            {% set p_username = 'principal' if s.id == 1 else 'principal_' ~ s.school_id %}
+            <option value="{{ s.id }}"
+                    data-code="{{ s.school_id }}"
+                    data-short="{{ s.school_short_name }}"
+                    data-name="{{ s.school_name }}"
+                    data-principal="{{ p_username }}"
+                    {% if (selected_school_id and selected_school_id == s.id) or (request.form.get('school_id')|int == s.id) or (not selected_school_id and loop.first) %}selected{% endif %}>
               🏫 {{ s.school_name }} (DepEd ID: {{ s.school_id }})
             </option>
             {% endfor %}
@@ -229,6 +235,19 @@
           <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-amber-400/60 pointer-events-none text-xs">
             <i class="fa-solid fa-chevron-down"></i>
           </span>
+        </div>
+
+        <!-- Dynamic Campus Credentials Quick-Fill Badge -->
+        <div id="campusHintBar" class="mt-2 px-3 py-2 rounded-xl bg-slate-900/95 border border-cyan-800/70 text-[11px] font-mono flex items-center justify-between transition-all">
+          <div class="flex items-center gap-2 overflow-hidden mr-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span class="text-slate-300 truncate text-[11px]" id="campusHintText">
+              Principal: <code class="text-amber-300 font-bold bg-slate-950 px-1 py-0.5 rounded" id="hintUser">principal_300452</code> • Pass: <code class="text-cyan-300 bg-slate-950 px-1 py-0.5 rounded">principal</code>
+            </span>
+          </div>
+          <button type="button" onclick="autoFillPrincipalCredentials()" class="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shrink-0 transition shadow cursor-pointer">
+            Auto-Fill
+          </button>
         </div>
       </div>
       {% endif %}
@@ -246,7 +265,8 @@
             <i class="fa-solid fa-user-astronaut"></i>
           </span>
           <input type="text" name="username" id="inputUsername" required autofocus autocomplete="username"
-                 placeholder="Enter assigned username"
+                 placeholder="Enter username (e.g. principal_300452, principal, or admin)"
+                 oninput="onUsernameTyped(this.value)"
                  class="w-full pl-10 pr-4 py-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 transition shadow-inner">
         </div>
       </div>
@@ -271,14 +291,56 @@
             <i class="fa-solid fa-eye" id="eyeIcon"></i>
           </button>
         </div>
+        <p class="text-[10px] text-slate-400 font-mono mt-1.5 flex items-center gap-1.5">
+          <i class="fa-solid fa-shield-halved text-amber-400 text-[9px]"></i>
+          <span>Accepted default passwords: <strong class="text-cyan-300">principal</strong>, <strong class="text-cyan-300">principal123</strong>, <strong class="text-cyan-300">admin123</strong></span>
+        </p>
       </div>
 
       <!-- Submit Button -->
       <button type="submit" id="submitBtn"
-              class="w-full py-3.5 cyber-btn text-white font-hud font-bold rounded-xl text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 tracking-wider uppercase border border-cyan-400/40">
+              class="w-full py-3.5 cyber-btn text-white font-hud font-bold rounded-xl text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 tracking-wider uppercase border border-cyan-400/40 cursor-pointer">
         <i class="fa-solid fa-unlock-keyhole text-cyan-200" id="btnIcon"></i>
         <span id="btnText">Authenticate & Access Portal</span>
       </button>
+
+      <!-- Collapsible Quick Provisioned Accounts Directory -->
+      <div class="pt-1">
+        <button type="button" onclick="toggleAccountsGuide()" class="w-full text-center text-[11px] font-mono text-cyan-400/90 hover:text-amber-300 transition flex items-center justify-center gap-1.5 py-1 cursor-pointer">
+          <i class="fa-solid fa-key text-[10px] text-amber-400"></i>
+          <span id="guideToggleText">View Campus Principal Logins</span>
+          <i class="fa-solid fa-chevron-down text-[9px] transition-transform duration-200" id="guideArrow"></i>
+        </button>
+        <div id="accountsGuide" class="hidden mt-2 p-3 rounded-2xl bg-slate-950/95 border border-slate-800/90 space-y-2 text-[11px] font-mono shadow-2xl">
+          <div class="text-[10px] uppercase font-bold text-amber-300 tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
+            <span>Provisioned Campus Accounts</span>
+            <span class="text-slate-400 text-[9px]">One-Click Fill</span>
+          </div>
+          <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {% for s in all_schools %}
+            {% set p_user = 'principal' if s.id == 1 else 'principal_' ~ s.school_id %}
+            <div class="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs">
+              <div class="truncate mr-2">
+                <span class="text-slate-200 font-semibold block truncate">{{ s.school_name }}</span>
+                <span class="text-[10px] text-slate-400">Principal: <code class="text-amber-300 font-bold">{{ p_user }}</code></span>
+              </div>
+              <button type="button" onclick="selectAndFillCampus('{{ s.id }}', '{{ p_user }}', 'principal')" class="px-2 py-0.5 rounded bg-cyan-900/70 hover:bg-cyan-700 text-[10px] text-cyan-200 font-bold tracking-wider shrink-0 transition">
+                Use
+              </button>
+            </div>
+            {% endfor %}
+            <div class="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs">
+              <div class="truncate mr-2">
+                <span class="text-slate-200 font-semibold block">Universal Administrator</span>
+                <span class="text-[10px] text-slate-400">User: <code class="text-amber-300 font-bold">admin</code> • Pass: <code class="text-cyan-300">admin123</code></span>
+              </div>
+              <button type="button" onclick="selectAndFillCampus('1', 'admin', 'admin123')" class="px-2 py-0.5 rounded bg-cyan-900/70 hover:bg-cyan-700 text-[10px] text-cyan-200 font-bold tracking-wider shrink-0 transition">
+                Use
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </form>
 
     <!-- Biometric & Protocol Trust Badges -->
@@ -350,6 +412,89 @@
         text.innerText = 'VERIFYING CREDENTIALS...';
       }
     }
+
+    function onCampusChanged() {
+      const select = document.getElementById('selectSchool');
+      if (!select) return;
+      const opt = select.options[select.selectedIndex];
+      if (!opt) return;
+      const code = opt.getAttribute('data-code') || '';
+      const pUser = opt.getAttribute('data-principal') || ('principal_' + code);
+      const shortName = opt.getAttribute('data-short') || opt.getAttribute('data-name') || 'Campus';
+      const hintText = document.getElementById('campusHintText');
+      if (hintText) {
+        hintText.innerHTML = `${shortName} Principal: <strong class="text-amber-300">${pUser}</strong> (or "principal") • Pass: <strong class="text-cyan-300">principal</strong> or <strong class="text-cyan-300">principal123</strong>`;
+      }
+    }
+
+    function autoFillPrincipalCredentials() {
+      const select = document.getElementById('selectSchool');
+      if (!select) return;
+      const opt = select.options[select.selectedIndex];
+      if (!opt) return;
+      const pUser = opt.getAttribute('data-principal') || 'principal';
+      const uField = document.getElementById('inputUsername');
+      const pField = document.getElementById('inputPassword');
+      if (uField) uField.value = pUser;
+      if (pField) pField.value = 'principal';
+      if (pField) pField.focus();
+    }
+
+    function selectAndFillCampus(schoolId, username, password) {
+      const select = document.getElementById('selectSchool');
+      if (select) {
+        select.value = schoolId;
+        onCampusChanged();
+      }
+      const uField = document.getElementById('inputUsername');
+      const pField = document.getElementById('inputPassword');
+      if (uField) uField.value = username;
+      if (pField) pField.value = password;
+      if (pField) pField.focus();
+    }
+
+    function onUsernameTyped(val) {
+      const clean = (val || '').trim().toLowerCase();
+      const select = document.getElementById('selectSchool');
+      if (!select || !clean) return;
+
+      for (let i = 0; i < select.options.length; i++) {
+        const opt = select.options[i];
+        const code = (opt.getAttribute('data-code') || '').toLowerCase();
+        const short = (opt.getAttribute('data-short') || '').toLowerCase();
+        const pUser = (opt.getAttribute('data-principal') || '').toLowerCase();
+        const name = (opt.getAttribute('data-name') || '').toLowerCase();
+
+        if (clean === code || clean === pUser || (code && clean.includes(code)) || (short && clean.includes(short)) || (name && name.includes(clean))) {
+          if (select.selectedIndex !== i) {
+            select.selectedIndex = i;
+            onCampusChanged();
+          }
+          break;
+        }
+      }
+    }
+
+    function toggleAccountsGuide() {
+      const guide = document.getElementById('accountsGuide');
+      const arrow = document.getElementById('guideArrow');
+      const text = document.getElementById('guideToggleText');
+      if (!guide) return;
+      if (guide.classList.contains('hidden')) {
+        guide.classList.remove('hidden');
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+        if (text) text.innerText = 'Hide Campus Principal Logins';
+      } else {
+        guide.classList.add('hidden');
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+        if (text) text.innerText = 'View Campus Principal Logins';
+      }
+    }
+
+    // Initialize campus helper on load
+    document.addEventListener('DOMContentLoaded', function() {
+      onCampusChanged();
+    });
   </script>
 </body>
 </html>

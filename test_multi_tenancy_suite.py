@@ -245,5 +245,38 @@ class TestMultiTenancyEnterpriseSuite(unittest.TestCase):
         self.assertIn("teacher_test", html)
         self.assertNotIn("principal_300452", html)
 
+    def test_14_flores_nhs_principal_flexible_credentials(self):
+        """Verify Flores NHS Principal can log in with flexible usernames and canonical passwords."""
+        test_combos = [
+            ({'username': 'principal_300452', 'password': 'principal', 'school_id': 3}, "explicit username + 'principal'"),
+            ({'username': 'principal_300452', 'password': 'principal123', 'school_id': 3}, "explicit username + 'principal123'"),
+            ({'username': 'principal', 'password': 'principal', 'school_id': 3}, "generic 'principal' with Flores NHS campus selected"),
+            ({'username': '300452', 'password': 'principal', 'school_id': 3}, "DepEd school ID as username"),
+            ({'username': 'principal_flores', 'password': 'principal', 'school_id': 3}, "slug username 'principal_flores'")
+        ]
+        for creds, desc in test_combos:
+            res = self.client.post('/login', data=creds, follow_redirects=True)
+            self.assertEqual(res.status_code, 200, f"Login failed for {desc}")
+            html = res.get_data(as_text=True)
+            self.assertIn("Flores National High School", html, f"Active campus not Flores NHS for {desc}")
+            # Clean session
+            self.client.get('/logout')
+
+    def test_15_principal_auto_tenant_routing_when_campus_unselected(self):
+        """Verify non-superadmin logging in with campus left on School #1 is seamlessly routed to their school."""
+        # Client submits Flores NHS principal with school_id=1 (default dropdown position)
+        res = self.client.post('/login', data={
+            'username': 'principal_300452',
+            'password': 'principal',
+            'school_id': 1
+        }, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+        # Must NOT show campus mismatch error
+        self.assertNotIn("Please select your assigned campus", html)
+        # Must be logged in to Flores NHS
+        self.assertIn("Flores National High School", html)
+        self.client.get('/logout')
+
 if __name__ == '__main__':
     unittest.main()

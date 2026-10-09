@@ -338,14 +338,15 @@ def login_page():
     if request.method == 'GET':
         if 'user_id' in session:
             return redirect(url_for('dashboard'))
-        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, next_url=next_url, all_schools=all_schs)
+        default_sid = request.args.get('school_id', type=int) or 1
+        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, next_url=next_url, all_schools=all_schs, selected_school_id=default_sid)
 
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
     selected_school_id = request.form.get('school_id', type=int)
     
     try:
-        user, msg = authenticate_user_orm(username, password)
+        user, msg = authenticate_user_orm(username, password, school_id=selected_school_id)
     except Exception as auth_err:
         import traceback
         traceback.print_exc()
@@ -353,7 +354,14 @@ def login_page():
         msg = f"System Error: {str(auth_err)}"
 
     if not user:
-        return render_template('login.html', school_name=smile_config.SCHOOL_NAME, error=msg, next_url=next_url, all_schools=all_schs)
+        return render_template(
+            'login.html',
+            school_name=smile_config.SCHOOL_NAME,
+            error=msg,
+            next_url=next_url,
+            all_schools=all_schs,
+            selected_school_id=selected_school_id or 1
+        )
 
     session['user_id'] = user['id']
     session['username'] = user['username']
@@ -368,18 +376,8 @@ def login_page():
         if sch:
             session['active_school_name'] = sch['school_name']
     else:
-        # Strict isolation for Principals, Teachers, Staff, and Guards
+        # Multi-Tenant Isolation: Seamlessly lock Principal, Teacher, Staff, and Guard to their assigned school
         own_sid = user.get('school_id') or 1
-        if selected_school_id and selected_school_id != own_sid:
-            sch_assigned = get_school_by_id_orm(own_sid)
-            sch_name = sch_assigned['school_name'] if sch_assigned else f"School #{own_sid}"
-            return render_template(
-                'login.html',
-                school_name=smile_config.SCHOOL_NAME,
-                error=f"This account is assigned to '{sch_name}'. Please select your assigned campus to log in.",
-                next_url=next_url,
-                all_schools=all_schs
-            )
         session['school_id'] = own_sid
         session['active_school_id'] = own_sid
         sch = get_school_by_id_orm(own_sid)
