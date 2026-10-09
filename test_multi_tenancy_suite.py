@@ -262,9 +262,9 @@ class TestMultiTenancyEnterpriseSuite(unittest.TestCase):
             # Clean session
             self.client.get('/logout')
 
-    def test_15_principal_auto_tenant_routing_when_campus_unselected(self):
-        """Verify non-superadmin logging in with campus left on School #1 is seamlessly routed to their school."""
-        # Client submits Flores NHS principal with school_id=1 (default dropdown position)
+    def test_15_strict_tenant_rejection_on_mismatched_campus(self):
+        """Verify non-superadmin logging in with mismatched campus (e.g. FNHS account on DMCIS) is blocked."""
+        # Non-superadmin account belonging to FNHS (School 3) attempts to sign in via DMCIS (School 1)
         res = self.client.post('/login', data={
             'username': 'principal_300452',
             'password': 'principal',
@@ -272,11 +272,30 @@ class TestMultiTenancyEnterpriseSuite(unittest.TestCase):
         }, follow_redirects=True)
         self.assertEqual(res.status_code, 200)
         html = res.get_data(as_text=True)
-        # Must NOT show campus mismatch error
-        self.assertNotIn("Please select your assigned campus", html)
-        # Must be logged in to Flores NHS
+        # Must show Access Denied error explaining the campus boundary
+        self.assertIn("Access Denied", html)
         self.assertIn("Flores National High School", html)
+        self.assertIn("Don Montano Central Integrated School", html)
+
+        # But logging in with matching campus (School 3) must succeed immediately
+        res_ok = self.client.post('/login', data={
+            'username': 'principal_300452',
+            'password': 'principal',
+            'school_id': 3
+        }, follow_redirects=True)
+        self.assertEqual(res_ok.status_code, 200)
+        html_ok = res_ok.get_data(as_text=True)
+        self.assertNotIn("Access Denied", html_ok)
+        self.assertIn("Flores National High School", html_ok)
         self.client.get('/logout')
+
+        # Verify API lookup for auto-matching works
+        api_res = self.client.get('/api/check-user-school?username=principal_300452')
+        self.assertEqual(api_res.status_code, 200)
+        api_data = api_res.get_json()
+        self.assertTrue(api_data.get("found"))
+        self.assertEqual(api_data.get("school_id"), 3)
+        self.assertIn("Flores", api_data.get("school_name"))
 
 if __name__ == '__main__':
     unittest.main()

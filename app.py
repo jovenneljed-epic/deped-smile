@@ -376,8 +376,21 @@ def login_page():
         if sch:
             session['active_school_name'] = sch['school_name']
     else:
-        # Multi-Tenant Isolation: Seamlessly lock Principal, Teacher, Staff, and Guard to their assigned school
+        # Multi-Tenant Campus Isolation: Strictly enforce campus tenant matching for Principal, Teacher, Staff, and Guard
         own_sid = user.get('school_id') or 1
+        if selected_school_id and selected_school_id != own_sid:
+            sch_assigned = get_school_by_id_orm(own_sid)
+            sch_selected = get_school_by_id_orm(selected_school_id)
+            assigned_name = sch_assigned['school_name'] if sch_assigned else f"School #{own_sid}"
+            selected_name = sch_selected['school_name'] if sch_selected else f"School #{selected_school_id}"
+            return render_template(
+                'login.html',
+                school_name=smile_config.SCHOOL_NAME,
+                error=f"Access Denied: Account '{user.get('username', username)}' belongs to '{assigned_name}'. You cannot sign in through '{selected_name}'. Please select '{assigned_name}' in the DepEd Campus list to log in.",
+                next_url=next_url,
+                all_schools=all_schs,
+                selected_school_id=own_sid
+            )
         session['school_id'] = own_sid
         session['active_school_id'] = own_sid
         sch = get_school_by_id_orm(own_sid)
@@ -430,6 +443,54 @@ def switch_school(school_id):
         new_query = urllib.parse.urlencode(qs, doseq=True)
         referrer = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
     return redirect(referrer)
+
+@app.route('/api/check-user-school', methods=['GET'])
+def api_check_user_school():
+    """Lightweight public lookup for login page to auto-align campus dropdown to user's assigned school."""
+    raw_user = request.args.get('username', '').strip().lower()
+    if not raw_user or len(raw_user) < 2:
+        return jsonify({"found": False})
+    
+    from smile_orm import Session, User, School, func
+    session_db = Session()
+    try:
+        user = session_db.query(User).filter(
+            (func.lower(User.username) == raw_user) | (func.lower(User.email) == raw_user)
+        ).first()
+
+        if user:
+            is_superadmin = user.role in ('SUPER_ADMIN', 'DIVISION_ADMIN')
+            sch = session_db.query(School).filter_by(id=user.school_id).first() if user.school_id else None
+            return jsonify({
+                "found": True,
+                "school_id": user.school_id or 1,
+                "school_code": sch.school_id if sch else "152008",
+                "school_name": sch.school_name if sch else "Don Montano Central Integrated School",
+                "is_superadmin": is_superadmin
+            })
+
+        # Check school aliases (e.g. 300452, principal_300452, flores, etc.)
+        clean_code = raw_user.replace("principal_", "").replace("prin_", "").strip()
+        matched_sch = session_db.query(School).filter(
+            (School.school_id == clean_code) |
+            (func.lower(School.school_short_name) == clean_code) |
+            (func.lower(School.subdomain) == clean_code) |
+            (func.lower(School.school_name).like(f"%{clean_code}%"))
+        ).first()
+        if matched_sch:
+            return jsonify({
+                "found": True,
+                "school_id": matched_sch.id,
+                "school_code": matched_sch.school_id,
+                "school_name": matched_sch.school_name,
+                "is_superadmin": False
+            })
+
+        return jsonify({"found": False})
+    except Exception as e:
+        return jsonify({"found": False, "error": str(e)})
+    finally:
+        session_db.close()
 
 @app.route('/api/schools', methods=['GET'])
 def api_get_schools():

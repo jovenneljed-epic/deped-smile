@@ -258,7 +258,9 @@
           <span class="flex items-center gap-1.5">
             <i class="fa-solid fa-id-card-clip text-cyan-400"></i> Staff ID / Username
           </span>
-          <span class="text-[9px] text-slate-400 font-normal">REQUIRED</span>
+          <span id="schoolMatchBadge" class="hidden text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
+            <i class="fa-solid fa-circle-check text-emerald-400"></i> <span id="schoolMatchName" class="truncate max-w-[180px]"></span>
+          </span>
         </label>
         <div class="relative group">
           <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-cyan-400/70 text-sm pointer-events-none group-focus-within:text-cyan-300">
@@ -453,25 +455,65 @@
       if (pField) pField.focus();
     }
 
+    let _lookupTimer = null;
     function onUsernameTyped(val) {
       const clean = (val || '').trim().toLowerCase();
       const select = document.getElementById('selectSchool');
-      if (!select || !clean) return;
+      const badge = document.getElementById('schoolMatchBadge');
+      const badgeName = document.getElementById('schoolMatchName');
+      if (!clean) {
+        if (badge) badge.classList.add('hidden');
+        return;
+      }
 
-      for (let i = 0; i < select.options.length; i++) {
-        const opt = select.options[i];
-        const code = (opt.getAttribute('data-code') || '').toLowerCase();
-        const short = (opt.getAttribute('data-short') || '').toLowerCase();
-        const pUser = (opt.getAttribute('data-principal') || '').toLowerCase();
-        const name = (opt.getAttribute('data-name') || '').toLowerCase();
+      // 1. Immediate client-side check for school codes, aliases, and principals
+      if (select) {
+        for (let i = 0; i < select.options.length; i++) {
+          const opt = select.options[i];
+          const code = (opt.getAttribute('data-code') || '').toLowerCase();
+          const short = (opt.getAttribute('data-short') || '').toLowerCase();
+          const pUser = (opt.getAttribute('data-principal') || '').toLowerCase();
+          const name = (opt.getAttribute('data-name') || '').toLowerCase();
 
-        if (clean === code || clean === pUser || (code && clean.includes(code)) || (short && clean.includes(short)) || (name && name.includes(clean))) {
-          if (select.selectedIndex !== i) {
-            select.selectedIndex = i;
-            onCampusChanged();
+          if (clean === code || clean === pUser || (code && clean.includes(code)) || (short && clean.includes(short)) || (name && name.includes(clean))) {
+            if (select.selectedIndex !== i) {
+              select.selectedIndex = i;
+              onCampusChanged();
+            }
+            if (badge && badgeName) {
+              badgeName.innerText = opt.getAttribute('data-name') || 'Matched Campus';
+              badge.classList.remove('hidden');
+            }
+            return;
           }
-          break;
         }
+      }
+
+      // 2. Real-time debounced lookup for custom faculty/staff accounts (e.g. ronnel, jovelyn, etc.)
+      clearTimeout(_lookupTimer);
+      if (clean.length >= 2) {
+        _lookupTimer = setTimeout(() => {
+          fetch('/api/check-user-school?username=' + encodeURIComponent(clean))
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.found && data.school_id && select) {
+                for (let i = 0; i < select.options.length; i++) {
+                  if (parseInt(select.options[i].value, 10) === parseInt(data.school_id, 10)) {
+                    if (select.selectedIndex !== i) {
+                      select.selectedIndex = i;
+                      onCampusChanged();
+                    }
+                    if (badge && badgeName) {
+                      badgeName.innerText = data.school_name || 'Assigned Campus';
+                      badge.classList.remove('hidden');
+                    }
+                    break;
+                  }
+                }
+              }
+            })
+            .catch(() => {});
+        }, 200);
       }
     }
 
