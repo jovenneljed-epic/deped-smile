@@ -12,6 +12,9 @@
         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
           <i class="fa-solid fa-lock mr-1"></i> SUPER ADMIN ONLY
         </span>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+          <i class="fa-solid fa-school-flag mr-1"></i> CAMPUS: {{ active_school.school_name if active_school and active_school.school_name else 'Central Campus' }}
+        </span>
         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
           Staff Account Settings Module
         </span>
@@ -49,15 +52,21 @@
   <!-- Multi-Tenant School Accounts Guidance Banner -->
   <div class="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 text-indigo-950 text-xs flex items-start gap-3 shadow-xs">
     <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 text-sm font-black shadow-xs">
-      <i class="fa-solid fa-school-flag"></i>
+      <i class="fa-solid fa-shield-halved"></i>
     </div>
     <div class="space-y-1">
       <div class="flex items-center gap-2">
-        <span class="font-bold text-indigo-900 uppercase tracking-wide text-[11px]">Multi-Tenant School Accounts:</span>
-        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">Auto-Provisioned Principals</span>
+        <span class="font-bold text-indigo-900 uppercase tracking-wide text-[11px]">Strict Multi-Tenant Isolation Active:</span>
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+          {% if selected_school_id == 'ALL' %}
+            All Campuses (Division Overview)
+          {% else %}
+            {{ active_school.school_name }} (DepEd ID: {{ active_school.school_id }})
+          {% endif %}
+        </span>
       </div>
       <p class="text-indigo-800 leading-relaxed">
-        Each onboarded school has a dedicated principal account (format: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-bold text-indigo-900">principal_&lt;school_id&gt;</code>, default password: <code class="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-bold text-indigo-900">principal123</code>). Use the <strong>Campus filter</strong> below to view staff per school, or assign new teachers and principals to specific campuses.
+        Showing staff accounts strictly registered under <strong>{{ 'All Campuses' if selected_school_id == 'ALL' else active_school.school_name }}</strong>. Accounts from other schools are strictly hidden and isolated for security. Super Administrators can switch campuses using the <strong>Campus filter</strong> below or via the top navigation bar.
       </p>
     </div>
   </div>
@@ -82,11 +91,11 @@
           <label for="userSchoolFilterSelect" class="text-[10px] font-black uppercase text-indigo-700 whitespace-nowrap flex items-center gap-1">
             <i class="fa-solid fa-school text-xs"></i> Campus:
           </label>
-          <select id="userSchoolFilterSelect" onchange="filterStaffBySchool(this.value)" class="bg-white text-slate-800 text-xs font-bold rounded-lg px-2 py-1 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[210px]">
-            <option value="ALL">All Campuses ({{ schools|length }})</option>
+          <select id="userSchoolFilterSelect" onchange="switchAdminUsersCampus(this.value)" class="bg-white text-slate-800 text-xs font-bold rounded-lg px-2 py-1 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[240px]">
+            <option value="ALL" {% if selected_school_id == 'ALL' %}selected{% endif %}>🌐 All Campuses (Division Overview - {{ schools|length }})</option>
             {% for sch in schools %}
             <option value="{{ sch.id }}" {% if selected_school_id == sch.id %}selected{% endif %}>
-              {{ sch.school_short_name or sch.school_name }} ({{ sch.school_id }})
+              🏫 {{ sch.school_short_name or sch.school_name }} ({{ sch.school_id }})
             </option>
             {% endfor %}
           </select>
@@ -286,6 +295,17 @@
 
           </tr>
           {% endfor %}
+          {% if users|length == 0 %}
+          <tr>
+            <td colspan="9" class="py-12 text-center text-slate-400 space-y-2">
+              <i class="fa-solid fa-users-slash text-3xl text-slate-300 mb-2 block"></i>
+              <p class="text-xs font-bold text-slate-600">No staff accounts registered for this school yet.</p>
+              <button onclick="openAddUserModal()" class="mt-2 px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition inline-flex items-center gap-1.5">
+                <i class="fa-solid fa-user-plus"></i> Add First Staff Account
+              </button>
+            </td>
+          </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
@@ -563,9 +583,16 @@
   let currentActiveRoleFilter = 'ALL';
   let currentActiveSchoolFilter = '{{ selected_school_id if selected_school_id else "ALL" }}';
 
+  function switchAdminUsersCampus(schId) {
+    if (schId === 'ALL') {
+      window.location.href = '/admin/users?school_id=all';
+    } else {
+      window.location.href = '/admin/users?school_id=' + encodeURIComponent(schId);
+    }
+  }
+
   function filterStaffBySchool(schId) {
-    currentActiveSchoolFilter = schId;
-    filterStaffTable();
+    switchAdminUsersCampus(schId);
   }
 
   function showStatusToast(msg) {

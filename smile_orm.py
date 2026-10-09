@@ -416,10 +416,14 @@ class User(Base):
     staff_attendance_records = relationship("StaffAttendanceLog", back_populates="user_rel", cascade="all, delete-orphan")
 
     def to_dict(self):
+        sch_name = self.school_rel.school_name if getattr(self, 'school_rel', None) else ""
+        if self.role in ('SUPER_ADMIN', 'DIVISION_ADMIN'):
+            sch_name = "Division Super Admin (Universal Access)"
+
         return {
             "id": self.id,
             "school_id": getattr(self, 'school_id', 1),
-            "school_name": self.school_rel.school_name if getattr(self, 'school_rel', None) else "",
+            "school_name": sch_name,
             "username": self.username,
             "email": self.email,
             "employee_number": getattr(self, 'employee_number', '') or self.username,
@@ -3043,20 +3047,26 @@ def get_today_attendance_logs_orm(limit=None, school_id=None):
     finally:
         session.close()
 
-def get_today_sms_count_orm():
-    """Returns count of SMS sent today."""
+def get_today_sms_count_orm(school_id=None):
+    """Returns count of SMS sent today scoped by school_id."""
     session = Session()
     try:
         today_start = datetime.combine(pht_now().date(), datetime.min.time())
-        return session.query(func.count(SmsLog.id)).filter(SmsLog.sent_at >= today_start).scalar() or 0
+        q = session.query(func.count(SmsLog.id)).filter(SmsLog.sent_at >= today_start)
+        if school_id:
+            q = q.filter(SmsLog.school_id == int(school_id))
+        return q.scalar() or 0
     finally:
         session.close()
 
-def get_recent_sms_logs_orm(limit=50):
-    """Returns most recent SMS delivery logs."""
+def get_recent_sms_logs_orm(limit=50, school_id=None):
+    """Returns most recent SMS delivery logs scoped by school_id."""
     session = Session()
     try:
-        logs = session.query(SmsLog).order_by(desc(SmsLog.id)).limit(limit).all()
+        q = session.query(SmsLog)
+        if school_id:
+            q = q.filter(SmsLog.school_id == int(school_id))
+        logs = q.order_by(desc(SmsLog.id)).limit(limit).all()
         return [l.to_dict() for l in logs]
     finally:
         session.close()
@@ -3972,17 +3982,21 @@ def seed_default_events_orm():
     finally:
         session.close()
 
-def get_all_events_orm(limit=50, category=None, upcoming_only=False):
-    """Retrieves school events ordered by event date (with 60s memory caching)."""
+def get_all_events_orm(limit=50, category=None, upcoming_only=False, school_id=None):
+    """Retrieves school events ordered by event date (with 60s memory caching scoped by school)."""
     global _EVENTS_CACHE
     now = time.time()
-    use_cache = (category in (None, "ALL") and limit == 50 and not upcoming_only)
+    sid = int(school_id) if school_id else None
+    cache_key = f"{sid}_{category}_{limit}_{upcoming_only}"
+    use_cache = (category in (None, "ALL") and limit == 50 and not upcoming_only and not sid)
     if use_cache and _EVENTS_CACHE["data"] is not None and (now - _EVENTS_CACHE["ts"]) < 60:
         return _EVENTS_CACHE["data"]
 
     session = Session()
     try:
         query = session.query(SchoolEvent)
+        if sid:
+            query = query.filter(SchoolEvent.school_id == sid)
         if category and category.upper() != "ALL":
             query = query.filter(SchoolEvent.category == category.upper())
         if upcoming_only:
@@ -3999,12 +4013,13 @@ def get_all_events_orm(limit=50, category=None, upcoming_only=False):
 
 def save_event_orm(title, category, description, event_date, start_time="08:00 AM", end_time="04:00 PM",
                    location="School Gymnasium", target_grades="ALL", organizer="School Administration",
-                   badge_color="blue", is_highlighted=False):
+                   badge_color="blue", is_highlighted=False, school_id=None):
     """Creates a new school event."""
     global _EVENTS_CACHE
     session = Session()
     try:
         ev = SchoolEvent(
+            school_id=int(school_id) if school_id else 1,
             title=str(title).strip(),
             category=str(category).strip().upper(),
             description=str(description).strip(),
@@ -4255,15 +4270,15 @@ def get_user_by_id_orm(user_id):
         session.close()
 
 def get_all_users_orm(school_id=None):
-    """Returns users for a school (or all if not filtered), ensuring every account has an assigned employee code."""
+    """Returns users strictly belonging to the specified school tenant (or all across division if school_id is None)."""
     auto_assign_all_staff_codes_orm()
     session = Session()
     try:
         q = session.query(User)
         if school_id:
             sid = int(school_id)
-            # Include school staff plus division super admins
-            q = q.filter(or_(User.school_id == sid, User.role.in_(['SUPER_ADMIN', 'DIVISION_ADMIN'])))
+            # Strict tenant isolation: only users belonging to this school
+            q = q.filter(User.school_id == sid)
         users = q.order_by(User.id.asc()).all()
         return [u.to_dict() for u in users]
     finally:
@@ -4557,23 +4572,27 @@ def enroll_staff_face_orm(user_id, embedding_array, photo_path=""):
     finally:
         session.close()
 
-def get_enrolled_staff_faces_orm():
+def get_enrolled_staff_faces_orm(school_id=None):
     """
-    Returns all active faculty and staff members with enrolled facial embeddings
-    for high-speed in-memory cosine similarity matching.
+    Returns active faculty and staff members with enrolled facial embeddings
+    for high-speed in-memory cosine similarity matching, optionally scoped by school_id.
     """
     global _STAFF_FACES_CACHE
     now = time.time()
-    if _STAFF_FACES_CACHE["data"] is not None and (now - _STAFF_FACES_CACHE["ts"]) < 30:
+    sid = int(school_id) if school_id else None
+    if not sid and _STAFF_FACES_CACHE["data"] is not None and (now - _STAFF_FACES_CACHE["ts"]) < 30:
         return _STAFF_FACES_CACHE["data"]
 
     session = Session()
     try:
-        users = session.query(User).filter(
+        q = session.query(User).filter(
             User.is_active == True,
             User.face_embedding != None,
             User.face_embedding != ""
-        ).all()
+        )
+        if sid:
+            q = q.filter(User.school_id == sid)
+        users = q.all()
 
         enrolled = []
         for u in users:
@@ -4592,8 +4611,9 @@ def get_enrolled_staff_faces_orm():
             except Exception as ex:
                 print(f"[!] Error parsing face embedding for staff {u.id}: {ex}")
 
-        _STAFF_FACES_CACHE["data"] = enrolled
-        _STAFF_FACES_CACHE["ts"] = now
+        if not sid:
+            _STAFF_FACES_CACHE["data"] = enrolled
+            _STAFF_FACES_CACHE["ts"] = now
         return enrolled
     finally:
         session.close()

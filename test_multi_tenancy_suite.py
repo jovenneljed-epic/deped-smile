@@ -197,5 +197,53 @@ class TestMultiTenancyEnterpriseSuite(unittest.TestCase):
         self.assertEqual(d2["school_id"], sid2)
         self.assertEqual(len(d2["sections"]), 26)
 
+    def test_11_strict_user_roster_isolation(self):
+        """Verify get_all_users_orm(school_id=3) strictly returns Flores NHS accounts with 0 DMCIS accounts."""
+        users_fnhs = get_all_users_orm(school_id=3)
+        self.assertGreaterEqual(len(users_fnhs), 1)
+        for u in users_fnhs:
+            self.assertEqual(u["school_id"], 3, f"Account {u['username']} does not belong to Flores NHS (School 3)")
+            self.assertNotEqual(u["school_id"], 1, "DMCIS account leaked into Flores NHS roster")
+
+        users_dmcis = get_all_users_orm(school_id=1)
+        self.assertGreaterEqual(len(users_dmcis), 1)
+        for u in users_dmcis:
+            self.assertEqual(u["school_id"], 1, f"Account {u['username']} does not belong to DMCIS (School 1)")
+            self.assertNotEqual(u["school_id"], 3, "Flores NHS account leaked into DMCIS roster")
+
+    def test_12_admin_login_at_flores_nhs_isolates_users(self):
+        """Verify Administrator logging into Flores NHS sees strictly Flores NHS accounts on /admin/users."""
+        # Log in choosing Flores NHS (school_id=3)
+        login_res = self.client.post('/login', data={
+            'username': 'admin',
+            'password': 'admin123',
+            'school_id': 3
+        }, follow_redirects=True)
+        self.assertEqual(login_res.status_code, 200)
+
+        # Access /admin/users
+        res = self.client.get('/admin/users')
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+
+        # Confirm Flores NHS accounts are shown and DMCIS staff accounts are not
+        self.assertIn("Flores National High School", html)
+        self.assertIn("principal_300452", html)
+        self.assertNotIn("teacher_test", html)
+
+    def test_13_admin_switch_school_updates_roster(self):
+        """Verify Administrator switching to School #1 immediately scopes /admin/users to DMCIS accounts."""
+        # Switch school to 1
+        switch_res = self.client.get('/admin/switch-school/1')
+        self.assertEqual(switch_res.status_code, 302)
+
+        # Access /admin/users
+        res = self.client.get('/admin/users')
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+
+        self.assertIn("teacher_test", html)
+        self.assertNotIn("principal_300452", html)
+
 if __name__ == '__main__':
     unittest.main()

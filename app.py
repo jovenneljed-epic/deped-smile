@@ -229,29 +229,50 @@ def role_required(*allowed_roles):
 def get_current_school_id() -> int:
     """
     Resolves active tenant school_id based on priority:
-    1. Super Admin / Division Admin explicit school switch stored in session['active_school_id']
-    2. Logged-in user's assigned school in session['school_id']
-    3. Explicit school_id passed via query parameters (?school_id=X) e.g. for Kiosks/API
-    4. Default School ID = 1 (Don Montano Central Integrated School)
+    1. If user is logged in as non-superadmin (Principal, Teacher, Guard, Staff):
+       STRICTLY lock to session['school_id'] to ensure multi-tenant security.
+    2. If user is SUPER_ADMIN / DIVISION_ADMIN:
+       - Query parameter ?school_id=X (if explicitly provided and > 0)
+       - Session active school session['active_school_id']
+       - Session assigned school session['school_id']
+       - Default 1
+    3. If unauthenticated (e.g. Kiosks/API):
+       - Explicit school_id passed via query parameters (?school_id=X)
+       - Default 1
     """
+    role = session.get('role') if session else None
+    
+    # Non-superadmins are strictly locked to their assigned school tenant
+    if role and role not in ('SUPER_ADMIN', 'DIVISION_ADMIN'):
+        sid = session.get('school_id')
+        if sid:
+            try:
+                return int(sid)
+            except (ValueError, TypeError):
+                pass
+        return 1
+
+    # Super Admin or unauthenticated: check query parameter
     try:
-        # Query parameter override (e.g. for kiosk devices or API calls)
         if request:
-            q_sid = request.args.get('school_id', type=int)
-            if q_sid and q_sid > 0:
-                return q_sid
+            q_sid = request.args.get('school_id')
+            if q_sid and str(q_sid).isdigit() and int(q_sid) > 0:
+                sid_val = int(q_sid)
+                if session and role in ('SUPER_ADMIN', 'DIVISION_ADMIN'):
+                    session['active_school_id'] = sid_val
+                return sid_val
     except Exception:
         pass
 
-    # Session active school (from Super Admin school switcher)
-    if 'active_school_id' in session and session['active_school_id']:
+    # Session active school (from Super Admin school switcher or login)
+    if session and 'active_school_id' in session and session['active_school_id']:
         try:
             return int(session['active_school_id'])
         except (ValueError, TypeError):
             pass
 
     # Logged-in user's school
-    if 'school_id' in session and session['school_id']:
+    if session and 'school_id' in session and session['school_id']:
         try:
             return int(session['school_id'])
         except (ValueError, TypeError):
@@ -338,9 +359,33 @@ def login_page():
     session['username'] = user['username']
     session['full_name'] = user['full_name']
     session['role'] = user['role']
-    user_sid = user.get('school_id') or selected_school_id or 1
-    session['school_id'] = user_sid
-    session['active_school_id'] = selected_school_id or user_sid
+
+    if user['role'] in ['SUPER_ADMIN', 'DIVISION_ADMIN']:
+        target_sid = selected_school_id or user.get('school_id') or 1
+        session['school_id'] = target_sid
+        session['active_school_id'] = target_sid
+        sch = get_school_by_id_orm(target_sid)
+        if sch:
+            session['active_school_name'] = sch['school_name']
+    else:
+        # Strict isolation for Principals, Teachers, Staff, and Guards
+        own_sid = user.get('school_id') or 1
+        if selected_school_id and selected_school_id != own_sid:
+            sch_assigned = get_school_by_id_orm(own_sid)
+            sch_name = sch_assigned['school_name'] if sch_assigned else f"School #{own_sid}"
+            return render_template(
+                'login.html',
+                school_name=smile_config.SCHOOL_NAME,
+                error=f"This account is assigned to '{sch_name}'. Please select your assigned campus to log in.",
+                next_url=next_url,
+                all_schools=all_schs
+            )
+        session['school_id'] = own_sid
+        session['active_school_id'] = own_sid
+        sch = get_school_by_id_orm(own_sid)
+        if sch:
+            session['active_school_name'] = sch['school_name']
+
     session['assigned_section_id'] = user.get('assigned_section_id')
     session['assigned_section_name'] = user.get('assigned_section_name')
     session['designation'] = user.get('designation', '')
@@ -371,6 +416,7 @@ def switch_school(school_id):
     sch = get_school_by_id_orm(school_id)
     if sch:
         session['active_school_id'] = sch['id']
+        session['school_id'] = sch['id']
         session['active_school_name'] = sch['school_name']
     
     # Return JSON if requested via AJAX, otherwise redirect to previous page
@@ -378,6 +424,13 @@ def switch_school(school_id):
         return jsonify({"success": True, "school_id": school_id, "school": sch})
     
     referrer = request.referrer or url_for('dashboard')
+    if '?school_id=' in referrer or '&school_id=' in referrer:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(referrer)
+        qs = urllib.parse.parse_qs(parsed.query)
+        qs.pop('school_id', None)
+        new_query = urllib.parse.urlencode(qs, doseq=True)
+        referrer = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
     return redirect(referrer)
 
 @app.route('/api/schools', methods=['GET'])
@@ -582,10 +635,11 @@ def admin_save_sms_settings():
 def admin_save_school_settings():
     """Super Admin: Updates official school profile, DepEd metadata, Campus GPS Coordinates, Geofence, CCTV, and Public Domain URL."""
     school_name = request.form.get("school_name", "").strip()
-    deped_region = request.form.get("deped_region", "").strip()
-    school_division = request.form.get("school_division", "").strip()
-    school_id = request.form.get("school_id", "").strip()
-    school_address = request.form.get("school_address", "").strip()
+    existing_cfg = smile_config.load_school_settings()
+    deped_region = request.form.get("deped_region", "").strip() or existing_cfg.get("deped_region") or "Region I • Ilocos Region"
+    school_division = request.form.get("school_division", "").strip() or existing_cfg.get("school_division") or "SDO Pangasinan II"
+    school_id = request.form.get("school_id", "").strip() or existing_cfg.get("school_id") or "152008"
+    school_address = request.form.get("school_address", "").strip() or existing_cfg.get("school_address") or "Brgy. Don Montano, Umingan, Pangasinan"
     system_domain = request.form.get("system_domain", "").strip()
     camera_source = request.form.get("camera_source", "").strip()
     school_latitude = request.form.get("school_latitude", "").strip()
@@ -659,8 +713,10 @@ def admin_schools():
 def admin_events_page():
     """Super Admin & Principal: Manage and publish school events and activities to the Parent Mobile App."""
     from smile_orm import get_all_events_orm
-    events = get_all_events_orm(limit=100)
-    return render_template('admin_events.html', events=events, school_name=smile_config.SCHOOL_NAME)
+    sid = get_current_school_id()
+    active_sch = get_school_by_id_orm(sid) or {}
+    events = get_all_events_orm(limit=100, school_id=sid)
+    return render_template('admin_events.html', events=events, school_name=active_sch.get('school_name', smile_config.SCHOOL_NAME))
 
 @app.route('/admin/billing', methods=['GET'])
 @admin_required
@@ -681,19 +737,41 @@ def admin_billing():
 @admin_required
 def admin_users():
     """Super Admin: Staff User Management & Account Settings Portal."""
-    selected_school_id = request.args.get('school_id', type=int)
-    schools = get_all_schools_orm()
     active_school_id = get_current_school_id()
-    users = get_all_users_orm(school_id=selected_school_id if selected_school_id else None)
-    sections = get_all_sections_orm()
+    raw_school_id = request.args.get('school_id', '').strip()
+    schools = get_all_schools_orm()
+
+    if raw_school_id.lower() == 'all':
+        selected_school_id = 'ALL'
+        users = get_all_users_orm(school_id=None)
+        sections = get_all_sections_orm(school_id=active_school_id)
+    elif raw_school_id.isdigit() and int(raw_school_id) > 0:
+        selected_school_id = int(raw_school_id)
+        session['active_school_id'] = selected_school_id
+        session['school_id'] = selected_school_id
+        sch = get_school_by_id_orm(selected_school_id)
+        if sch:
+            session['active_school_name'] = sch['school_name']
+        active_school_id = selected_school_id
+        users = get_all_users_orm(school_id=selected_school_id)
+        sections = get_all_sections_orm(school_id=selected_school_id)
+    else:
+        # Default strictly to active school context
+        selected_school_id = active_school_id
+        users = get_all_users_orm(school_id=active_school_id)
+        sections = get_all_sections_orm(school_id=active_school_id)
+
+    active_school = get_school_by_id_orm(active_school_id) or {}
+
     return render_template(
         'admin_users.html',
-        school_name=smile_config.SCHOOL_NAME,
+        school_name=active_school.get('school_name', smile_config.SCHOOL_NAME),
         users=users,
         sections=sections,
         schools=schools,
         active_school_id=active_school_id,
-        selected_school_id=selected_school_id
+        selected_school_id=selected_school_id,
+        active_school=active_school
     )
 
 @app.route('/api/admin/users', methods=['POST'])
@@ -982,7 +1060,8 @@ def dashboard():
         from smile_orm import (
             get_enrolled_students_count_orm,
             get_teacher_advisory_overview_orm,
-            get_all_sections_orm
+            get_all_sections_orm,
+            get_today_summary_orm
         )
         
         user_role = session.get('role', '')
@@ -997,30 +1076,34 @@ def dashboard():
         is_admin_or_principal = bool(user_role in ['SUPER_ADMIN', 'PRINCIPAL'] or session.get('is_admin'))
         advisory_overview = None
 
+        sid = get_current_school_id()
+        active_school = get_school_by_id_orm(sid) or {}
+        curr_school_name = active_school.get('school_name', SCHOOL_NAME)
+
         if is_teacher_view:
             advisory_overview = get_teacher_advisory_overview_orm(
                 section_id=target_section_id,
                 section_name=user_section_name if not inspect_section_id else None,
                 adviser_name=user_full_name if not inspect_section_id else None
             )
-            all_sections = get_all_sections_orm() if is_admin_or_principal else []
+            all_sections = get_all_sections_orm(school_id=sid) if is_admin_or_principal else []
             total_enrolled = advisory_overview.get('total_enrolled', 0) if advisory_overview else 0
             total_scans_today = 0
             unique_students_today = 0
             logs = []
             total_sms_today = 0
         else:
-            all_sections = get_all_sections_orm() if is_admin_or_principal else []
-            summary = get_today_summary()
-            total_enrolled = get_enrolled_students_count_orm()
+            all_sections = get_all_sections_orm(school_id=sid) if is_admin_or_principal else []
+            summary = get_today_summary_orm(school_id=sid)
+            total_enrolled = get_enrolled_students_count_orm(school_id=sid)
             total_scans_today = summary.get("total_scans", 0)
             unique_students_today = summary.get("unique_students", 0)
-            logs = get_today_attendance_logs_orm(30)
-            total_sms_today = get_today_sms_count_orm()
+            logs = get_today_attendance_logs_orm(30, school_id=sid)
+            total_sms_today = get_today_sms_count_orm(school_id=sid)
 
         return render_template(
             'dashboard.html',
-            school_name=SCHOOL_NAME,
+            school_name=curr_school_name,
             total_enrolled=total_enrolled,
             total_scans_today=total_scans_today,
             unique_students_today=unique_students_today,
@@ -3711,14 +3794,18 @@ def faculty_scanner_page():
     # Check if this scanner session is in Admin / Principal Central Multi-Account Kiosk mode
     is_admin = bool(user_obj and (user_obj.get('is_admin') or user_obj.get('role') in ['SUPER_ADMIN', 'PRINCIPAL']))
 
+    sid = get_current_school_id()
+    active_sch = get_school_by_id_orm(sid) or {}
+    curr_school_name = active_sch.get('school_name', SCHOOL_NAME)
+
     today_status = get_staff_today_status_orm(current_uid) if current_uid else None
-    enrolled_staff = get_enrolled_staff_faces_orm()
+    enrolled_staff = get_enrolled_staff_faces_orm(school_id=sid)
     enrolled_count = len(enrolled_staff)
 
     # Active staff list for admin kiosk enrollment and inspection
     all_staff = []
     if is_admin:
-        raw_users = get_all_users_orm()
+        raw_users = get_all_users_orm(school_id=sid)
         staff_roles = ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD', 'SUPER_ADMIN']
         all_staff = [u for u in raw_users if u.get('is_active', True) and u.get('role') in staff_roles]
 
@@ -3726,13 +3813,13 @@ def faculty_scanner_page():
     campus_summary = get_campus_staff_attendance_summary_orm()
 
     school_cfg = smile_config.load_school_settings()
-    active_lat = float(school_cfg.get("school_latitude", smile_config.DEFAULT_SCHOOL_LAT))
-    active_lon = float(school_cfg.get("school_longitude", smile_config.DEFAULT_SCHOOL_LON))
-    active_radius = int(school_cfg.get("geofence_radius", smile_config.ALLOWED_GEOFENCE_RADIUS_METERS))
+    active_lat = float(active_sch.get("latitude") or school_cfg.get("school_latitude", smile_config.DEFAULT_SCHOOL_LAT))
+    active_lon = float(active_sch.get("longitude") or school_cfg.get("school_longitude", smile_config.DEFAULT_SCHOOL_LON))
+    active_radius = int(active_sch.get("geofence_radius") or school_cfg.get("geofence_radius", smile_config.ALLOWED_GEOFENCE_RADIUS_METERS))
 
     return render_template(
         'faculty_scanner.html',
-        school_name=SCHOOL_NAME,
+        school_name=curr_school_name,
         school_lat=active_lat,
         school_lon=active_lon,
         geofence_radius=active_radius,
@@ -3979,10 +4066,11 @@ def faculty_dtr_page():
     target_month = request.args.get('month', type=int) or now.month
     target_year = request.args.get('year', type=int) or now.year
 
+    sid = get_current_school_id()
     # List of all staff for Admin / Principal inspector dropdown
     all_staff = []
     if current_role in ['SUPER_ADMIN', 'PRINCIPAL']:
-        all_staff = get_all_users_orm()
+        all_staff = get_all_users_orm(school_id=sid)
         all_staff = [u for u in all_staff if u.get('role') in ['TEACHER', 'STAFF', 'NON_TEACHING', 'PRINCIPAL', 'GUARD']]
 
     target_user = get_user_by_id_orm(target_uid) if target_uid else None
