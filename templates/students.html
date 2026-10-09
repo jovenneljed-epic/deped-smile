@@ -140,43 +140,68 @@
     applyStudentFilters();
   }
 
+  let filterRaf = null;
   function applyStudentFilters() {
-    const term = (document.getElementById('studentSearch')?.value || '').toLowerCase().trim();
-    const cards = document.querySelectorAll('.student-card');
-    cards.forEach(card => {
-      const name = card.getAttribute('data-name') || '';
-      const lrn = card.getAttribute('data-lrn') || '';
-      const sec = card.getAttribute('data-section') || '';
+    if (filterRaf) cancelAnimationFrame(filterRaf);
+    filterRaf = requestAnimationFrame(() => {
+      const term = (document.getElementById('studentSearch')?.value || '').toLowerCase().trim();
+      const cards = document.querySelectorAll('.student-card');
+      let visibleCount = 0;
+      cards.forEach(card => {
+        const name = card.getAttribute('data-name') || '';
+        const lrn = card.getAttribute('data-lrn') || '';
+        const sec = card.getAttribute('data-section') || '';
 
-      const matchesSearch = !term || name.includes(term) || lrn.includes(term) || sec.includes(term);
-      const matchesAdvisory = !advisoryOnlyActive || (myAdvisorySection && sec.includes(myAdvisorySection));
+        const matchesSearch = !term || name.includes(term) || lrn.includes(term) || sec.includes(term);
+        const matchesAdvisory = !advisoryOnlyActive || (myAdvisorySection && sec.includes(myAdvisorySection));
 
-      card.style.display = (matchesSearch && matchesAdvisory) ? '' : 'none';
+        if (matchesSearch && matchesAdvisory) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
     });
   }
 
-  // Search Filter
+  // Instant Live Search Filter
   const studentSearch = document.getElementById('studentSearch');
   if (studentSearch) {
     studentSearch.addEventListener('input', applyStudentFilters);
   }
 
-  // Delete Student
+  // 1-Click Smooth Removal without Page Reload
   async function deleteStudent(lrn, name) {
     if (!confirm(`Are you sure you want to remove ${name} (LRN: ${lrn}) from Project S.M.I.L.E.?`)) {
       return;
+    }
+
+    const card = document.querySelector(`.student-card[data-lrn="${lrn}"]`);
+    if (card) {
+      card.style.transition = 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+      card.style.opacity = '0.5';
+      card.style.pointerEvents = 'none';
     }
 
     try {
       const res = await fetch(`/api/delete-student/${lrn}`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        alert(data.message);
-        window.location.reload();
+        if (card) {
+          card.style.transform = 'scale(0.85)';
+          card.style.opacity = '0';
+          setTimeout(() => {
+            card.remove();
+            applyStudentFilters();
+          }, 250);
+        }
       } else {
+        if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; }
         alert("Error: " + data.message);
       }
     } catch(err) {
+      if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; }
       alert("Failed to delete: " + err.message);
     }
   }

@@ -772,21 +772,23 @@
 
         cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = cameraStream;
+        try { await video.play(); } catch(e) {}
 
-        // Populate device select
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        const select = document.getElementById('cameraDeviceSelect');
-        if (select) {
-          select.innerHTML = '';
-          videoDevices.forEach((dev, idx) => {
-            const opt = document.createElement('option');
-            opt.value = dev.deviceId;
-            opt.textContent = dev.label || `Camera ${idx + 1}`;
-            if (deviceId && dev.deviceId === deviceId) opt.selected = true;
-            select.appendChild(opt);
-          });
-        }
+        // Populate device select asynchronously
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+          const select = document.getElementById('cameraDeviceSelect');
+          if (select) {
+            select.innerHTML = '';
+            videoDevices.forEach((dev, idx) => {
+              const opt = document.createElement('option');
+              opt.value = dev.deviceId;
+              opt.textContent = dev.label || `Camera ${idx + 1}`;
+              if (deviceId && dev.deviceId === deviceId) opt.selected = true;
+              select.appendChild(opt);
+            });
+          }
+        }).catch(() => {});
       } catch (err) {
         console.error('Camera access error:', err);
         const banner = document.getElementById('resultBannerText');
@@ -1173,12 +1175,12 @@
         if (label) label.textContent = 'Pause Auto';
         if (toggle) toggle.className = 'px-3.5 py-3 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-400/40 text-xs font-black transition flex items-center gap-1.5';
         
-        // Scan every 2.8 seconds
+        // High-Speed Adaptive Scan cadence (every 1000ms)
         autoScanInterval = setInterval(() => {
           if (!isScanning) {
             performFaceScan();
           }
-        }, 2800);
+        }, 1000);
       }
     }
 

@@ -664,8 +664,9 @@
         standbyPrompt.classList.add('hidden');
         const pill = document.getElementById('cameraStatusPill');
         if (pill) pill.innerText = 'LIVE WEBCAM • AUTO-SCAN ON';
-        await enumerateCameras();
         startAutoScanLoop();
+        startNativeQrLoop();
+        enumerateCameras();
       } catch (err) {
         console.warn("Camera start note:", err);
         standbyPrompt.classList.remove('hidden');
@@ -700,9 +701,9 @@
     }
 
     // Fast local camera initialization on page load
-    window.addEventListener('DOMContentLoaded', async () => {
-      await enumerateCameras();
+    window.addEventListener('DOMContentLoaded', () => {
       startKioskCamera();
+      enumerateCameras();
     });
 
     // -------------------------------------------------------------
@@ -724,10 +725,37 @@
       }
     }
 
+    // High-Frequency Native QR Optical Scanner (Sub-30ms recognition)
+    let qrScanLoopActive = false;
+    function startNativeQrLoop() {
+      if (!nativeBarcodeDetector || qrScanLoopActive) return;
+      qrScanLoopActive = true;
+
+      async function qrCheck() {
+        if (!qrScanLoopActive) return;
+        if (!document.hidden && videoEl && !videoEl.paused && !videoEl.ended && videoEl.videoWidth) {
+          const now = Date.now();
+          if (!lastScannedLrn || (now - lastScannedTimestamp) >= 3000) {
+            try {
+              const barcodes = await nativeBarcodeDetector.detect(videoEl);
+              if (barcodes.length > 0) {
+                const code = barcodes[0].rawValue.trim();
+                if (code) {
+                  await processQrResult(code);
+                }
+              }
+            } catch (err) {}
+          }
+        }
+        setTimeout(qrCheck, 80);
+      }
+      qrCheck();
+    }
+
     function startAutoScanLoop() {
       if (autoScanTimer) clearInterval(autoScanTimer);
-      // Run continuous scan tick every 1000ms (1s) for responsive face locking without network congestion
-      autoScanTimer = setInterval(scanTick, 1000);
+      // Run continuous face scan tick every 750ms for responsive face locking
+      autoScanTimer = setInterval(scanTick, 750);
     }
 
     async function scanTick() {
@@ -735,9 +763,9 @@
       if (isScanInProgress) return;
       if (!videoEl || videoEl.paused || videoEl.ended || !videoEl.videoWidth) return;
 
-      // Client-side debounce: If student was just successfully scanned < 6 seconds ago,
+      // Client-side debounce: If student was just successfully scanned < 4 seconds ago,
       // skip sending auto-scan frames to avoid flooding serverless API with duplicate frames
-      if (lastScannedLrn && (Date.now() - lastScannedTimestamp) < 6000) {
+      if (lastScannedLrn && (Date.now() - lastScannedTimestamp) < 4000) {
         return;
       }
 
@@ -760,18 +788,17 @@
           }
         }
 
-        // Step B: Send High-Resolution Frame to Server Auto-Scanner (QR + YuNet Face Biometrics)
-        // Render 640px wide canvas with high smoothing for accurate landmark detection
-        const w = 640;
-        const h = Math.round(videoEl.videoHeight * (w / videoEl.videoWidth)) || 480;
+        // Step B: Send Optimized Frame to Server Auto-Scanner (480px for rapid network transit)
+        const w = 480;
+        const h = Math.round(videoEl.videoHeight * (w / videoEl.videoWidth)) || 360;
         canvasEl.width = w;
         canvasEl.height = h;
-        const ctx = canvasEl.getContext('2d');
+        const ctx = canvasEl.getContext('2d', { alpha: false });
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        ctx.imageSmoothingQuality = 'medium';
         ctx.drawImage(videoEl, 0, 0, w, h);
 
-        const dataUrl = canvasEl.toDataURL('image/jpeg', 0.82);
+        const dataUrl = canvasEl.toDataURL('image/jpeg', 0.78);
 
         const res = await fetch('/api/kiosk-auto-scan', {
           method: 'POST',
@@ -1049,12 +1076,12 @@
         smsPhone.innerText = `Parent SMS alert dispatched.`;
       }
 
-      // Auto revert to standby after 5.5s
+      // Auto revert to standby after 3.0s for rapid gate throughput
       if (badgeTimer) clearTimeout(badgeTimer);
       badgeTimer = setTimeout(() => {
         badgeActive.classList.add('hidden');
         document.getElementById('badgeIdle').classList.remove('hidden');
-      }, 5500);
+      }, 3000);
     }
 
     // -------------------------------------------------------------

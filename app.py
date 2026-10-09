@@ -124,6 +124,16 @@ def get_face_engine():
             face_engine = None
     return face_engine
 
+_cached_qr_detector = None
+def get_qr_detector():
+    global _cached_qr_detector
+    if _cached_qr_detector is None:
+        try:
+            _cached_qr_detector = cv2.QRCodeDetector()
+        except Exception:
+            _cached_qr_detector = None
+    return _cached_qr_detector
+
 def decode_image_payload(req):
     """Extracts OpenCV BGR frame from file upload or base64 data string."""
     # 1. From multipart file
@@ -3189,7 +3199,8 @@ def api_enroll_student():
             birthdate=birthdate,
             track=track_strand,
             photo_path=photo_rel_path,
-            embedding_array=embedding_vector
+            embedding_array=embedding_vector,
+            school_id=get_current_school_id()
         )
 
         # Decouple facial biometric reload from HTTP request lifecycle for sub-150ms response
@@ -3236,36 +3247,37 @@ def api_kiosk_auto_scan():
 
         # Step 1: Optical QR Code Recognition (Fast Check)
         try:
-            qr_detector = cv2.QRCodeDetector()
-            qr_text, points, _ = qr_detector.detectAndDecode(img)
-            if qr_text and len(qr_text.strip()) >= 6:
-                clean_code = qr_text.strip()
-                success, msg = streamer.trigger_scan_by_id(clean_code, method="QR_CODE")
-                latest_ev = streamer.get_latest_event() or {}
-                return jsonify({
-                    "success": success,
-                    "matched": True,
-                    "detected": True,
-                    "method": "QR_CODE",
-                    "code": clean_code,
-                    "message": msg,
-                    "scan_type": latest_ev.get("scan_type"),
-                    "period": latest_ev.get("period"),
-                    "voice_text": latest_ev.get("voice_text"),
-                    "am_in": latest_ev.get("am_in", 0),
-                    "am_out": latest_ev.get("am_out", 0),
-                    "pm_in": latest_ev.get("pm_in", 0),
-                    "pm_out": latest_ev.get("pm_out", 0),
-                    "total_scans": latest_ev.get("total_scans", 0),
-                    "student": {
-                        "lrn": latest_ev.get("lrn"),
-                        "full_name": latest_ev.get("name"),
-                        "grade_section": latest_ev.get("grade"),
-                        "photo_path": latest_ev.get("photo_path"),
-                        "parent_phone": latest_ev.get("parent_phone")
-                    },
-                    "event": latest_ev
-                })
+            qr_detector = get_qr_detector()
+            if qr_detector:
+                qr_text, points, _ = qr_detector.detectAndDecode(img)
+                if qr_text and len(qr_text.strip()) >= 6:
+                    clean_code = qr_text.strip()
+                    success, msg = streamer.trigger_scan_by_id(clean_code, method="QR_CODE")
+                    latest_ev = streamer.get_latest_event() or {}
+                    return jsonify({
+                        "success": success,
+                        "matched": True,
+                        "detected": True,
+                        "method": "QR_CODE",
+                        "code": clean_code,
+                        "message": msg,
+                        "scan_type": latest_ev.get("scan_type"),
+                        "period": latest_ev.get("period"),
+                        "voice_text": latest_ev.get("voice_text"),
+                        "am_in": latest_ev.get("am_in", 0),
+                        "am_out": latest_ev.get("am_out", 0),
+                        "pm_in": latest_ev.get("pm_in", 0),
+                        "pm_out": latest_ev.get("pm_out", 0),
+                        "total_scans": latest_ev.get("total_scans", 0),
+                        "student": {
+                            "lrn": latest_ev.get("lrn"),
+                            "full_name": latest_ev.get("name"),
+                            "grade_section": latest_ev.get("grade"),
+                            "photo_path": latest_ev.get("photo_path"),
+                            "parent_phone": latest_ev.get("parent_phone")
+                        },
+                        "event": latest_ev
+                    })
         except Exception as qr_err:
             pass
 

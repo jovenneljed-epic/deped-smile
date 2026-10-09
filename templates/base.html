@@ -551,13 +551,28 @@
         document.head.appendChild(link);
       }
 
+      // Pre-warm primary navigation routes during browser idle for instant 1-click response
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+          ['/dashboard', '/students', '/kiosk', '/enroll'].forEach(path => {
+            prefetchUrl(window.location.origin + path);
+          });
+        }, { timeout: 2000 });
+      } else {
+        setTimeout(() => {
+          ['/dashboard', '/students', '/kiosk', '/enroll'].forEach(path => {
+            prefetchUrl(window.location.origin + path);
+          });
+        }, 1200);
+      }
+
       let hoverTimer = null;
       document.addEventListener('mouseover', function(e) {
         const anchor = e.target.closest('a');
         if (!anchor || !anchor.href) return;
         if (anchor.target === '_blank' || anchor.origin !== window.location.origin) return;
         clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => prefetchUrl(anchor.href), 60);
+        hoverTimer = setTimeout(() => prefetchUrl(anchor.href), 25);
       }, { passive: true });
 
       document.addEventListener('touchstart', function(e) {

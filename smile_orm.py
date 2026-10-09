@@ -31,6 +31,26 @@ _PRICING_PLANS_CACHE = {"data": None, "ts": 0}
 _TODAY_SUMMARY_CACHE = {"data": None, "ts": 0}
 _STAFF_FACES_CACHE = {"data": None, "ts": 0}
 
+# Ultra-Fast In-Memory Student Lookup Cache (Sub-millisecond gate scans)
+_STUDENT_LOOKUP_CACHE = {}      # identifier -> {"data": dict, "ts": float}
+_STUDENTS_DIRECTORY_CACHE = {}  # school_id -> {"data": list, "ts": float}
+STUDENT_CACHE_TTL = 180.0       # 3-minute TTL
+
+def invalidate_student_cache(school_id=None, lrn=None):
+    """Invalidates cached student records to ensure immediate synchronization."""
+    global _STUDENT_LOOKUP_CACHE, _STUDENTS_DIRECTORY_CACHE, _STUDENT_COUNT_CACHE
+    if lrn and str(lrn) in _STUDENT_LOOKUP_CACHE:
+        _STUDENT_LOOKUP_CACHE.pop(str(lrn), None)
+    else:
+        _STUDENT_LOOKUP_CACHE.clear()
+    if school_id is not None:
+        _STUDENTS_DIRECTORY_CACHE.pop(int(school_id), None)
+        _STUDENTS_DIRECTORY_CACHE.pop(str(school_id), None)
+    else:
+        _STUDENTS_DIRECTORY_CACHE.clear()
+    _STUDENT_COUNT_CACHE["count"] = None
+    _STUDENT_COUNT_CACHE["ts"] = 0
+
 Base = declarative_base()
 
 # -------------------------------------------------------------
@@ -2443,7 +2463,7 @@ def save_student_orm(lrn, first_name, last_name, grade_section="", parent_name="
         student.qr_code_path = qr_url
 
         session.commit()
-        _STUDENT_COUNT_CACHE["count"] = None
+        invalidate_student_cache(school_id=getattr(student, 'school_id', 1), lrn=student.lrn)
         return student.to_dict()
     except Exception as e:
         session.rollback()
@@ -2477,9 +2497,10 @@ def delete_student_orm(lrn):
         except Exception:
             pass
 
+        sch_id = getattr(student, 'school_id', 1)
         session.delete(student)
         session.commit()
-        _STUDENT_COUNT_CACHE["count"] = None
+        invalidate_student_cache(school_id=sch_id, lrn=lrn)
         try:
             (smile_config.DATA_DIR / ".students_seeded").touch(exist_ok=True)
         except Exception:
@@ -2533,7 +2554,13 @@ def get_enrolled_students_count_orm(school_id=None):
         session.close()
 
 def get_students_directory_orm(school_id=None):
-    """Fast student directory listing omitting heavy JSON/NumPy face embeddings scoped by school_id."""
+    """Fast student directory listing with TTL cache scoped by school_id."""
+    key = int(school_id) if school_id else 0
+    now = time.time()
+    cached = _STUDENTS_DIRECTORY_CACHE.get(key)
+    if cached and (now - cached["ts"] < 120.0): # 2-minute TTL
+        return cached["data"]
+
     session = Session()
     try:
         q = session.query(
@@ -2570,23 +2597,36 @@ def get_students_directory_orm(school_id=None):
                 "is_active": s.is_active,
                 "created_at": s.created_at.strftime("%Y-%m-%d %H:%M:%S") if s.created_at else ""
             })
+        _STUDENTS_DIRECTORY_CACHE[key] = {"data": result, "ts": now}
         return result
     finally:
         session.close()
 
 def get_student_by_lrn_or_rfid_orm(identifier: str):
-    """Looks up student by either 12-digit LRN or physical RFID card UID."""
-    session = Session()
+    """Looks up student by either 12-digit LRN or physical RFID card UID with sub-millisecond in-memory caching."""
     clean_id = str(identifier).strip()
+    now = time.time()
+    cached = _STUDENT_LOOKUP_CACHE.get(clean_id)
+    if cached and (now - cached["ts"] < STUDENT_CACHE_TTL):
+        return cached["data"]
+
+    session = Session()
     try:
         # Check by LRN
         student = session.query(Student).filter_by(lrn=clean_id, is_active=True).first()
         if student:
-            return student.to_dict()
+            res = student.to_dict()
+            _STUDENT_LOOKUP_CACHE[clean_id] = {"data": res, "ts": now}
+            if res.get("rfid_card_uid") and res.get("rfid_card_uid") != "N/A":
+                _STUDENT_LOOKUP_CACHE[res["rfid_card_uid"]] = {"data": res, "ts": now}
+            return res
         # Check by RFID UID
         student = session.query(Student).filter_by(rfid_card_uid=clean_id, is_active=True).first()
         if student:
-            return student.to_dict()
+            res = student.to_dict()
+            _STUDENT_LOOKUP_CACHE[clean_id] = {"data": res, "ts": now}
+            _STUDENT_LOOKUP_CACHE[res["lrn"]] = {"data": res, "ts": now}
+            return res
         return None
     finally:
         session.close()
@@ -2608,13 +2648,17 @@ def evaluate_daily_scan_rule_orm(lrn, student_name="", current_time=None, cooldo
     norm_gate_mode = (gate_mode or "AUTO").upper()
 
     try:
-        # Resolve student full name if not provided
+        # Resolve student full name if not provided (check memory cache first)
         if not student_name:
-            st = session.query(Student).filter_by(lrn=clean_lrn).first()
-            if st:
-                student_name = st.full_name
+            cached_st = _STUDENT_LOOKUP_CACHE.get(clean_lrn)
+            if cached_st and cached_st.get("data"):
+                student_name = cached_st["data"].get("full_name", f"Learner {clean_lrn}")
             else:
-                student_name = f"Learner {clean_lrn}"
+                st = session.query(Student).filter_by(lrn=clean_lrn).first()
+                if st:
+                    student_name = st.full_name
+                else:
+                    student_name = f"Learner {clean_lrn}"
 
         # Retrieve all attendance logs recorded for this student today
         today_logs = session.query(AttendanceLog).filter(

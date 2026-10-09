@@ -801,8 +801,8 @@
   async function captureSnapshot() {
     if (activeTab === 'webcam') {
       if (!webcamVideo.videoWidth) return;
-      // High-speed downscaling to max 640px (reduces payload from ~8MB to ~35KB)
-      const maxDim = 640;
+      // High-speed downscaling to max 480px (reduces payload from ~8MB to ~25KB)
+      const maxDim = 480;
       let w = webcamVideo.videoWidth;
       let h = webcamVideo.videoHeight;
       if (w > maxDim || h > maxDim) {
@@ -818,13 +818,13 @@
       hiddenCanvas.height = h;
       const ctx = hiddenCanvas.getContext('2d', { alpha: false });
       ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingQuality = 'medium';
       if (isMirrored) {
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
       }
       ctx.drawImage(webcamVideo, 0, 0, w, h);
-      const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.82);
+      const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.80);
       applyCapturedSnapshot(dataUrl);
     } else if (activeTab === 'kiosk') {
       updateStatus("Capturing Frame...", "Fetching high-resolution frame from gate engine...", "info");
@@ -1022,6 +1022,11 @@
 
       if (data.success) {
         const lrn = document.getElementById('inputLrn').value;
+        const savedGrade = document.getElementById('inputGradeLevel')?.value;
+        const savedSection = document.getElementById('selectSectionName')?.value;
+        const savedAdviser = document.getElementById('inputClassAdviser')?.value;
+        const savedTrack = document.getElementById('inputTrack')?.value;
+
         showAlert(`
           <strong>SUCCESS:</strong> ${data.message}<br>
           <div class="mt-2 flex items-center space-x-3">
@@ -1034,7 +1039,27 @@
           </div>
         `, "success");
         document.getElementById('enrollForm').reset();
+
+        // Restore class section and adviser for rapid 1-click batch enrollment
+        if (savedGrade) {
+          const gl = document.getElementById('inputGradeLevel');
+          if (gl) { gl.value = savedGrade; onGradeLevelChange(savedGrade); }
+        }
+        if (savedSection) {
+          const sec = document.getElementById('selectSectionName');
+          if (sec) { sec.value = savedSection; onSectionSelect(savedSection); }
+        }
+        if (savedAdviser) {
+          const adv = document.getElementById('inputClassAdviser');
+          if (adv) adv.value = savedAdviser;
+        }
+        if (savedTrack) {
+          const trk = document.getElementById('inputTrack');
+          if (trk) trk.value = savedTrack;
+        }
+
         retakePhoto();
+        document.getElementById('inputLrn')?.focus();
       } else {
         showAlert(`<strong>ENROLLMENT ERROR:</strong> ${data.message}`, "error");
       }
@@ -1050,10 +1075,8 @@
   // 6. Auto-Start Camera & Teacher Advisory Section Pre-selection
   // -----------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', () => {
-    // Attempt auto-activation after layout renders
-    setTimeout(() => {
-      startWebcam();
-    }, 400);
+    // Immediate camera start for 0ms layout lag
+    startWebcam();
 
     {% if assigned_section %}
     // Pre-populate teacher's advisory grade & section
