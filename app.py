@@ -444,6 +444,10 @@ def switch_school(school_id):
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({"success": True, "school_id": school_id, "school": sch})
     
+    next_dest = request.args.get('next')
+    if next_dest:
+        return redirect(next_dest)
+
     referrer = request.referrer or url_for('dashboard')
     if '?school_id=' in referrer or '&school_id=' in referrer:
         import urllib.parse
@@ -665,11 +669,45 @@ def api_update_profile():
 def admin_settings():
     """Super Admin Exclusive: Central System Configuration Portal."""
     sms_cfg = smile_config.get_sms_config()
-    school_settings = smile_config.load_school_settings()
+    
+    # Multi-tenant resolution: Resolve active school tenant
+    active_sid = get_current_school_id()
+    active_school = get_school_by_id_orm(active_sid)
+    if not active_school:
+        active_school = get_school_by_id_orm(1) or {}
+
+    # Build tenant-specific settings dictionary
+    school_settings = {
+        "id": active_school.get("id", active_sid),
+        "school_id": active_school.get("school_id", "152008"),
+        "school_name": active_school.get("school_name", smile_config.SCHOOL_NAME),
+        "school_short_name": active_school.get("school_short_name", smile_config.SCHOOL_SHORT_NAME),
+        "deped_region": active_school.get("region") or "Region I • Ilocos Region",
+        "school_division": active_school.get("division") or "SDO Pangasinan II",
+        "school_address": active_school.get("school_address") or "Don Montano, Umingan, Pangasinan",
+        "principal_name": active_school.get("principal_name", ""),
+        "contact_phone": active_school.get("contact_phone", ""),
+        "contact_email": active_school.get("contact_email", ""),
+        "school_latitude": active_school.get("latitude", 15.9295),
+        "school_longitude": active_school.get("longitude", 120.8613),
+        "geofence_radius": active_school.get("geofence_radius", 2500),
+        "camera_source": active_school.get("camera_source", "0"),
+        "system_domain": smile_config.SYSTEM_DOMAIN,
+    }
+
+    cfg_file = smile_config.load_school_settings()
+    if cfg_file.get("system_domain"):
+        school_settings["system_domain"] = cfg_file.get("system_domain")
+
+    all_schools = get_all_schools_orm()
+
     return render_template(
         'admin_settings.html',
-        school_name=smile_config.SCHOOL_NAME,
+        school_name=school_settings["school_name"],
         school_settings=school_settings,
+        active_school=active_school,
+        active_school_id=active_school.get("id", active_sid),
+        all_schools=all_schools,
         system_domain=school_settings.get("system_domain", smile_config.SYSTEM_DOMAIN),
         sms_config=sms_cfg,
         sms_mode=sms_cfg.get("mode", "MOCK"),
@@ -703,6 +741,7 @@ def admin_save_sms_settings():
 @admin_required
 def admin_save_school_settings():
     """Super Admin: Updates official school profile, DepEd metadata, Campus GPS Coordinates, Geofence, CCTV, and Public Domain URL."""
+    target_sid = request.form.get("target_school_id", type=int) or get_current_school_id()
     school_name = request.form.get("school_name", "").strip()
     existing_cfg = smile_config.load_school_settings()
     deped_region = request.form.get("deped_region", "").strip() or existing_cfg.get("deped_region") or "Region I • Ilocos Region"
@@ -715,44 +754,59 @@ def admin_save_school_settings():
     school_longitude = request.form.get("school_longitude", "").strip()
     geofence_radius = request.form.get("geofence_radius", "").strip()
 
-    if school_name:
-        payload = {
-            "school_name": school_name,
-            "deped_region": deped_region,
-            "school_division": school_division,
-            "school_id": school_id,
-            "school_address": school_address,
-            "system_domain": system_domain
-        }
-        if camera_source:
-            payload["camera_source"] = camera_source
-        if school_latitude:
-            try: payload["school_latitude"] = float(school_latitude)
-            except (ValueError, TypeError): pass
-        if school_longitude:
-            try: payload["school_longitude"] = float(school_longitude)
-            except (ValueError, TypeError): pass
-        if geofence_radius:
-            try: payload["geofence_radius"] = int(geofence_radius)
-            except (ValueError, TypeError): pass
+    lat_val = None
+    lon_val = None
+    radius_val = None
+    if school_latitude:
+        try: lat_val = float(school_latitude)
+        except (ValueError, TypeError): pass
+    if school_longitude:
+        try: lon_val = float(school_longitude)
+        except (ValueError, TypeError): pass
+    if geofence_radius:
+        try: radius_val = float(geofence_radius)
+        except (ValueError, TypeError): pass
 
-        smile_config.save_school_settings(payload)
+    if school_name:
         from smile_orm import recalibrate_staff_attendance_geotags_orm, update_school_orm
-        active_sid = get_current_school_id()
-        update_school_orm(
-            active_sid,
-            school_name=school_name,
-            school_address=school_address,
-            division=school_division,
-            region=deped_region,
-            latitude=payload.get("school_latitude"),
-            longitude=payload.get("school_longitude"),
-            geofence_radius=payload.get("geofence_radius"),
-            camera_source=payload.get("camera_source")
-        )
+        update_kwargs = {
+            "school_name": school_name,
+            "school_address": school_address,
+            "division": school_division,
+            "region": deped_region,
+        }
+        if lat_val is not None: update_kwargs["latitude"] = lat_val
+        if lon_val is not None: update_kwargs["longitude"] = lon_val
+        if radius_val is not None: update_kwargs["geofence_radius"] = radius_val
+        if camera_source: update_kwargs["camera_source"] = camera_source
+
+        update_school_orm(target_sid, **update_kwargs)
         recalibrate_staff_attendance_geotags_orm()
 
-    return redirect(url_for('admin_settings', msg="School profile, Public Domain settings updated successfully, campus GPS coordinates, geofence perimeter, and CCTV settings."))
+        # Update school_settings.json for default school or domain setting
+        if target_sid == 1 or system_domain:
+            payload = {
+                "system_domain": system_domain
+            }
+            if target_sid == 1:
+                payload.update({
+                    "school_name": school_name,
+                    "deped_region": deped_region,
+                    "school_division": school_division,
+                    "school_id": school_id,
+                    "school_address": school_address,
+                })
+                if camera_source: payload["camera_source"] = camera_source
+                if lat_val is not None: payload["school_latitude"] = lat_val
+                if lon_val is not None: payload["school_longitude"] = lon_val
+                if radius_val is not None: payload["geofence_radius"] = int(radius_val)
+            smile_config.save_school_settings(payload)
+
+        # Keep active school name in session fresh
+        if session.get('active_school_id') == target_sid:
+            session['active_school_name'] = school_name
+
+    return redirect(url_for('admin_settings', msg=f"Campus configuration for '{school_name}' and Public Domain settings updated successfully."))
 
 @app.route('/admin/schools', methods=['GET'])
 @admin_required

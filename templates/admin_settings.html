@@ -170,25 +170,43 @@
 
       <!-- School Master Identity & Public Domain Configuration -->
       <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 bg-white">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
           <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base">
+            <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base shrink-0">
               <i class="fa-solid fa-school-flag"></i>
             </div>
             <div>
-              <h2 class="text-base font-black font-heading text-slate-900">School Identity & Public Domain</h2>
-              <p class="text-[11px] text-slate-500">Official DepEd institution name & public internet domain / URL</p>
+              <h2 class="text-base font-black font-heading text-slate-900">School Identity &amp; Campus Settings</h2>
+              <p class="text-[11px] text-slate-500">Official DepEd institution metadata, campus GPS geofence, and RTSP cameras</p>
             </div>
           </div>
-          {% if system_domain %}
-          <a href="{{ system_domain }}" target="_blank" class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Online Link <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-          </a>
-          {% endif %}
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-400/20 text-amber-800 border border-amber-400/40 flex items-center gap-1">
+              <i class="fa-solid fa-school text-amber-600"></i> Active: {{ active_school.school_name if active_school and active_school.school_name else school_name }}
+            </span>
+            {% if all_schools and all_schools|length > 1 %}
+            <div class="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-xl border border-slate-300">
+              <label class="text-[11px] font-bold text-slate-600 shrink-0"><i class="fa-solid fa-repeat text-blue-600 mr-1"></i> Campus:</label>
+              <select onchange="window.location.href='/admin/switch-school/' + this.value + '?next=/admin/settings'" class="bg-white text-slate-900 font-bold text-xs rounded-lg px-2 py-1 border border-slate-300 cursor-pointer max-w-[190px] truncate">
+                {% for s in all_schools %}
+                <option value="{{ s.id }}" {% if s.id == (active_school.id if active_school else 1) %}selected{% endif %}>
+                  {{ s.school_name }} ({{ s.school_id }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+            {% if system_domain %}
+            <a href="{{ system_domain }}" target="_blank" class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1.5 shrink-0">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Online Link <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+            </a>
+            {% endif %}
+          </div>
         </div>
 
         <form method="POST" action="/admin/settings/school" class="space-y-4">
+          <input type="hidden" name="target_school_id" value="{{ active_school.id if active_school else 1 }}">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
               <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Official School Name</label>
@@ -274,7 +292,7 @@
               <div class="flex items-start gap-2 pt-1 text-[11px] text-emerald-800">
                 <i class="fa-solid fa-circle-info text-emerald-600 mt-0.5 shrink-0"></i>
                 <p>
-                  Default is calibrated for <strong>Don Montano Central Integrated School (15.9295, 120.8613)</strong>. Staff scanning within this radius will be certified as <strong>Campus Verified 📍</strong> on Civil Service Form 48 DTR.
+                  Default is calibrated for <strong>{{ active_school.school_name if active_school and active_school.school_name else school_name }} ({{ school_settings.school_latitude if school_settings and school_settings.school_latitude else 15.9295 }}, {{ school_settings.school_longitude if school_settings and school_settings.school_longitude else 120.8613 }})</strong>. Staff scanning within this radius will be certified as <strong>Campus Verified 📍</strong> on Civil Service Form 48 DTR.
                 </p>
               </div>
             </div>
@@ -288,10 +306,10 @@
                 <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">QR Codes & Parent App Target</span>
               </div>
               <p class="text-[11px] text-slate-600">
-                Enter your custom domain (e.g. <span class="font-mono font-bold text-blue-800">https://smile.donmontano.edu.ph</span> or your Cloudflare tunnel domain). All system endpoints and services will instantly update to point to this address.
+                Enter your custom domain (e.g. <span class="font-mono font-bold text-blue-800">https://{{ active_school.subdomain if active_school and active_school.subdomain else 'smile' }}.deped.gov.ph</span> or your Cloudflare tunnel domain). All system endpoints and services will instantly update to point to this address.
               </p>
               <div class="flex gap-2">
-                <input type="url" name="system_domain" value="{{ system_domain or '' }}" placeholder="https://smile.donmontano.edu.ph or https://classic-optics-cooperative-therapy.trycloudflare.com"
+                <input type="url" name="system_domain" value="{{ system_domain or '' }}" placeholder="https://{{ active_school.subdomain if active_school and active_school.subdomain else 'smile' }}.deped.gov.ph or https://deped-smile.vercel.app"
                        class="flex-1 px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500">
                 {% if system_domain %}
                 <a href="{{ system_domain }}" target="_blank" class="px-3.5 py-2.5 bg-deped-blue hover:bg-blue-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0" title="Test System Domain">

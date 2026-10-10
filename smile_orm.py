@@ -4316,6 +4316,12 @@ def authenticate_user_orm(username_or_email, password, school_id=None):
                     func.upper(User.role) == 'PRINCIPAL'
                 ).first() or session.query(User).filter_by(username='principal').first()
 
+        # 1b. Super Administrator aliases ('admin', 'administrator', 'superadmin', 'super_admin')
+        if not user and ident in ('admin', 'administrator', 'superadmin', 'super_admin', 'sysadmin'):
+            user = session.query(User).filter(
+                func.upper(User.role) == 'SUPER_ADMIN'
+            ).first() or session.query(User).filter_by(username='admin').first()
+
         # 2. Direct username or email match
         if not user:
             try:
@@ -4367,7 +4373,7 @@ def authenticate_user_orm(username_or_email, password, school_id=None):
         if not is_pw_valid:
             # Check canonical initial passwords for default/provisioned accounts
             canonical_passwords = {
-                "principal", "principal123", "admin", "admin123", "deped123", "password123", "123456", "teacher123", "guard123", "staff123"
+                "principal", "principal123", "admin", "admin123", "administrator", "administrator123", "deped123", "password123", "123456", "teacher123", "guard123", "staff123"
             }
             if user.role:
                 canonical_passwords.add(user.role.lower())

@@ -297,5 +297,34 @@ class TestMultiTenancyEnterpriseSuite(unittest.TestCase):
         self.assertEqual(api_data.get("school_id"), 3)
         self.assertIn("Flores", api_data.get("school_name"))
 
+    def test_16_admin_settings_multi_tenant_isolation_and_switching(self):
+        """Verify /admin/settings displays active tenant school info (Flores NHS vs DMCIS) and allows campus switching."""
+        # 1. Log in as administrator selecting Flores National High School (School 3)
+        res_login = self.client.post('/login', data={
+            'username': 'administrator',
+            'password': 'admin',
+            'school_id': 3
+        }, follow_redirects=True)
+        self.assertEqual(res_login.status_code, 200)
+
+        # 2. Inspect /admin/settings
+        res_settings = self.client.get('/admin/settings')
+        self.assertEqual(res_settings.status_code, 200)
+        html = res_settings.get_data(as_text=True)
+        self.assertIn("Flores National High School", html)
+        self.assertIn("300452", html)
+        self.assertIn("San Manuel", html)
+
+        # 3. Switch active campus to Don Montano CIS (School 1)
+        res_switch = self.client.get('/admin/switch-school/1?next=/admin/settings', follow_redirects=True)
+        self.assertEqual(res_switch.status_code, 200)
+        html_dmcis = res_switch.get_data(as_text=True)
+        self.assertIn("Don Montano Central Integrated School", html_dmcis)
+        self.assertIn("152008", html_dmcis)
+
+        # 4. Clean logout
+        self.client.get('/logout')
+
 if __name__ == '__main__':
     unittest.main()
+
