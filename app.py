@@ -1294,11 +1294,74 @@ def enroll_page():
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def students_directory():
     """Directory of enrolled students with photos and parent contacts - High Performance."""
-    from smile_orm import get_students_directory_orm
+    from smile_orm import get_students_directory_orm, get_all_sections_orm, get_all_users_orm
     sid = get_current_school_id()
     students = get_students_directory_orm(school_id=sid)
     sch = get_current_school()
-    return render_template('students.html', school_name=sch.get('school_name', SCHOOL_NAME), students=students)
+    sections = get_all_sections_orm(school_id=sid)
+    teachers = [u for u in get_all_users_orm(school_id=sid) if u.get('role') == 'TEACHER']
+    return render_template(
+        'students.html', 
+        school_name=sch.get('school_name', SCHOOL_NAME), 
+        students=students,
+        sections=sections,
+        teachers=teachers,
+        grade_levels=smile_config.GRADE_LEVELS,
+        curriculum_strands=smile_config.CURRICULUM_STRANDS
+    )
+
+@app.route('/students/edit/<lrn>', methods=['GET', 'POST'])
+@login_required
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
+def student_edit_page(lrn):
+    """Full-page editor for student profile."""
+    from smile_orm import get_student_by_lrn_or_rfid_orm, update_student_orm, get_all_sections_orm, get_all_users_orm
+    st = get_student_by_lrn_or_rfid_orm(lrn)
+    if not st:
+        return render_template('errors/404.html', message=f"Student LRN '{lrn}' not found."), 404
+
+    sid = get_current_school_id()
+    sch = get_current_school()
+    sections = get_all_sections_orm(school_id=sid)
+    teachers = [u for u in get_all_users_orm(school_id=sid) if u.get('role') == 'TEACHER']
+
+    if request.method == 'POST':
+        payload = request.form.to_dict()
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename != '':
+                ext = Path(file.filename).suffix.lower() or '.jpg'
+                new_fname = f"student_{lrn}_{int(time.time())}{ext}"
+                target_path = smile_config.PHOTOS_DIR / new_fname
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                file.save(str(target_path))
+                payload['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
+
+        success, res = update_student_orm(lrn, **payload)
+        if success:
+            streamer.reload_enrolled_students()
+            return redirect(url_for('students_directory', msg=f"Student profile updated successfully."))
+
+        return render_template(
+            'student_edit.html',
+            student=st,
+            error=res,
+            school_name=sch.get('school_name', SCHOOL_NAME),
+            sections=sections,
+            teachers=teachers,
+            grade_levels=smile_config.GRADE_LEVELS,
+            curriculum_strands=smile_config.CURRICULUM_STRANDS
+        )
+
+    return render_template(
+        'student_edit.html',
+        student=st,
+        school_name=sch.get('school_name', SCHOOL_NAME),
+        sections=sections,
+        teachers=teachers,
+        grade_levels=smile_config.GRADE_LEVELS,
+        curriculum_strands=smile_config.CURRICULUM_STRANDS
+    )
 
 @app.route('/sms')
 @admin_required
@@ -3456,11 +3519,83 @@ def api_verify_face():
     except Exception as e:
         return jsonify({"success": False, "message": f"Verification error: {str(e)}"}), 500
 
+@app.route('/api/student/<lrn>', methods=['GET'])
+@login_required
+def api_get_student(lrn):
+    """Fetches single student record by LRN for editing or inspection."""
+    from smile_orm import get_student_by_lrn_or_rfid_orm
+    st = get_student_by_lrn_or_rfid_orm(lrn)
+    if not st:
+        return jsonify({"success": False, "message": "Student not found."}), 404
+    return jsonify({"success": True, "student": st})
+
+@app.route('/api/update-student/<lrn>', methods=['POST', 'PUT'])
+@login_required
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
+def api_update_student(lrn):
+    """Updates an enrolled student profile."""
+    from smile_orm import update_student_orm, get_student_by_lrn_or_rfid_orm
+    
+    existing_st = get_student_by_lrn_or_rfid_orm(lrn)
+    if not existing_st:
+        return jsonify({"success": False, "message": "Student not found."}), 404
+
+    current_sid = get_current_school_id()
+    user_role = session.get('role')
+    if user_role not in ('SUPER_ADMIN', 'DIVISION_ADMIN') and existing_st.get('school_id') != current_sid:
+        return jsonify({"success": False, "message": "Access Denied: Student belongs to another campus."}), 403
+
+    data = request.json or request.form.to_dict() or {}
+    
+    # Handle optional photo upload
+    if 'photo' in request.files:
+        file = request.files['photo']
+        if file and file.filename != '':
+            ext = Path(file.filename).suffix.lower() or '.jpg'
+            new_fname = f"student_{lrn}_{int(time.time())}{ext}"
+            target_path = smile_config.PHOTOS_DIR / new_fname
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            file.save(str(target_path))
+            data['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
+    elif data.get('photo_base64'):
+        raw_b64 = data.get('photo_base64', '')
+        if ',' in raw_b64:
+            raw_b64 = raw_b64.split(',', 1)[1]
+        import base64
+        img_bytes = base64.b64decode(raw_b64)
+        new_fname = f"student_{lrn}_{int(time.time())}.jpg"
+        target_path = smile_config.PHOTOS_DIR / new_fname
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, 'wb') as f:
+            f.write(img_bytes)
+        data['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
+
+    success, res_or_msg = update_student_orm(lrn, **data)
+    if success:
+        streamer.reload_enrolled_students()
+        return jsonify({
+            "success": True,
+            "message": f"Student '{res_or_msg.get('full_name', lrn)}' profile updated successfully.",
+            "student": res_or_msg
+        })
+    return jsonify({"success": False, "message": res_or_msg}), 400
+
 @app.route('/api/delete-student/<lrn>', methods=['POST', 'DELETE'])
+@login_required
+@role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def api_delete_student(lrn):
     """Removes a student profile and cleans up photo/QR files."""
     try:
-        from smile_orm import delete_student_orm
+        from smile_orm import delete_student_orm, get_student_by_lrn_or_rfid_orm
+        existing_st = get_student_by_lrn_or_rfid_orm(lrn)
+        if not existing_st:
+            return jsonify({"success": False, "message": "Student not found."}), 404
+
+        current_sid = get_current_school_id()
+        user_role = session.get('role')
+        if user_role not in ('SUPER_ADMIN', 'DIVISION_ADMIN') and existing_st.get('school_id') != current_sid:
+            return jsonify({"success": False, "message": "Access Denied: Student belongs to another campus."}), 403
+
         success, msg = delete_student_orm(lrn)
         streamer.reload_enrolled_students()
         if success:

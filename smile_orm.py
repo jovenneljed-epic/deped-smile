@@ -2512,6 +2512,130 @@ def delete_student_orm(lrn):
     finally:
         session.close()
 
+def update_student_orm(lrn, **kwargs):
+    """
+    Updates an enrolled student record in the database with cache invalidation.
+    Supports updating:
+    - first_name, middle_name, last_name
+    - grade_level, section_name, class_adviser
+    - parent_name, parent_phone, parent_relationship
+    - rfid_card_uid, gender, birthdate, track_strand
+    - photo_path, face_embedding
+    - new_lrn (with cascading updates across logs and files)
+    """
+    session = Session()
+    try:
+        curr_lrn = str(lrn).strip()
+        student = session.query(Student).filter_by(lrn=curr_lrn).first()
+        if not student:
+            return False, "Student profile not found."
+
+        sch_id = getattr(student, 'school_id', 1)
+
+        # 1. Handle LRN change if new_lrn provided and different
+        new_lrn = str(kwargs.get("new_lrn") or "").strip()
+        final_lrn = curr_lrn
+        if new_lrn and new_lrn != curr_lrn:
+            if not (new_lrn.isdigit() and len(new_lrn) == 12):
+                return False, "New LRN must be exactly 12 digits."
+            existing = session.query(Student).filter_by(lrn=new_lrn).first()
+            if existing:
+                return False, f"LRN {new_lrn} is already registered to another student ({existing.full_name})."
+            
+            # Cascade update to AttendanceLog records
+            session.query(AttendanceLog).filter_by(lrn=curr_lrn).update({"lrn": new_lrn})
+            
+            # Rename or regenerate QR code
+            base_dir = Path(__file__).resolve().parent
+            old_qr = base_dir / "static" / "qrcodes" / f"{curr_lrn}.png"
+            new_qr_url = generate_student_qr(new_lrn)
+            if old_qr.exists():
+                try: old_qr.unlink(missing_ok=True)
+                except Exception: pass
+            student.qr_code_path = new_qr_url
+            student.lrn = new_lrn
+            final_lrn = new_lrn
+
+        # 2. Update basic identity fields
+        if "first_name" in kwargs and kwargs["first_name"]:
+            student.first_name = str(kwargs["first_name"]).strip()[:100]
+        if "middle_name" in kwargs:
+            student.middle_name = str(kwargs["middle_name"] or "").strip()[:100]
+        if "last_name" in kwargs and kwargs["last_name"]:
+            student.last_name = str(kwargs["last_name"]).strip()[:100]
+        if "gender" in kwargs and kwargs["gender"]:
+            student.gender = str(kwargs["gender"]).strip()[:50]
+        if "birthdate" in kwargs:
+            student.birthdate = str(kwargs["birthdate"] or "").strip()[:50]
+        if "track_strand" in kwargs:
+            student.track_strand = str(kwargs["track_strand"] or "").strip()[:100]
+        if "parent_name" in kwargs:
+            student.parent_name = str(kwargs["parent_name"] or "").strip()[:150]
+        if "parent_phone" in kwargs:
+            phone_val = str(kwargs["parent_phone"] or "").strip()
+            student.parent_phone = phone_val if phone_val else "N/A"
+        if "parent_relationship" in kwargs:
+            student.parent_relationship = str(kwargs["parent_relationship"] or "Parent").strip()[:30]
+        if "rfid_card_uid" in kwargs:
+            rfid_val = str(kwargs["rfid_card_uid"] or "").strip()
+            student.rfid_card_uid = rfid_val if rfid_val else "N/A"
+
+        # 3. Update academic placement & class section
+        if "grade_level" in kwargs and kwargs["grade_level"]:
+            student.grade_level = str(kwargs["grade_level"]).strip()[:50]
+        if "section_name" in kwargs and kwargs["section_name"]:
+            student.section_name = str(kwargs["section_name"]).strip()[:60]
+        if "class_adviser" in kwargs:
+            student.class_adviser = str(kwargs["class_adviser"] or "").strip()[:100]
+
+        # Recalculate grade_section string and section_id relationship
+        if student.grade_level and student.section_name:
+            student.grade_section = f"{student.grade_level} - {student.section_name}"[:150]
+            sec = session.query(Section).filter_by(school_id=sch_id, grade_level=student.grade_level, section_name=student.section_name).first()
+            if not sec:
+                sec = session.query(Section).filter(Section.school_id == sch_id, Section.grade_level == student.grade_level, Section.section_name.ilike(student.section_name)).first()
+            if not sec:
+                sec = session.query(Section).filter(Section.grade_level == student.grade_level, Section.section_name.ilike(student.section_name)).first()
+            if sec:
+                student.section_id = sec.id
+                if not student.class_adviser and sec.adviser_teacher:
+                    student.class_adviser = sec.adviser_teacher
+        elif "grade_section" in kwargs and kwargs["grade_section"]:
+            student.grade_section = str(kwargs["grade_section"]).strip()[:150]
+
+        # 4. Optional Photo / Face Embedding Update
+        if "photo_path" in kwargs and kwargs["photo_path"]:
+            student.photo_path = str(kwargs["photo_path"]).strip()
+        if "face_embedding" in kwargs and kwargs["face_embedding"] is not None:
+            emb = kwargs["face_embedding"]
+            if isinstance(emb, np.ndarray):
+                student.face_embedding = json.dumps(emb.tolist())
+            elif isinstance(emb, list):
+                student.face_embedding = json.dumps(emb)
+            elif isinstance(emb, str):
+                student.face_embedding = emb
+
+        # Update attendance logs student_name and grade_section if changed
+        try:
+            session.query(AttendanceLog).filter_by(lrn=final_lrn).update({
+                "student_name": student.full_name,
+                "grade_section": student.grade_section
+            })
+        except Exception:
+            pass
+
+        session.commit()
+        invalidate_student_cache(school_id=sch_id, lrn=curr_lrn)
+        if final_lrn != curr_lrn:
+            invalidate_student_cache(school_id=sch_id, lrn=final_lrn)
+
+        return True, student.to_dict()
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
 def get_all_enrolled_students_orm(school_id=None):
     """Returns active students with deserialized numpy face embeddings scoped by school_id."""
     session = Session()
@@ -5867,6 +5991,7 @@ except Exception as _init_err:
 # Compatibility Aliases
 init_db = init_orm_db
 save_student = save_student_orm
+update_student = update_student_orm
 get_all_enrolled_students = get_all_enrolled_students_orm
 check_can_scan = check_can_scan_orm
 record_attendance = record_attendance_orm

@@ -9,7 +9,7 @@
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-200 gap-4">
     <div>
       <h1 class="text-2xl font-bold font-heading text-deped-darkblue">Enrolled Students Directory</h1>
-      <p class="text-sm text-slate-500">Smart ID QR & RFID profiles registered in Project S.M.I.L.E. ({{ students|length }} total learners)</p>
+      <p class="text-sm text-slate-500">Smart ID QR &amp; RFID profiles registered in Project S.M.I.L.E. (<span id="totalLearnersCount" class="font-bold text-slate-700">{{ students|length }}</span> total learners)</p>
     </div>
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
       <!-- Search Input -->
@@ -45,7 +45,7 @@
         My Advisory
       </button>
       <button type="button" onclick="filterByAdvisory(false)" id="btnFilterAll" class="px-3 py-1.5 bg-white text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl hover:bg-slate-50 transition">
-        All Students ({{ students|length }})
+        All Students (<span id="advisoryTotalCount">{{ students|length }}</span>)
       </button>
     </div>
   </div>
@@ -55,24 +55,41 @@
   <div id="studentsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
     {% for s in students %}
     <div class="student-card glass-card rounded-2xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
-         data-name="{{ s.full_name|lower }}" data-lrn="{{ s.lrn }}" data-section="{{ (s.grade_section or '')|lower }}">
+         data-lrn="{{ s.lrn }}"
+         data-name="{{ s.full_name|lower }}"
+         data-fullname="{{ s.full_name }}"
+         data-firstname="{{ s.first_name }}"
+         data-middlename="{{ s.middle_name or '' }}"
+         data-lastname="{{ s.last_name }}"
+         data-section="{{ (s.grade_section or '')|lower }}"
+         data-section-name="{{ s.section_name or '' }}"
+         data-grade="{{ s.grade_level or '' }}"
+         data-adviser="{{ s.class_adviser or '' }}"
+         data-parent="{{ s.parent_name or '' }}"
+         data-phone="{{ s.parent_phone or '' }}"
+         data-relationship="{{ s.parent_relationship or 'Parent' }}"
+         data-rfid="{{ s.rfid_card_uid or '' }}"
+         data-gender="{{ s.gender or 'Male' }}"
+         data-birthdate="{{ s.birthdate or '' }}"
+         data-strand="{{ s.track_strand or 'N/A' }}"
+         data-photo="{{ s.photo_path or '' }}"
+         data-qrcode="/static/qrcodes/{{ s.lrn }}.png">
       
       <div>
         <!-- Card Header: Photo / QR Badge & Name -->
         <div class="flex items-start space-x-4">
           <div class="w-16 h-16 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5 shadow-sm relative">
-            {% if s.photo_path %}
-            <img src="{{ s.photo_path }}" alt="{{ s.full_name }}" class="w-full h-full object-cover rounded-lg">
-            {% else %}
-            <img src="/static/qrcodes/{{ s.lrn }}.png" alt="QR Code" class="w-full h-full object-contain" onerror="this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>'">
-            {% endif %}
+            <img class="student-avatar w-full h-full object-cover rounded-lg"
+                 src="{{ s.photo_path if s.photo_path else '/static/qrcodes/' ~ s.lrn ~ '.png' }}"
+                 alt="{{ s.full_name }}"
+                 onerror="this.src='/static/qrcodes/{{ s.lrn }}.png'; this.onerror=function(){this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>';};">
           </div>
-          <div class="overflow-hidden">
-            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-deped-blue uppercase tracking-wider mb-1">
+          <div class="overflow-hidden flex-1">
+            <span class="student-grade-badge inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-deped-blue uppercase tracking-wider mb-1">
               {{ s.grade_section or 'Unassigned' }}
             </span>
-            <h3 class="font-bold text-slate-900 text-base leading-snug truncate">{{ s.full_name }}</h3>
-            <p class="font-mono text-xs text-slate-500 mt-0.5">LRN: <span class="font-semibold text-slate-700">{{ s.lrn }}</span></p>
+            <h3 class="student-name font-bold text-slate-900 text-base leading-snug truncate">{{ s.full_name }}</h3>
+            <p class="student-lrn-display font-mono text-xs text-slate-500 mt-0.5">LRN: <span class="font-semibold text-slate-700 font-mono">{{ s.lrn }}</span></p>
           </div>
         </div>
 
@@ -80,43 +97,228 @@
         <div class="mt-4 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Class Adviser:</span>
-            <span class="font-medium text-slate-800">{{ s.class_adviser or 'Not assigned' }}</span>
+            <span class="student-adviser font-medium text-slate-800">{{ s.class_adviser or 'Not assigned' }}</span>
           </div>
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Parent/Guardian:</span>
-            <span class="font-medium text-slate-800">{{ s.parent_name or 'Not specified' }}</span>
+            <span class="student-parent font-medium text-slate-800">{{ s.parent_name or 'Not specified' }}</span>
           </div>
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Parent Mobile:</span>
-            <span class="font-mono font-medium text-deped-blue">{{ s.parent_phone }}</span>
+            <span class="student-phone font-mono font-medium text-deped-blue">{{ s.parent_phone }}</span>
           </div>
         </div>
       </div>
 
       <!-- Action Footer -->
-      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-        <a href="/id-card/{{ s.lrn }}" target="_blank" class="inline-flex items-center px-2.5 py-1 bg-deped-blue/10 hover:bg-deped-blue text-deped-blue hover:text-white rounded-lg font-semibold transition text-xs">
-          <i class="fa-solid fa-qrcode mr-1.5"></i> Print Smart ID
+      <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <a href="/id-card/{{ s.lrn }}" target="_blank" class="student-smartid-link inline-flex items-center px-2.5 py-1.5 bg-deped-blue/10 hover:bg-deped-blue text-deped-blue hover:text-white rounded-lg font-semibold transition text-xs shadow-xs" title="View or Print Smart ID Card">
+          <i class="fa-solid fa-qrcode mr-1.5"></i> Smart ID
         </a>
-        <button onclick="deleteStudent('{{ s.lrn }}', '{{ s.full_name }}')" class="text-rose-500 hover:text-rose-700 font-medium transition flex items-center">
-          <i class="fa-regular fa-trash-can mr-1"></i> Remove
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button type="button" onclick="openEditStudentModal('{{ s.lrn }}')" class="inline-flex items-center px-2.5 py-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Edit student profile">
+            <i class="fa-solid fa-pen-to-square mr-1"></i> Edit
+          </button>
+          <button type="button" onclick="deleteStudent('{{ s.lrn }}', '{{ s.full_name|replace("'", "\\'") }}')" class="student-delete-btn inline-flex items-center px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Remove student from enrollment">
+            <i class="fa-regular fa-trash-can mr-1"></i> Delete
+          </button>
+        </div>
       </div>
 
-    </div>
-    {% else %}
-    <div class="col-span-full py-16 text-center text-slate-400">
-      <i class="fa-solid fa-users text-5xl mb-3 text-slate-300"></i>
-      <h3 class="text-lg font-bold text-slate-600">No Enrolled Students Found</h3>
-      <p class="text-sm mt-1">Enroll your first student to generate an instant printable QR Smart ID badge.</p>
-      <a href="/enroll" class="mt-4 inline-flex items-center px-4 py-2 bg-deped-blue text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-deped-darkblue transition">
-        <i class="fa-solid fa-user-plus mr-2"></i> Enroll Student Now
-      </a>
     </div>
     {% endfor %}
   </div>
 
+  <!-- Empty State (Shown when no cards exist or all are deleted) -->
+  <div id="noStudentsState" class="{% if students|length > 0 %}hidden{% endif %} py-16 text-center text-slate-400">
+    <i class="fa-solid fa-users text-5xl mb-3 text-slate-300"></i>
+    <h3 class="text-lg font-bold text-slate-600">No Enrolled Students Found</h3>
+    <p class="text-sm mt-1">Enroll your first student to generate an instant printable QR Smart ID badge.</p>
+    <a href="/enroll" class="mt-4 inline-flex items-center px-4 py-2 bg-deped-blue text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-deped-darkblue transition">
+      <i class="fa-solid fa-user-plus mr-2"></i> Enroll Student Now
+    </a>
+  </div>
+
 </div>
+
+<!-- Quick Edit Student Modal -->
+<div id="editStudentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 hidden opacity-0 transition-opacity duration-200">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden transform scale-95 transition-transform duration-200" id="editModalContent">
+    
+    <!-- Modal Header -->
+    <div class="p-5 sm:px-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-deped-blue/10 text-deped-blue flex items-center justify-center font-bold text-base shrink-0 shadow-2xs">
+          <i class="fa-solid fa-user-pen"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-slate-900 text-base">Edit Enrolled Student</h3>
+          <p class="text-xs text-slate-500">Update learner credentials, academic section, or parent contact.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a id="modalFullEditLink" href="#" target="_blank" class="hidden sm:inline-flex items-center gap-1 text-xs text-deped-blue hover:text-deped-darkblue font-bold px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 rounded-xl transition">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Full Editor
+        </a>
+        <button type="button" onclick="closeEditStudentModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Form Body -->
+    <form id="editStudentForm" onsubmit="handleEditStudentSubmit(event)" class="overflow-y-auto p-5 sm:p-6 space-y-4">
+      <input type="hidden" id="editOriginalLrn" name="original_lrn">
+
+      <div id="modalAlertBox" class="hidden p-3 rounded-xl text-xs font-bold flex items-center gap-2"></div>
+
+      <!-- Photo & Identity Section -->
+      <div class="flex flex-col sm:flex-row gap-4 items-center sm:items-start p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+        <div class="w-20 h-20 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-xs relative shrink-0">
+          <img id="editPhotoPreview" src="" alt="Student Photo" class="w-full h-full object-cover rounded-lg" onerror="this.src='/static/images/deped_seal.svg'">
+        </div>
+        <div class="flex-1 text-center sm:text-left space-y-1.5">
+          <div class="flex items-center justify-center sm:justify-start gap-2">
+            <span class="text-xs font-bold text-slate-700">Student Profile Photo</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed">Upload a new photo to update biometric face verification and printed badges.</p>
+          <label class="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer shadow-2xs transition">
+            <i class="fa-solid fa-camera text-deped-blue"></i> Choose New Photo
+            <input type="file" id="editPhotoInput" name="photo" accept="image/*" class="hidden" onchange="previewEditPhoto(this)">
+          </label>
+        </div>
+      </div>
+
+      <!-- Identity Details -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">First Name *</label>
+          <input type="text" id="editFirstName" name="first_name" required
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Middle Name</label>
+          <input type="text" id="editMiddleName" name="middle_name" placeholder="Optional"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Last Name *</label>
+          <input type="text" id="editLastName" name="last_name" required
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+      </div>
+
+      <!-- LRN, Gender, Birthdate -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">DepEd LRN (12 Digits) *</label>
+          <input type="text" id="editLrn" name="new_lrn" maxlength="12" pattern="\d{12}" required
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Gender</label>
+          <select id="editGender" name="gender" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Unspecified">Unspecified</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Birthdate</label>
+          <input type="date" id="editBirthdate" name="birthdate"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+      </div>
+
+      <!-- Grade, Section, Adviser -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Grade Level *</label>
+          <select id="editGradeLevel" name="grade_level" onchange="filterSectionOptionsByGrade()" required
+                  class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+            {% for gl in grade_levels %}
+            <option value="{{ gl }}">{{ gl }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Section *</label>
+          <select id="editSectionName" name="section_name" onchange="onSectionSelectChanged()" required
+                  class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+            <option value="">Select Section...</option>
+            {% for sec in sections %}
+            <option value="{{ sec.section_name }}" data-grade="{{ sec.grade_level }}" data-adviser="{{ sec.adviser_teacher or '' }}">
+              {{ sec.grade_level }} - {{ sec.section_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Class Adviser</label>
+          <input type="text" id="editClassAdviser" name="class_adviser" placeholder="Adviser name"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+      </div>
+
+      <!-- Parent Guardian Details -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Parent/Guardian Name</label>
+          <input type="text" id="editParentName" name="parent_name" placeholder="Full name"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Parent Mobile (SMS Alerts)</label>
+          <input type="tel" id="editParentPhone" name="parent_phone" placeholder="09XXXXXXXXX"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Relationship</label>
+          <input type="text" id="editParentRelationship" name="parent_relationship" placeholder="Parent / Guardian"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+      </div>
+
+      <!-- RFID & Track/Strand -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">RFID Tap Card UID</label>
+          <input type="text" id="editRfidUid" name="rfid_card_uid" placeholder="N/A or 10-digit UID"
+                 class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Track / Strand (SHS)</label>
+          <select id="editTrackStrand" name="track_strand" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-deped-blue/30">
+            <option value="N/A">Not Applicable (JHS / Elem)</option>
+            {% for strand in curriculum_strands %}
+            <option value="{{ strand }}">{{ strand }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <button type="button" onclick="closeEditStudentModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+          Cancel
+        </button>
+        <button type="submit" id="saveEditBtn" class="px-5 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span id="saveBtnText">Save Changes</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Floating Action Notification Toast -->
+<div id="toastNotification" class="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-xs font-semibold transition-all duration-300 transform translate-y-12 opacity-0 pointer-events-none">
+  <div id="toastIcon" class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 text-xs">
+    <i class="fa-solid fa-check"></i>
+  </div>
+  <span id="toastMessage">Changes saved.</span>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -171,6 +373,233 @@
     studentSearch.addEventListener('input', applyStudentFilters);
   }
 
+  // Toast Helper
+  function showToast(msg, isError = false) {
+    const toast = document.getElementById('toastNotification');
+    const icon = document.getElementById('toastIcon');
+    const label = document.getElementById('toastMessage');
+    if (!toast) return;
+
+    label.textContent = msg;
+    if (isError) {
+      icon.className = 'w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shrink-0 text-xs';
+      icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+    } else {
+      icon.className = 'w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 text-xs';
+      icon.innerHTML = '<i class="fa-solid fa-check"></i>';
+    }
+
+    toast.classList.remove('translate-y-12', 'opacity-0', 'pointer-events-none');
+    setTimeout(() => {
+      toast.classList.add('translate-y-12', 'opacity-0', 'pointer-events-none');
+    }, 3500);
+  }
+
+  // Quick Edit Modal Functions
+  function openEditStudentModal(lrn) {
+    const card = document.querySelector(`.student-card[data-lrn="${lrn}"]`);
+    if (!card) return;
+
+    const modal = document.getElementById('editStudentModal');
+    const content = document.getElementById('editModalContent');
+    const alertBox = document.getElementById('modalAlertBox');
+    if (alertBox) alertBox.className = 'hidden';
+
+    // Populate values from card dataset
+    document.getElementById('editOriginalLrn').value = lrn;
+    document.getElementById('editLrn').value = lrn;
+    document.getElementById('editFirstName').value = card.dataset.firstname || '';
+    document.getElementById('editMiddleName').value = card.dataset.middlename || '';
+    document.getElementById('editLastName').value = card.dataset.lastname || '';
+    document.getElementById('editGender').value = card.dataset.gender || 'Male';
+    document.getElementById('editBirthdate').value = card.dataset.birthdate || '';
+    document.getElementById('editGradeLevel').value = card.dataset.grade || '';
+    
+    // Filter sections and set selected section
+    filterSectionOptionsByGrade();
+    document.getElementById('editSectionName').value = card.dataset.sectionName || '';
+    document.getElementById('editClassAdviser').value = card.dataset.adviser || '';
+
+    document.getElementById('editParentName').value = card.dataset.parent || '';
+    document.getElementById('editParentPhone').value = card.dataset.phone || '';
+    document.getElementById('editParentRelationship').value = card.dataset.relationship || 'Parent';
+    document.getElementById('editRfidUid').value = card.dataset.rfid || '';
+    document.getElementById('editTrackStrand').value = card.dataset.strand || 'N/A';
+
+    // Preview photo
+    const previewImg = document.getElementById('editPhotoPreview');
+    previewImg.src = card.dataset.photo || card.dataset.qrcode || '/static/images/deped_seal.svg';
+
+    // Full editor link
+    const fullEditLink = document.getElementById('modalFullEditLink');
+    if (fullEditLink) fullEditLink.href = `/students/edit/${lrn}`;
+
+    // Show modal with animation
+    modal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      modal.classList.remove('opacity-0');
+      content.classList.remove('scale-95');
+      content.classList.add('scale-100');
+    });
+  }
+
+  function closeEditStudentModal() {
+    const modal = document.getElementById('editStudentModal');
+    const content = document.getElementById('editModalContent');
+    if (!modal) return;
+
+    modal.classList.add('opacity-0');
+    content.classList.remove('scale-100');
+    content.classList.add('scale-95');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.getElementById('editStudentForm')?.reset();
+    }, 200);
+  }
+
+  function previewEditPhoto(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById('editPhotoPreview').src = e.target.result;
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  function filterSectionOptionsByGrade() {
+    const selGrade = document.getElementById('editGradeLevel').value;
+    const secSelect = document.getElementById('editSectionName');
+    const options = secSelect.querySelectorAll('option');
+    options.forEach(opt => {
+      if (!opt.value) return; // Keep "Select Section..."
+      const optGrade = opt.getAttribute('data-grade');
+      if (!selGrade || !optGrade || optGrade === selGrade) {
+        opt.style.display = '';
+      } else {
+        opt.style.display = 'none';
+      }
+    });
+  }
+
+  function onSectionSelectChanged() {
+    const secSelect = document.getElementById('editSectionName');
+    const selectedOpt = secSelect.options[secSelect.selectedIndex];
+    if (selectedOpt && selectedOpt.value) {
+      const adviser = selectedOpt.getAttribute('data-adviser');
+      const grade = selectedOpt.getAttribute('data-grade');
+      if (adviser) {
+        document.getElementById('editClassAdviser').value = adviser;
+      }
+      if (grade) {
+        document.getElementById('editGradeLevel').value = grade;
+      }
+    }
+  }
+
+  // Handle Edit Submission
+  async function handleEditStudentSubmit(event) {
+    event.preventDefault();
+    const origLrn = document.getElementById('editOriginalLrn').value;
+    const saveBtn = document.getElementById('saveEditBtn');
+    const saveBtnText = document.getElementById('saveBtnText');
+    const alertBox = document.getElementById('modalAlertBox');
+
+    saveBtn.disabled = true;
+    saveBtnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...';
+
+    const form = document.getElementById('editStudentForm');
+    const formData = new FormData(form);
+
+    try {
+      const res = await fetch(`/api/update-student/${origLrn}`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success && data.student) {
+        const updated = data.student;
+        const card = document.querySelector(`.student-card[data-lrn="${origLrn}"]`);
+
+        if (card) {
+          // Update card datasets
+          card.setAttribute('data-lrn', updated.lrn);
+          card.dataset.lrn = updated.lrn;
+          card.dataset.name = (updated.full_name || '').toLowerCase();
+          card.dataset.fullname = updated.full_name;
+          card.dataset.firstname = updated.first_name;
+          card.dataset.middlename = updated.middle_name || '';
+          card.dataset.lastname = updated.last_name;
+          card.dataset.grade = updated.grade_level || '';
+          card.dataset.sectionName = updated.section_name || '';
+          card.dataset.section = (updated.grade_section || '').toLowerCase();
+          card.dataset.adviser = updated.class_adviser || '';
+          card.dataset.parent = updated.parent_name || '';
+          card.dataset.phone = updated.parent_phone || '';
+          card.dataset.relationship = updated.parent_relationship || 'Parent';
+          card.dataset.rfid = updated.rfid_card_uid || '';
+          card.dataset.gender = updated.gender || 'Male';
+          card.dataset.birthdate = updated.birthdate || '';
+          card.dataset.strand = updated.track_strand || 'N/A';
+          if (updated.photo_path) card.dataset.photo = updated.photo_path;
+          card.dataset.qrcode = `/static/qrcodes/${updated.lrn}.png`;
+
+          // Update card DOM elements in place
+          const nameEl = card.querySelector('.student-name');
+          if (nameEl) nameEl.textContent = updated.full_name;
+
+          const gradeBadge = card.querySelector('.student-grade-badge');
+          if (gradeBadge) gradeBadge.textContent = updated.grade_section || 'Unassigned';
+
+          const lrnDisplay = card.querySelector('.student-lrn-display');
+          if (lrnDisplay) lrnDisplay.innerHTML = `LRN: <span class="font-semibold text-slate-700 font-mono">${updated.lrn}</span>`;
+
+          const adviserEl = card.querySelector('.student-adviser');
+          if (adviserEl) adviserEl.textContent = updated.class_adviser || 'Not assigned';
+
+          const parentEl = card.querySelector('.student-parent');
+          if (parentEl) parentEl.textContent = updated.parent_name || 'Not specified';
+
+          const phoneEl = card.querySelector('.student-phone');
+          if (phoneEl) phoneEl.textContent = updated.parent_phone;
+
+          const avatarEl = card.querySelector('.student-avatar');
+          if (avatarEl) {
+            avatarEl.src = updated.photo_path ? updated.photo_path : `/static/qrcodes/${updated.lrn}.png`;
+          }
+
+          // Update Smart ID button href
+          const smartIdLink = card.querySelector('.student-smartid-link');
+          if (smartIdLink) smartIdLink.href = `/id-card/${updated.lrn}`;
+
+          // Update edit/delete button parameters if LRN or name changed
+          const editBtn = card.querySelector('button[onclick^="openEditStudentModal"]');
+          if (editBtn) editBtn.setAttribute('onclick', `openEditStudentModal('${updated.lrn}')`);
+
+          const deleteBtn = card.querySelector('.student-delete-btn');
+          if (deleteBtn) {
+            const escapedName = (updated.full_name || '').replace(/'/g, "\\'");
+            deleteBtn.setAttribute('onclick', `deleteStudent('${updated.lrn}', '${escapedName}')`);
+          }
+        }
+
+        closeEditStudentModal();
+        showToast(`Learner '${updated.full_name}' updated successfully!`);
+        applyStudentFilters();
+      } else {
+        alertBox.className = 'p-3 rounded-xl text-xs font-bold bg-rose-50 border border-rose-300 text-rose-800 flex items-center gap-2';
+        alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600"></i><span>${data.message || 'Update failed.'}</span>`;
+      }
+    } catch (err) {
+      alertBox.className = 'p-3 rounded-xl text-xs font-bold bg-rose-50 border border-rose-300 text-rose-800 flex items-center gap-2';
+      alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600"></i><span>Request error: ${err.message}</span>`;
+    } finally {
+      saveBtn.disabled = false;
+      saveBtnText.textContent = 'Save Changes';
+    }
+  }
+
   // 1-Click Smooth Removal without Page Reload
   async function deleteStudent(lrn, name) {
     if (!confirm(`Are you sure you want to remove ${name} (LRN: ${lrn}) from Project S.M.I.L.E.?`)) {
@@ -193,16 +622,38 @@
           card.style.opacity = '0';
           setTimeout(() => {
             card.remove();
+            
+            // Decrement counters
+            const totalCounter = document.getElementById('totalLearnersCount');
+            if (totalCounter) {
+              let cur = parseInt(totalCounter.textContent) || 0;
+              if (cur > 0) cur--;
+              totalCounter.textContent = cur;
+            }
+            const advCounter = document.getElementById('advisoryTotalCount');
+            if (advCounter) {
+              let cur = parseInt(advCounter.textContent) || 0;
+              if (cur > 0) cur--;
+              advCounter.textContent = cur;
+            }
+
+            // Check if grid is now empty
+            const remaining = document.querySelectorAll('.student-card');
+            if (remaining.length === 0) {
+              document.getElementById('noStudentsState')?.classList.remove('hidden');
+            }
+
             applyStudentFilters();
+            showToast(`Learner ${name} removed cleanly.`);
           }, 250);
         }
       } else {
         if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; }
-        alert("Error: " + data.message);
+        showToast(data.message || 'Error removing student', true);
       }
     } catch(err) {
       if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; }
-      alert("Failed to delete: " + err.message);
+      showToast("Failed to delete: " + err.message, true);
     }
   }
 </script>

@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Student - {{ student.full_name }} | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+  <!-- Header Breadcrumb & Actions -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-slate-200 gap-3">
+    <div>
+      <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+        <a href="/students" class="hover:text-deped-blue font-bold flex items-center gap-1">
+          <i class="fa-solid fa-arrow-left"></i> Enrolled Students
+        </a>
+        <span>/</span>
+        <span class="text-slate-800 font-semibold">Edit Learner Profile</span>
+      </div>
+      <h1 class="text-2xl font-bold font-heading text-deped-darkblue">Edit Student Profile</h1>
+      <p class="text-xs text-slate-500">Update learner academic credentials, parent contact, RFID tap card, or photo.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/id-card/{{ student.lrn }}" target="_blank" class="px-3.5 py-2 bg-deped-blue/10 hover:bg-deped-blue text-deped-blue hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+        <i class="fa-solid fa-qrcode"></i> View Smart ID
+      </a>
+      <a href="/students" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+        <i class="fa-solid fa-xmark"></i> Cancel
+      </a>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-bold flex items-center gap-2.5 shadow-xs">
+    <i class="fa-solid fa-triangle-exclamation text-rose-600 text-base"></i>
+    <span>{{ error }}</span>
+  </div>
+  {% endif %}
+
+  <!-- Main Edit Form Card -->
+  <form method="POST" action="/students/edit/{{ student.lrn }}" enctype="multipart/form-data" class="space-y-6">
+
+    <!-- Card 1: Learner Identity & Photo -->
+    <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+      <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+        <div class="w-8 h-8 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center text-sm font-bold">
+          <i class="fa-solid fa-user-graduate"></i>
+        </div>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Learner Identity &amp; Credentials</h2>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-6 items-start">
+        <!-- Photo / QR Preview -->
+        <div class="flex flex-col items-center gap-2 shrink-0 w-full sm:w-auto">
+          <div class="w-28 h-28 rounded-2xl bg-slate-50 border-2 border-slate-200 overflow-hidden flex items-center justify-center p-1 shadow-inner relative group">
+            {% if student.photo_path %}
+            <img id="photoPreviewImg" src="{{ student.photo_path }}" alt="{{ student.full_name }}" class="w-full h-full object-cover rounded-xl">
+            {% else %}
+            <img id="photoPreviewImg" src="/static/qrcodes/{{ student.lrn }}.png" alt="Smart ID QR" class="w-full h-full object-contain" onerror="this.src='/static/images/deped_seal.svg'">
+            {% endif %}
+          </div>
+          <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-300 transition flex items-center gap-1.5 text-center">
+            <i class="fa-solid fa-camera text-deped-blue"></i> Replace Photo
+            <input type="file" name="photo" accept="image/*" class="hidden" onchange="previewSelectedPhoto(this)">
+          </label>
+        </div>
+
+        <!-- Identity Fields Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">First Name *</label>
+            <input type="text" name="first_name" value="{{ student.first_name }}" required
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Middle Name</label>
+            <input type="text" name="middle_name" value="{{ student.middle_name or '' }}" placeholder="Optional"
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Last Name *</label>
+            <input type="text" name="last_name" value="{{ student.last_name }}" required
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue">
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">
+              DepEd LRN (12 Digits) *
+            </label>
+            <input type="text" name="new_lrn" value="{{ student.lrn }}" maxlength="12" pattern="\d{12}" required
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue"
+                   title="12-digit Learner Reference Number">
+            <span class="text-[10px] text-slate-400">Editing LRN auto-updates QR badge</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Gender</label>
+            <select name="gender" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30">
+              <option value="Male" {% if student.gender == 'Male' %}selected{% endif %}>Male</option>
+              <option value="Female" {% if student.gender == 'Female' %}selected{% endif %}>Female</option>
+              <option value="Unspecified" {% if student.gender not in ['Male', 'Female'] %}selected{% endif %}>Unspecified</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Birthdate</label>
+            <input type="date" name="birthdate" value="{{ student.birthdate or '' }}"
+                   class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Academic Placement & Section -->
+    <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+      <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">
+          <i class="fa-solid fa-chalkboard-user"></i>
+        </div>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Class Section &amp; Academic Program</h2>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Grade Level *</label>
+          <select name="grade_level" id="selectGradeLevel" onchange="syncSectionAdviser()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30">
+            {% for g in grade_levels %}
+            <option value="{{ g }}" {% if student.grade_level == g %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Section Name *</label>
+          <input type="text" name="section_name" id="inputSectionName" list="sectionSuggestions" value="{{ student.section_name or '' }}" required
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue"
+                 placeholder="e.g. Rizal, Sampaguita, Diamond">
+          <datalist id="sectionSuggestions">
+            {% for sec in sections %}
+            <option value="{{ sec.section_name }}">{{ sec.grade_level }} - {{ sec.section_name }} ({{ sec.adviser_teacher }})</option>
+            {% endfor %}
+          </datalist>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Class Adviser Teacher</label>
+          <input type="text" name="class_adviser" id="inputClassAdviser" list="teacherSuggestions" value="{{ student.class_adviser or '' }}"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30 focus:border-deped-blue"
+                 placeholder="e.g. Mrs. Maria Santos">
+          <datalist id="teacherSuggestions">
+            {% for t in teachers %}
+            <option value="{{ t.full_name }}">{{ t.full_name }} ({{ t.employee_number or 'Faculty' }})</option>
+            {% endfor %}
+          </datalist>
+        </div>
+
+        <div class="sm:col-span-3">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Curriculum Track / Strand</label>
+          <select name="track_strand" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30">
+            {% for c in curriculum_strands %}
+            <option value="{{ c }}" {% if student.track_strand == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Parent / Guardian & RFID Credentials -->
+    <div class="glass-card rounded-3xl p-6 border border-slate-200 shadow-sm bg-white space-y-5">
+      <div class="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+        <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-sm font-bold">
+          <i class="fa-solid fa-address-book"></i>
+        </div>
+        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Parent Contact &amp; Hardware Badges</h2>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Parent / Guardian Name</label>
+          <input type="text" name="parent_name" value="{{ student.parent_name or '' }}" placeholder="Full Name"
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Parent Mobile (SMS Recipient) *</label>
+          <input type="text" name="parent_phone" value="{{ student.parent_phone or '' }}" placeholder="09171234567" required
+                 class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-deped-blue/30">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Relationship</label>
+          <select name="parent_relationship" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-deped-blue/30">
+            <option value="Parent" {% if student.parent_relationship == 'Parent' %}selected{% endif %}>Parent</option>
+            <option value="Mother" {% if student.parent_relationship == 'Mother' %}selected{% endif %}>Mother</option>
+            <option value="Father" {% if student.parent_relationship == 'Father' %}selected{% endif %}>Father</option>
+            <option value="Guardian" {% if student.parent_relationship == 'Guardian' %}selected{% endif %}>Guardian</option>
+          </select>
+        </div>
+
+        <div class="sm:col-span-3">
+          <label class="block text-xs font-bold text-slate-700 mb-1">RFID Tap Card UID (Optional)</label>
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-id-badge absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+              <input type="text" name="rfid_card_uid" value="{{ '' if student.rfid_card_uid in ['N/A', None] else student.rfid_card_uid }}" placeholder="e.g. 1029384756 (Tap card on USB RFID reader)"
+                     class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-deped-blue/30">
+            </div>
+            <span class="text-[11px] text-slate-500 font-semibold shrink-0">Tap card to overwrite</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit Buttons Footer -->
+    <div class="flex items-center justify-between pt-2">
+      <a href="/students" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition">
+        Cancel
+      </a>
+      <button type="submit" class="px-6 py-2.5 bg-deped-blue hover:bg-deped-darkblue text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2">
+        <i class="fa-solid fa-floppy-disk"></i> Save Changes
+      </button>
+    </div>
+
+  </form>
+
+</div>
+
+<script>
+  function previewSelectedPhoto(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const preview = document.getElementById('photoPreviewImg');
+        if (preview) preview.src = e.target.result;
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+  }
+
+  const sectionsData = [
+    {% for s in sections %}
+    { grade: "{{ s.grade_level }}", name: "{{ s.section_name }}", adviser: "{{ s.adviser_teacher }}" },
+    {% endfor %}
+  ];
+
+  function syncSectionAdviser() {
+    const grade = document.getElementById('selectGradeLevel').value;
+    const secInput = document.getElementById('inputSectionName').value.trim().toLowerCase();
+    const match = sectionsData.find(s => s.grade === grade && s.name.toLowerCase() === secInput);
+    if (match && match.adviser) {
+      document.getElementById('inputClassAdviser').value = match.adviser;
+    }
+  }
+</script>
+{% endblock %}
