@@ -2737,7 +2737,9 @@ def get_student_by_lrn_or_rfid_orm(identifier: str):
     session = Session()
     try:
         # Check by LRN
-        student = session.query(Student).filter_by(lrn=clean_id, is_active=True).first()
+        student = session.query(Student).filter(Student.lrn == clean_id).first()
+        if not student:
+            student = session.query(Student).filter(Student.lrn.ilike(clean_id)).first()
         if student:
             res = student.to_dict()
             _STUDENT_LOOKUP_CACHE[clean_id] = {"data": res, "ts": now}
@@ -2745,7 +2747,7 @@ def get_student_by_lrn_or_rfid_orm(identifier: str):
                 _STUDENT_LOOKUP_CACHE[res["rfid_card_uid"]] = {"data": res, "ts": now}
             return res
         # Check by RFID UID
-        student = session.query(Student).filter_by(rfid_card_uid=clean_id, is_active=True).first()
+        student = session.query(Student).filter(Student.rfid_card_uid == clean_id).first()
         if student:
             res = student.to_dict()
             _STUDENT_LOOKUP_CACHE[clean_id] = {"data": res, "ts": now}

@@ -47,17 +47,17 @@
         <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Learner Identity &amp; Credentials</h2>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-6 items-start">
+      <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
         <!-- Photo / QR Preview -->
-        <div class="flex flex-col items-center gap-2 shrink-0 w-full sm:w-auto">
-          <div class="w-28 h-28 rounded-2xl bg-slate-50 border-2 border-slate-200 overflow-hidden flex items-center justify-center p-1 shadow-inner relative group">
+        <div class="flex flex-col items-center gap-2.5 shrink-0 w-full sm:w-auto">
+          <div class="w-28 h-36 rounded-2xl bg-slate-50 border-2 border-slate-200 overflow-hidden flex items-center justify-center p-1 shadow-sm relative group">
             {% if student.photo_path %}
-            <img id="photoPreviewImg" src="{{ student.photo_path }}" alt="{{ student.full_name }}" class="w-full h-full object-cover rounded-xl">
+            <img id="photoPreviewImg" src="{{ student.photo_path }}" alt="{{ student.full_name }}" class="w-full h-full object-cover object-top rounded-xl" onerror="this.onerror=null; this.src='/static/qrcodes/{{ student.lrn }}.png';">
             {% else %}
-            <img id="photoPreviewImg" src="/static/qrcodes/{{ student.lrn }}.png" alt="Smart ID QR" class="w-full h-full object-contain" onerror="this.src='/static/images/deped_seal.svg'">
+            <img id="photoPreviewImg" src="/static/qrcodes/{{ student.lrn }}.png" alt="Smart ID QR" class="w-full h-full object-contain p-1 rounded-xl" onerror="this.src='/static/images/deped_seal.svg'">
             {% endif %}
           </div>
-          <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-300 transition flex items-center gap-1.5 text-center">
+          <label class="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-300 shadow-2xs transition flex items-center gap-1.5 text-center">
             <i class="fa-solid fa-camera text-deped-blue"></i> Replace Photo
             <input type="file" name="photo" accept="image/*" class="hidden" onchange="previewSelectedPhoto(this)">
           </label>

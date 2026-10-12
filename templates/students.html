@@ -76,19 +76,26 @@
          data-qrcode="/static/qrcodes/{{ s.lrn }}.png">
       
       <div>
-        <!-- Card Header: Photo / QR Badge & Name -->
-        <div class="flex items-start space-x-4">
-          <div class="w-16 h-16 rounded-xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5 shadow-sm relative">
-            <img class="student-avatar w-full h-full object-cover rounded-lg"
-                 src="{{ s.photo_path if s.photo_path else '/static/qrcodes/' ~ s.lrn ~ '.png' }}"
+        <!-- Card Header: Photo / QR Badge & Name (Cleanly Aligned) -->
+        <div class="flex items-center space-x-3.5">
+          <div class="w-16 h-20 rounded-2xl bg-white border border-slate-200 overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5 shadow-xs relative">
+            {% if s.photo_path %}
+            <img class="student-avatar w-full h-full object-cover object-top rounded-xl"
+                 src="{{ s.photo_path }}"
                  alt="{{ s.full_name }}"
-                 onerror="this.src='/static/qrcodes/{{ s.lrn }}.png'; this.onerror=function(){this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>';};">
+                 onerror="this.onerror=null; this.src='/static/qrcodes/{{ s.lrn }}.png';">
+            {% else %}
+            <img class="student-avatar w-full h-full object-contain p-1 rounded-xl"
+                 src="/static/qrcodes/{{ s.lrn }}.png"
+                 alt="Smart ID QR"
+                 onerror="this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>';">
+            {% endif %}
           </div>
           <div class="overflow-hidden flex-1">
             <span class="student-grade-badge inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-deped-blue uppercase tracking-wider mb-1">
               {{ s.grade_section or 'Unassigned' }}
             </span>
-            <h3 class="student-name font-bold text-slate-900 text-base leading-snug truncate">{{ s.full_name }}</h3>
+            <h3 class="student-name font-bold text-slate-900 text-base leading-snug truncate" title="{{ s.full_name }}">{{ s.full_name }}</h3>
             <p class="student-lrn-display font-mono text-xs text-slate-500 mt-0.5">LRN: <span class="font-semibold text-slate-700 font-mono">{{ s.lrn }}</span></p>
           </div>
         </div>
@@ -97,11 +104,11 @@
         <div class="mt-4 pt-3 border-t border-slate-100 space-y-1.5 text-xs">
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Class Adviser:</span>
-            <span class="student-adviser font-medium text-slate-800">{{ s.class_adviser or 'Not assigned' }}</span>
+            <span class="student-adviser font-medium text-slate-800 truncate max-w-[170px]" title="{{ s.class_adviser or 'Not assigned' }}">{{ s.class_adviser or 'Not assigned' }}</span>
           </div>
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Parent/Guardian:</span>
-            <span class="student-parent font-medium text-slate-800">{{ s.parent_name or 'Not specified' }}</span>
+            <span class="student-parent font-medium text-slate-800 truncate max-w-[170px]" title="{{ s.parent_name or 'Not specified' }}">{{ s.parent_name or 'Not specified' }}</span>
           </div>
           <div class="flex justify-between text-slate-600">
             <span class="text-slate-400">Parent Mobile:</span>
@@ -110,15 +117,18 @@
         </div>
       </div>
 
-      <!-- Action Footer -->
+      <!-- Action Footer with Quick Edit & Direct Full-View Editor -->
       <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
         <a href="/id-card/{{ s.lrn }}" target="_blank" class="student-smartid-link inline-flex items-center px-2.5 py-1.5 bg-deped-blue/10 hover:bg-deped-blue text-deped-blue hover:text-white rounded-lg font-semibold transition text-xs shadow-xs" title="View or Print Smart ID Card">
           <i class="fa-solid fa-qrcode mr-1.5"></i> Smart ID
         </a>
         <div class="flex items-center gap-1.5">
-          <button type="button" onclick="openEditStudentModal('{{ s.lrn }}')" class="inline-flex items-center px-2.5 py-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Edit student profile">
+          <button type="button" onclick="openEditStudentModal('{{ s.lrn }}')" class="inline-flex items-center px-2.5 py-1.5 bg-amber-50 hover:bg-amber-600 text-amber-700 hover:text-white border border-amber-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Quick edit student profile in modal">
             <i class="fa-solid fa-pen-to-square mr-1"></i> Edit
           </button>
+          <a href="/students/edit/{{ s.lrn }}" class="student-full-edit-link inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-deped-blue text-deped-blue hover:text-white border border-blue-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Open full-page editor view">
+            <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i> Full
+          </a>
           <button type="button" onclick="deleteStudent('{{ s.lrn }}', '{{ s.full_name|replace("'", "\\'") }}')" class="student-delete-btn inline-flex items-center px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-transparent rounded-lg font-semibold transition text-xs shadow-xs" title="Remove student from enrollment">
             <i class="fa-regular fa-trash-can mr-1"></i> Delete
           </button>
@@ -141,12 +151,12 @@
 
 </div>
 
-<!-- Quick Edit Student Modal -->
-<div id="editStudentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 hidden opacity-0 transition-opacity duration-200">
-  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden transform scale-95 transition-transform duration-200" id="editModalContent">
+<!-- Quick Edit Student Modal (Supports In-Place Quick Edit and Full-View Mode) -->
+<div id="editStudentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-5 hidden opacity-0 transition-opacity duration-200">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[94vh] flex flex-col border border-slate-200 overflow-hidden transform scale-95 transition-all duration-200" id="editModalContent">
     
     <!-- Modal Header -->
-    <div class="p-5 sm:px-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+    <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-2xl bg-deped-blue/10 text-deped-blue flex items-center justify-center font-bold text-base shrink-0 shadow-2xs">
           <i class="fa-solid fa-user-pen"></i>
@@ -156,34 +166,44 @@
           <p class="text-xs text-slate-500">Update learner credentials, academic section, or parent contact.</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <a id="modalFullEditLink" href="#" target="_blank" class="hidden sm:inline-flex items-center gap-1 text-xs text-deped-blue hover:text-deped-darkblue font-bold px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 rounded-xl transition">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i> Full Editor
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <a id="modalFullEditLink" href="#" class="inline-flex items-center gap-1.5 text-xs text-deped-blue hover:text-white hover:bg-deped-blue font-bold px-3 py-1.5 bg-blue-50 border border-blue-200 hover:border-deped-blue rounded-xl transition shadow-2xs" title="Open full-page editor">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span class="hidden sm:inline">Full Editor</span>
+          <span class="sm:hidden">Full</span>
         </a>
-        <button type="button" onclick="closeEditStudentModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition">
+        <button type="button" onclick="toggleModalFullscreen()" id="modalFullscreenBtn" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition" title="Toggle Fullscreen View">
+          <i id="fullscreenIcon" class="fa-solid fa-expand text-xs"></i>
+        </button>
+        <button type="button" onclick="closeEditStudentModal()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition" title="Close modal">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
     </div>
 
     <!-- Modal Form Body -->
-    <form id="editStudentForm" onsubmit="handleEditStudentSubmit(event)" class="overflow-y-auto p-5 sm:p-6 space-y-4">
+    <form id="editStudentForm" onsubmit="handleEditStudentSubmit(event)" class="overflow-y-auto p-4 sm:p-6 space-y-4">
       <input type="hidden" id="editOriginalLrn" name="original_lrn">
 
       <div id="modalAlertBox" class="hidden p-3 rounded-xl text-xs font-bold flex items-center gap-2"></div>
 
-      <!-- Photo & Identity Section -->
-      <div class="flex flex-col sm:flex-row gap-4 items-center sm:items-start p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
-        <div class="w-20 h-20 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-xs relative shrink-0">
-          <img id="editPhotoPreview" src="" alt="Student Photo" class="w-full h-full object-cover rounded-lg" onerror="this.src='/static/images/deped_seal.svg'">
+      <!-- Photo & Identity Section (Centrally Aligned Portrait 2x2 Badge) -->
+      <div class="flex items-center gap-4 sm:gap-5 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+        <div class="w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-white border-2 border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-sm relative shrink-0">
+          <img id="editPhotoPreview" src="" alt="Student Photo" class="w-full h-full object-cover object-top rounded-xl" onerror="this.src='/static/images/deped_seal.svg'">
         </div>
-        <div class="flex-1 text-center sm:text-left space-y-1.5">
-          <div class="flex items-center justify-center sm:justify-start gap-2">
-            <span class="text-xs font-bold text-slate-700">Student Profile Photo</span>
+        <div class="flex-1 space-y-2">
+          <div>
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-camera text-deped-blue"></i> Student Profile Photo
+            </span>
+            <p class="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+              Passport 2x2 portrait photo for biometric AI face recognition and official DepEd Smart ID badges.
+            </p>
           </div>
-          <p class="text-[11px] text-slate-500 leading-relaxed">Upload a new photo to update biometric face verification and printed badges.</p>
-          <label class="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer shadow-2xs transition">
-            <i class="fa-solid fa-camera text-deped-blue"></i> Choose New Photo
+          <label class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-deped-blue hover:text-white border border-slate-300 hover:border-deped-blue rounded-xl text-xs font-bold text-slate-700 cursor-pointer shadow-2xs transition group">
+            <i class="fa-solid fa-arrow-up-from-bracket text-deped-blue group-hover:text-white transition"></i>
+            <span>Choose New Photo</span>
             <input type="file" id="editPhotoInput" name="photo" accept="image/*" class="hidden" onchange="previewEditPhoto(this)">
           </label>
         </div>
@@ -395,6 +415,31 @@
     }, 3500);
   }
 
+  // Toggle Modal Fullscreen / Maximize View
+  let isModalFullscreen = false;
+  function toggleModalFullscreen() {
+    const content = document.getElementById('editModalContent');
+    const icon = document.getElementById('fullscreenIcon');
+    if (!content) return;
+
+    isModalFullscreen = !isModalFullscreen;
+    if (isModalFullscreen) {
+      content.classList.remove('max-w-2xl', 'max-h-[94vh]', 'rounded-3xl');
+      content.classList.add('max-w-none', 'w-[98vw]', 'h-[96vh]', 'rounded-2xl');
+      if (icon) {
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+      }
+    } else {
+      content.classList.remove('max-w-none', 'w-[98vw]', 'h-[96vh]', 'rounded-2xl');
+      content.classList.add('max-w-2xl', 'max-h-[94vh]', 'rounded-3xl');
+      if (icon) {
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+      }
+    }
+  }
+
   // Quick Edit Modal Functions
   function openEditStudentModal(lrn) {
     const card = document.querySelector(`.student-card[data-lrn="${lrn}"]`);
@@ -430,9 +475,11 @@
     const previewImg = document.getElementById('editPhotoPreview');
     previewImg.src = card.dataset.photo || card.dataset.qrcode || '/static/images/deped_seal.svg';
 
-    // Full editor link
+    // Set full-page editor link (navigates directly in same window)
     const fullEditLink = document.getElementById('modalFullEditLink');
-    if (fullEditLink) fullEditLink.href = `/students/edit/${lrn}`;
+    if (fullEditLink) {
+      fullEditLink.href = `/students/edit/${encodeURIComponent(lrn)}`;
+    }
 
     // Show modal with animation
     modal.classList.remove('hidden');
@@ -454,6 +501,10 @@
     setTimeout(() => {
       modal.classList.add('hidden');
       document.getElementById('editStudentForm')?.reset();
+      // Reset fullscreen if was active
+      if (isModalFullscreen) {
+        toggleModalFullscreen();
+      }
     }, 200);
   }
 
@@ -512,7 +563,7 @@
     const formData = new FormData(form);
 
     try {
-      const res = await fetch(`/api/update-student/${origLrn}`, {
+      const res = await fetch(`/api/update-student/${encodeURIComponent(origLrn)}`, {
         method: 'POST',
         body: formData
       });
@@ -547,7 +598,10 @@
 
           // Update card DOM elements in place
           const nameEl = card.querySelector('.student-name');
-          if (nameEl) nameEl.textContent = updated.full_name;
+          if (nameEl) {
+            nameEl.textContent = updated.full_name;
+            nameEl.setAttribute('title', updated.full_name);
+          }
 
           const gradeBadge = card.querySelector('.student-grade-badge');
           if (gradeBadge) gradeBadge.textContent = updated.grade_section || 'Unassigned';
@@ -556,10 +610,16 @@
           if (lrnDisplay) lrnDisplay.innerHTML = `LRN: <span class="font-semibold text-slate-700 font-mono">${updated.lrn}</span>`;
 
           const adviserEl = card.querySelector('.student-adviser');
-          if (adviserEl) adviserEl.textContent = updated.class_adviser || 'Not assigned';
+          if (adviserEl) {
+            adviserEl.textContent = updated.class_adviser || 'Not assigned';
+            adviserEl.setAttribute('title', updated.class_adviser || 'Not assigned');
+          }
 
           const parentEl = card.querySelector('.student-parent');
-          if (parentEl) parentEl.textContent = updated.parent_name || 'Not specified';
+          if (parentEl) {
+            parentEl.textContent = updated.parent_name || 'Not specified';
+            parentEl.setAttribute('title', updated.parent_name || 'Not specified');
+          }
 
           const phoneEl = card.querySelector('.student-phone');
           if (phoneEl) phoneEl.textContent = updated.parent_phone;
@@ -567,11 +627,15 @@
           const avatarEl = card.querySelector('.student-avatar');
           if (avatarEl) {
             avatarEl.src = updated.photo_path ? updated.photo_path : `/static/qrcodes/${updated.lrn}.png`;
+            avatarEl.alt = updated.full_name;
           }
 
-          // Update Smart ID button href
+          // Update links
           const smartIdLink = card.querySelector('.student-smartid-link');
           if (smartIdLink) smartIdLink.href = `/id-card/${updated.lrn}`;
+
+          const fullEditCardLink = card.querySelector('.student-full-edit-link');
+          if (fullEditCardLink) fullEditCardLink.href = `/students/edit/${updated.lrn}`;
 
           // Update edit/delete button parameters if LRN or name changed
           const editBtn = card.querySelector('button[onclick^="openEditStudentModal"]');
@@ -614,7 +678,7 @@
     }
 
     try {
-      const res = await fetch(`/api/delete-student/${lrn}`, { method: 'POST' });
+      const res = await fetch(`/api/delete-student/${encodeURIComponent(lrn)}`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         if (card) {

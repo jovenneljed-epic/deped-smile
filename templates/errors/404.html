@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Page Not Found (404) | Project S.M.I.L.E.{% endblock %}
+
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center px-4 py-12">
+  <div class="max-w-md w-full text-center space-y-5 glass-card p-8 rounded-3xl border border-slate-200 shadow-sm bg-white">
+    <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-2xl mx-auto shadow-inner">
+      <i class="fa-solid fa-compass"></i>
+    </div>
+    <div class="space-y-2">
+      <span class="inline-block px-3 py-1 bg-slate-100 text-slate-700 font-mono text-xs font-bold rounded-full">Error 404</span>
+      <h1 class="text-2xl font-bold font-heading text-slate-900">Resource Not Found</h1>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        {{ message or "The requested page, student profile, or system record could not be found." }}
+      </p>
+    </div>
+    <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+      <a href="/students" class="w-full sm:w-auto px-4 py-2 bg-deped-blue hover:bg-deped-darkblue text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-users"></i> Students Directory
+      </a>
+      <a href="/dashboard" class="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-house"></i> Home Dashboard
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

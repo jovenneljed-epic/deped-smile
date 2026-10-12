@@ -1315,15 +1315,16 @@ def students_directory():
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def student_edit_page(lrn):
     """Full-page editor for student profile."""
-    from smile_orm import get_student_by_lrn_or_rfid_orm, update_student_orm, get_all_sections_orm, get_all_users_orm
+    from smile_orm import get_student_by_lrn_or_rfid_orm, update_student_orm, get_all_sections_orm, get_all_users_orm, get_school_by_id_orm
     st = get_student_by_lrn_or_rfid_orm(lrn)
     if not st:
-        return render_template('errors/404.html', message=f"Student LRN '{lrn}' not found."), 404
+        return render_template('errors/404.html', message=f"Student profile with LRN '{lrn}' was not found."), 404
 
-    sid = get_current_school_id()
-    sch = get_current_school()
-    sections = get_all_sections_orm(school_id=sid)
-    teachers = [u for u in get_all_users_orm(school_id=sid) if u.get('role') == 'TEACHER']
+    current_sid = get_current_school_id()
+    student_sid = st.get('school_id') or current_sid
+    sch = get_school_by_id_orm(student_sid) or get_current_school()
+    sections = get_all_sections_orm(school_id=student_sid)
+    teachers = [u for u in get_all_users_orm(school_id=student_sid) if u.get('role') == 'TEACHER']
 
     if request.method == 'POST':
         payload = request.form.to_dict()
@@ -1849,16 +1850,22 @@ def api_detect_face_preview():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/photos/<filename>')
+@app.route('/photos/<path:filename>')
+@app.route('/data/student_photos/<path:filename>')
 def serve_photo(filename):
-    """Serves enrolled student photos from writable or repo directory."""
+    """Serves enrolled student photos from writable, temporary, or repo directories."""
     try:
-        photo_file = PHOTOS_DIR / filename
-        if photo_file.exists():
-            return send_from_directory(PHOTOS_DIR, filename)
+        clean_name = Path(filename).name
+        photo_file = PHOTOS_DIR / clean_name
+        if photo_file.exists() and photo_file.is_file():
+            return send_from_directory(PHOTOS_DIR, clean_name)
         repo_photos = BASE_DIR / "data" / "student_photos"
-        if (repo_photos / filename).exists():
-            return send_from_directory(repo_photos, filename)
+        if (repo_photos / clean_name).exists() and (repo_photos / clean_name).is_file():
+            return send_from_directory(repo_photos, clean_name)
+        # Check /tmp/smile_data/student_photos
+        tmp_photos = Path("/tmp/smile_data/student_photos")
+        if (tmp_photos / clean_name).exists() and (tmp_photos / clean_name).is_file():
+            return send_from_directory(tmp_photos, clean_name)
     except Exception:
         pass
     return send_from_directory(BASE_DIR / "static" / "images", "deped_logo.png", mimetype="image/png")
