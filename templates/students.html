@@ -83,11 +83,15 @@
             <img class="student-avatar w-full h-full object-cover object-top rounded-xl"
                  src="{{ s.photo_path }}"
                  alt="{{ s.full_name }}"
+                 loading="lazy"
+                 decoding="async"
                  onerror="this.onerror=null; this.src='/static/qrcodes/{{ s.lrn }}.png';">
             {% else %}
             <img class="student-avatar w-full h-full object-contain p-1 rounded-xl"
                  src="/static/qrcodes/{{ s.lrn }}.png"
                  alt="Smart ID QR"
+                 loading="lazy"
+                 decoding="async"
                  onerror="this.parentElement.innerHTML='<i class=\'fa-solid fa-id-card text-2xl text-deped-blue\'></i>';">
             {% endif %}
           </div>

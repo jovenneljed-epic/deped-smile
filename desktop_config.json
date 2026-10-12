@@ -1,0 +1,8 @@
+{
+  "server_url": "https://deped-smile.vercel.app",
+  "app_title": "DepEd Project S.M.I.L.E. - Standalone Desktop Client",
+  "window_width": 1366,
+  "window_height": 820,
+  "sync_mode": "REALTIME_CLOUD_SYNC",
+  "local_port": 5000
+}

@@ -4,6 +4,7 @@ import csv
 import base64
 import threading
 import gzip
+import time
 import numpy as np
 from datetime import datetime, date
 from pathlib import Path
@@ -39,8 +40,8 @@ from smile_orm import (
     get_campus_staff_attendance_summary_orm,
     get_section_attendance_report_orm,
     get_monthly_deped_sf2_report_orm,
-    get_all_schools_orm, get_school_by_id_orm, get_school_by_code_orm,
-    create_school_orm, update_school_orm
+    get_all_schools_orm, get_schools_dropdown_orm, get_school_by_id_orm, get_school_by_code_orm,
+    create_school_orm, update_school_orm, get_teachers_for_school_orm
 )
 from smile_sms import (
     send_via_semaphore, send_via_twilio, send_via_android_gateway,
@@ -110,6 +111,13 @@ def optimize_response(response):
                     response.headers['Vary'] = 'Accept-Encoding'
 
     return response
+
+@app.route('/api/ping', methods=['GET', 'HEAD'])
+def api_ping():
+    """Ultra-lightweight keep-alive ping for serverless containers and SPA latency measuring."""
+    resp = jsonify({"status": "ok", "time": time.time(), "server": "smile-v2.0"})
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp, 200
 
 # Initialize AI Face Recognition Engine (YuNet + SFace) - Lazy Loaded on Demand
 face_engine = None
@@ -304,11 +312,11 @@ def inject_user_context():
     sid = get_current_school_id()
     active_school = get_school_by_id_orm(sid) or {}
     
-    # If user is SUPER_ADMIN or DIVISION_ADMIN, load all schools list for the switcher dropdown
+    # If user is SUPER_ADMIN or DIVISION_ADMIN, load lightweight schools list for the switcher dropdown
     schools_list = []
     if role in ["SUPER_ADMIN", "DIVISION_ADMIN"]:
         try:
-            schools_list = get_all_schools_orm()
+            schools_list = get_schools_dropdown_orm()
         except Exception:
             schools_list = []
 
@@ -344,7 +352,7 @@ def inject_user_context():
 def login_page():
     """Staff & Administrator Authentication Portal."""
     next_url = request.args.get('next', '')
-    all_schs = get_all_schools_orm()
+    all_schs = get_schools_dropdown_orm()
     if request.method == 'GET':
         if 'user_id' in session:
             return redirect(url_for('dashboard'))
@@ -862,7 +870,7 @@ def admin_users():
     """Super Admin: Staff User Management & Account Settings Portal."""
     active_school_id = get_current_school_id()
     raw_school_id = request.args.get('school_id', '').strip()
-    schools = get_all_schools_orm()
+    schools = get_schools_dropdown_orm()
 
     if raw_school_id.lower() == 'all':
         selected_school_id = 'ALL'
@@ -1294,12 +1302,12 @@ def enroll_page():
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def students_directory():
     """Directory of enrolled students with photos and parent contacts - High Performance."""
-    from smile_orm import get_students_directory_orm, get_all_sections_orm, get_all_users_orm
+    from smile_orm import get_students_directory_orm, get_all_sections_orm, get_teachers_for_school_orm
     sid = get_current_school_id()
     students = get_students_directory_orm(school_id=sid)
     sch = get_current_school()
     sections = get_all_sections_orm(school_id=sid)
-    teachers = [u for u in get_all_users_orm(school_id=sid) if u.get('role') == 'TEACHER']
+    teachers = get_teachers_for_school_orm(school_id=sid)
     return render_template(
         'students.html', 
         school_name=sch.get('school_name', SCHOOL_NAME), 
@@ -1315,7 +1323,7 @@ def students_directory():
 @role_required('SUPER_ADMIN', 'PRINCIPAL', 'TEACHER', 'STAFF', 'NON_TEACHING')
 def student_edit_page(lrn):
     """Full-page editor for student profile."""
-    from smile_orm import get_student_by_lrn_or_rfid_orm, update_student_orm, get_all_sections_orm, get_all_users_orm, get_school_by_id_orm
+    from smile_orm import get_student_by_lrn_or_rfid_orm, update_student_orm, get_all_sections_orm, get_teachers_for_school_orm, get_school_by_id_orm
     st = get_student_by_lrn_or_rfid_orm(lrn)
     if not st:
         return render_template('errors/404.html', message=f"Student profile with LRN '{lrn}' was not found."), 404
@@ -1324,7 +1332,7 @@ def student_edit_page(lrn):
     student_sid = st.get('school_id') or current_sid
     sch = get_school_by_id_orm(student_sid) or get_current_school()
     sections = get_all_sections_orm(school_id=student_sid)
-    teachers = [u for u in get_all_users_orm(school_id=student_sid) if u.get('role') == 'TEACHER']
+    teachers = get_teachers_for_school_orm(school_id=student_sid)
 
     if request.method == 'POST':
         payload = request.form.to_dict()

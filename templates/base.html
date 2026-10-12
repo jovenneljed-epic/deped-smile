@@ -480,7 +480,7 @@
   </header>
 
   <!-- Main Content Area -->
-  <main class="flex-grow w-full max-w-[1560px] mx-auto px-3.5 sm:px-5 lg:px-6 xl:px-8 py-4 sm:py-6">
+  <main id="mainContent" class="flex-grow w-full max-w-[1560px] mx-auto px-3.5 sm:px-5 lg:px-6 xl:px-8 py-4 sm:py-6">
     {% block content %}{% endblock %}
   </main>
 
@@ -522,7 +522,7 @@
     });
 
     // -------------------------------------------------------------
-    // High-Speed Instant Navigation & Adaptive Link Prefetcher
+    // High-Speed Instant SPA Turbo-Navigator & Serverless Keep-Alive
     // -------------------------------------------------------------
     (function() {
       const bar = document.getElementById('navProgressBar');
@@ -530,7 +530,7 @@
         if (!bar) return;
         bar.style.opacity = '1';
         bar.style.width = '35%';
-        setTimeout(() => { if (bar.style.opacity === '1') bar.style.width = '75%'; }, 120);
+        setTimeout(() => { if (bar.style.opacity === '1') bar.style.width = '75%'; }, 80);
       }
       function endNavProgress() {
         if (!bar) return;
@@ -539,33 +539,211 @@
       }
       window.addEventListener('pageshow', endNavProgress);
 
-      const prefetchedUrls = new Set();
-      function prefetchUrl(url) {
-        if (!url || prefetchedUrls.has(url)) return;
-        if (url.includes('/logout') || url.includes('/api/') || url.includes('/export/') || url.includes('#')) return;
-        prefetchedUrls.add(url);
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = url;
-        link.as = 'document';
-        document.head.appendChild(link);
+      // In-Memory Fast LRU Cache for HTML pages
+      const pageCache = new Map();
+      const MAX_CACHE = 20;
+      const CACHE_TTL_MS = 60000; // 60 seconds
+
+      function isBypassedUrl(url) {
+        if (!url) return true;
+        try {
+          const u = new URL(url, window.location.origin);
+          if (u.origin !== window.location.origin) return true;
+          const p = u.pathname;
+          // Bypass sensitive, auth, downloads, or external operations
+          if (p.includes('/logout') || p.includes('/login') || p.startsWith('/export/') || p.startsWith('/id-card/') || p.startsWith('/api/')) return true;
+          if (p.endsWith('.csv') || p.endsWith('.pdf') || p.endsWith('.apk') || p.endsWith('.zip') || p.endsWith('.png') || p.endsWith('.jpg')) return true;
+          return false;
+        } catch(e) {
+          return true;
+        }
       }
 
-      // Pre-warm primary navigation routes during browser idle for instant 1-click response
+      function prefetchUrl(url) {
+        if (isBypassedUrl(url)) return;
+        try {
+          const cleanUrl = new URL(url, window.location.origin).href;
+          const cached = pageCache.get(cleanUrl);
+          const now = Date.now();
+          if (cached && (now - cached.ts < CACHE_TTL_MS)) return;
+
+          fetch(cleanUrl, {
+            headers: { 'X-Requested-With': 'SPA-Turbo-Navigator' }
+          }).then(res => {
+            if (res.ok) {
+              return res.text().then(html => {
+                if (pageCache.size >= MAX_CACHE) {
+                  const firstKey = pageCache.keys().next().value;
+                  pageCache.delete(firstKey);
+                }
+                pageCache.set(cleanUrl, { html, ts: Date.now() });
+              });
+            }
+          }).catch(() => {});
+        } catch(e) {}
+      }
+
+      // Pre-warm primary navigation paths during idle
+      const warmRoutes = ['/dashboard', '/students', '/faculty/dtr', '/enroll', '/advisory/sf2', '/database'];
       if ('requestIdleCallback' in window) {
         requestIdleCallback(() => {
-          ['/dashboard', '/students', '/kiosk', '/enroll'].forEach(path => {
-            prefetchUrl(window.location.origin + path);
-          });
-        }, { timeout: 2000 });
+          warmRoutes.forEach(r => prefetchUrl(window.location.origin + r));
+        }, { timeout: 1500 });
       } else {
         setTimeout(() => {
-          ['/dashboard', '/students', '/kiosk', '/enroll'].forEach(path => {
-            prefetchUrl(window.location.origin + path);
-          });
-        }, 1200);
+          warmRoutes.forEach(r => prefetchUrl(window.location.origin + r));
+        }, 1000);
       }
 
+      // Cleanup active camera streams if switching pages
+      function cleanupActiveStreams() {
+        if (window._activeStreams && Array.isArray(window._activeStreams)) {
+          window._activeStreams.forEach(s => {
+            try { s.getTracks().forEach(t => t.stop()); } catch(e) {}
+          });
+          window._activeStreams = [];
+        }
+        document.querySelectorAll('video').forEach(v => {
+          try {
+            if (v.srcObject && typeof v.srcObject.getTracks === 'function') {
+              v.srcObject.getTracks().forEach(t => t.stop());
+            }
+            v.srcObject = null;
+          } catch(e) {}
+        });
+      }
+
+      // Execute scripts inside swapped container
+      function executeScripts(container) {
+        if (!container) return;
+        const scripts = Array.from(container.querySelectorAll('script'));
+        scripts.forEach(oldScript => {
+          const newScript = document.createElement('script');
+          Array.from(oldScript.attributes).forEach(attr => {
+            newScript.setAttribute(attr.name, attr.value);
+          });
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+      }
+
+      // Update active navigation styling
+      function updateNavHighlight(targetUrl) {
+        try {
+          const path = new URL(targetUrl, window.location.origin).pathname;
+          document.querySelectorAll('header a[href]').forEach(a => {
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+            if (href === '/kiosk' || href === '/enroll' || href === '/profile' || href.includes('logout')) return;
+
+            const isMatch = (href === path) || (path === '/dashboard' && href === '/') || (href !== '/' && path.startsWith(href));
+            if (isMatch) {
+              a.classList.add('bg-white/20', 'text-amber-300', 'font-bold', 'border', 'border-amber-400/40');
+              a.classList.remove('text-slate-200');
+            } else {
+              a.classList.remove('bg-white/20', 'text-amber-300', 'font-bold', 'border', 'border-amber-400/40', 'bg-white/15');
+              a.classList.add('text-slate-200');
+            }
+          });
+        } catch(e) {}
+      }
+
+      // Core SPA Swapper
+      async function spaNavigate(targetUrl, pushState = true) {
+        if (isBypassedUrl(targetUrl)) {
+          window.location.href = targetUrl;
+          return;
+        }
+
+        startNavProgress();
+        const cleanUrl = new URL(targetUrl, window.location.origin).href;
+        let html = null;
+        const cached = pageCache.get(cleanUrl);
+        const now = Date.now();
+
+        if (cached && (now - cached.ts < CACHE_TTL_MS)) {
+          html = cached.html;
+        } else {
+          try {
+            const resp = await fetch(cleanUrl, {
+              headers: { 'X-Requested-With': 'SPA-Turbo-Navigator' }
+            });
+            if (!resp.ok) {
+              window.location.href = targetUrl;
+              return;
+            }
+            html = await resp.text();
+            pageCache.set(cleanUrl, { html, ts: Date.now() });
+          } catch(err) {
+            window.location.href = targetUrl;
+            return;
+          }
+        }
+
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const newMain = doc.getElementById('mainContent');
+
+          if (!newMain) {
+            // Document structure changed or redirected (e.g. login required)
+            window.location.href = targetUrl;
+            return;
+          }
+
+          // Clean up old page resources
+          cleanupActiveStreams();
+
+          // Swap Main
+          const currentMain = document.getElementById('mainContent');
+          if (currentMain) {
+            currentMain.innerHTML = newMain.innerHTML;
+            currentMain.className = newMain.className;
+          }
+
+          // Swap Dynamic Scripts container if present
+          const newScripts = doc.getElementById('pageScriptsContainer');
+          const currentScripts = document.getElementById('pageScriptsContainer');
+          if (newScripts && currentScripts) {
+            currentScripts.innerHTML = newScripts.innerHTML;
+          }
+
+          // Update Document Title
+          if (doc.title) {
+            document.title = doc.title;
+          }
+
+          // Update active navigation buttons
+          updateNavHighlight(cleanUrl);
+
+          // Update browser history
+          if (pushState) {
+            window.history.pushState({ spa: true, url: cleanUrl }, doc.title, cleanUrl);
+          }
+
+          // Scroll to top
+          window.scrollTo({ top: 0, behavior: 'instant' });
+
+          // Re-execute scripts
+          if (currentMain) executeScripts(currentMain);
+          if (currentScripts) executeScripts(currentScripts);
+
+          // Dispatch lifecycle events
+          window.dispatchEvent(new Event('DOMContentLoaded'));
+          window.dispatchEvent(new CustomEvent('deped:navigated', { detail: { url: cleanUrl } }));
+        } catch(e) {
+          window.location.href = targetUrl;
+        } finally {
+          endNavProgress();
+        }
+      }
+
+      // Handle Browser Back / Forward
+      window.addEventListener('popstate', function(e) {
+        spaNavigate(window.location.href, false);
+      });
+
+      // Hover / Touch Pre-warming
       let hoverTimer = null;
       document.addEventListener('mouseover', function(e) {
         const anchor = e.target.closest('a');
@@ -582,14 +760,58 @@
         prefetchUrl(anchor.href);
       }, { passive: true });
 
+      // Click Interceptor
       document.addEventListener('click', function(e) {
+        if (e.defaultPrevented) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+
         const anchor = e.target.closest('a');
         if (!anchor || !anchor.href) return;
-        if (anchor.target === '_blank' || anchor.origin !== window.location.origin) return;
+        if (anchor.target === '_blank' || anchor.hasAttribute('download') || anchor.getAttribute('rel') === 'external') return;
+
         const hrefAttr = anchor.getAttribute('href') || '';
         if (hrefAttr.startsWith('#') || hrefAttr.startsWith('javascript:')) return;
-        startNavProgress();
+
+        const targetUrl = anchor.href;
+        if (isBypassedUrl(targetUrl)) return;
+
+        // If clicking current URL, simply scroll to top
+        if (targetUrl === window.location.href) {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+
+        e.preventDefault();
+        // Close mobile menu if open
+        const mobileMenu = document.getElementById('mobileMenu');
+        if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
+          toggleMobileMenu();
+        }
+        spaNavigate(targetUrl, true);
       });
+
+      // Serverless Keep-Alive Heartbeat (Pings /api/ping every 25s when tab is active)
+      let pingTimer = null;
+      function startKeepAlive() {
+        if (pingTimer) clearInterval(pingTimer);
+        pingTimer = setInterval(() => {
+          if (!document.hidden) {
+            fetch('/api/ping', { cache: 'no-store' }).catch(() => {});
+          }
+        }, 25000);
+      }
+      startKeepAlive();
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          fetch('/api/ping', { cache: 'no-store' }).catch(() => {});
+          startKeepAlive();
+        }
+      });
+
+      // Expose globally for programmatic instant navigations
+      window.depedSpaNavigate = spaNavigate;
+      window.depedPrefetch = prefetchUrl;
     })();
   </script>
 
@@ -606,6 +828,8 @@
     </div>
   </footer>
 
-  {% block scripts %}{% endblock %}
+  <div id="pageScriptsContainer">
+    {% block scripts %}{% endblock %}
+  </div>
 </body>
 </html>
