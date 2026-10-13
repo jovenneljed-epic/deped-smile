@@ -30,13 +30,22 @@ import threading
 import urllib.request
 import urllib.error
 
-# Ensure project directory is in python path
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Determine working directories (source vs compiled PyInstaller .exe)
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+    BUNDLE_DIR = getattr(sys, '_MEIPASS', BASE_DIR)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BUNDLE_DIR = BASE_DIR
+
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import smile_config
-from smile_config import SCHOOL_NAME
+try:
+    import smile_config
+    SCHOOL_NAME = getattr(smile_config, "SCHOOL_NAME", "Department of Education")
+except Exception:
+    SCHOOL_NAME = "Department of Education"
 
 CONFIG_PATH = os.path.join(BASE_DIR, "desktop_config.json")
 
@@ -50,13 +59,29 @@ def load_config():
         "sync_mode": "REALTIME_CLOUD_SYNC",
         "local_port": 5000
     }
-    if os.path.exists(CONFIG_PATH):
+    # Check current directory first
+    target_cfg = CONFIG_PATH
+    if not os.path.exists(target_cfg):
+        # Check bundled directory
+        bundled_cfg = os.path.join(BUNDLE_DIR, "desktop_config.json")
+        if os.path.exists(bundled_cfg):
+            target_cfg = bundled_cfg
+
+    if os.path.exists(target_cfg):
         try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(target_cfg, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 defaults.update(data)
         except Exception as e:
             print(f"[!] Config load notice: {e}")
+    else:
+        # Create default config file for easy user customization
+        try:
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, indent=2)
+        except Exception:
+            pass
+
     return defaults
 
 def get_local_ip():
