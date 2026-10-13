@@ -191,26 +191,97 @@
 
       <div id="modalAlertBox" class="hidden p-3 rounded-xl text-xs font-bold flex items-center gap-2"></div>
 
-      <!-- Photo & Identity Section (Centrally Aligned Portrait 2x2 Badge) -->
-      <div class="flex items-center gap-4 sm:gap-5 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
-        <div class="w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-white border-2 border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-sm relative shrink-0">
-          <img id="editPhotoPreview" src="" alt="Student Photo" class="w-full h-full object-cover object-top rounded-xl" onerror="this.src='/static/images/deped_seal.svg'">
-        </div>
-        <div class="flex-1 space-y-2">
-          <div>
-            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <i class="fa-solid fa-camera text-deped-blue"></i> Student Profile Photo
-            </span>
-            <p class="text-[11px] text-slate-500 leading-relaxed mt-0.5">
-              Passport 2x2 portrait photo for biometric AI face recognition and official DepEd Smart ID badges.
-            </p>
+      <!-- Photo & Identity Section (Centrally Aligned Portrait 2x2 Badge with Recapture & Upload) -->
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+        <div class="flex items-center gap-4 sm:gap-5">
+          <!-- 2x2 Portrait Preview Badge -->
+          <div class="w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-white border-2 border-slate-200 overflow-hidden flex items-center justify-center p-0.5 shadow-sm relative shrink-0">
+            <img id="editPhotoPreview" src="" alt="Student Photo" class="w-full h-full object-cover object-top rounded-xl" onerror="this.src='/static/images/deped_seal.svg'">
+            <div id="newPhotoBadge" class="hidden absolute top-1 right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-xs" title="New photo ready to save"></div>
           </div>
-          <label class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-deped-blue hover:text-white border border-slate-300 hover:border-deped-blue rounded-xl text-xs font-bold text-slate-700 cursor-pointer shadow-2xs transition group">
-            <i class="fa-solid fa-arrow-up-from-bracket text-deped-blue group-hover:text-white transition"></i>
-            <span>Choose New Photo</span>
-            <input type="file" id="editPhotoInput" name="photo" accept="image/*" class="hidden" onchange="previewEditPhoto(this)">
-          </label>
+
+          <div class="flex-1 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-camera text-deped-blue"></i> Student Profile Photo
+              </span>
+              <span id="photoStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                Current Photo
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500 leading-relaxed">
+              Recapture live using camera or upload a portrait photo. Both options are optional.
+            </p>
+
+            <!-- Dual Action Buttons: Recapture Camera OR Upload File -->
+            <div class="flex flex-wrap items-center gap-2 pt-0.5">
+              <!-- Live Recapture Camera Button -->
+              <button type="button" id="btnRecapturePhoto" onclick="toggleEditCamera()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer">
+                <i class="fa-solid fa-camera"></i>
+                <span id="btnRecaptureText">Recapture Photo</span>
+              </button>
+
+              <!-- Upload Photo File Button -->
+              <label class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer shadow-2xs transition group">
+                <i class="fa-solid fa-arrow-up-from-bracket text-deped-blue group-hover:text-deped-darkblue transition"></i>
+                <span>Upload File</span>
+                <input type="file" id="editPhotoInput" name="photo" accept="image/*" class="hidden" onchange="handleEditPhotoFileSelected(this)">
+              </label>
+
+              <!-- Revert / Reset Button -->
+              <button type="button" id="btnResetPhoto" onclick="resetEditPhotoToOriginal()" class="hidden text-[11px] text-slate-500 hover:text-rose-600 font-semibold px-2 py-1 transition flex items-center gap-1">
+                <i class="fa-solid fa-rotate-left"></i> Revert
+              </button>
+            </div>
+          </div>
         </div>
+
+        <!-- Hidden input for base64 captured photo -->
+        <input type="hidden" id="editPhotoBase64" name="photo_base64" value="">
+
+        <!-- Recapture Live Camera Drawer (Collapsible) -->
+        <div id="editCameraBox" class="hidden mt-2 p-3 bg-slate-900 rounded-2xl text-white border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+            <span class="font-bold text-amber-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-video"></i> Live Camera Recapture
+            </span>
+            <button type="button" onclick="closeEditCamera()" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded transition">
+              <i class="fa-solid fa-xmark mr-1"></i> Cancel
+            </button>
+          </div>
+
+          <div class="relative w-full max-w-xs sm:max-w-sm mx-auto aspect-[4/3] bg-black rounded-xl overflow-hidden flex items-center justify-center border border-slate-700 shadow-inner">
+            <video id="editWebcamVideo" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+            
+            <!-- Facial Oval Guide Overlay -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div class="w-32 h-44 sm:w-36 sm:h-48 border-2 border-dashed border-amber-400/80 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] flex items-center justify-center">
+                <span class="text-[10px] text-amber-300 font-bold bg-black/70 px-2 py-0.5 rounded-full mt-28">Align Face Here</span>
+              </div>
+            </div>
+
+            <!-- Loading Spinner State -->
+            <div id="editCameraLoading" class="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center text-xs text-slate-300 gap-2">
+              <i class="fa-solid fa-circle-notch fa-spin text-2xl text-amber-400"></i>
+              <span>Starting camera hardware...</span>
+            </div>
+          </div>
+
+          <!-- Camera Controls -->
+          <div class="flex items-center justify-center gap-3 pt-1">
+            <button type="button" onclick="takeEditSnapshot()" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2 cursor-pointer">
+              <i class="fa-solid fa-camera"></i>
+              <span>Take Snap Photo</span>
+            </button>
+            <button type="button" onclick="switchEditCameraFacing()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5" title="Flip / Switch Camera">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              <span class="hidden sm:inline">Flip</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hidden canvas for capturing snapshot -->
+        <canvas id="editSnapCanvas" class="hidden"></canvas>
       </div>
 
       <!-- Identity Details -->
@@ -477,7 +548,18 @@
 
     // Preview photo
     const previewImg = document.getElementById('editPhotoPreview');
-    previewImg.src = card.dataset.photo || card.dataset.qrcode || '/static/images/deped_seal.svg';
+    originalStudentPhoto = card.dataset.photo || card.dataset.qrcode || '/static/images/deped_seal.svg';
+    previewImg.src = originalStudentPhoto;
+    document.getElementById('editPhotoBase64').value = '';
+    document.getElementById('editPhotoInput').value = '';
+    document.getElementById('newPhotoBadge')?.classList.add('hidden');
+    document.getElementById('btnResetPhoto')?.classList.add('hidden');
+    const badge = document.getElementById('photoStatusBadge');
+    if (badge) {
+      badge.textContent = 'Current Photo';
+      badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700';
+    }
+    closeEditCamera();
 
     // Set full-page editor link (navigates directly in same window)
     const fullEditLink = document.getElementById('modalFullEditLink');
@@ -495,6 +577,7 @@
   }
 
   function closeEditStudentModal() {
+    closeEditCamera();
     const modal = document.getElementById('editStudentModal');
     const content = document.getElementById('editModalContent');
     if (!modal) return;
@@ -512,14 +595,173 @@
     }, 200);
   }
 
-  function previewEditPhoto(input) {
+  // --- Live Camera Recapture Functions ---
+  let editCameraStream = null;
+  let editFacingMode = 'user';
+  let originalStudentPhoto = '';
+
+  function toggleEditCamera() {
+    const box = document.getElementById('editCameraBox');
+    if (box.classList.contains('hidden')) {
+      startEditCamera();
+    } else {
+      closeEditCamera();
+    }
+  }
+
+  async function startEditCamera() {
+    const box = document.getElementById('editCameraBox');
+    const loading = document.getElementById('editCameraLoading');
+    const video = document.getElementById('editWebcamVideo');
+    const btnText = document.getElementById('btnRecaptureText');
+
+    box.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    if (btnText) btnText.textContent = 'Cancel Camera';
+
+    closeCurrentEditStream();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Live camera requires a secure context (HTTPS or localhost).");
+      closeEditCamera();
+      return;
+    }
+
+    try {
+      editCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: editFacingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      video.srcObject = editCameraStream;
+      video.onloadedmetadata = () => {
+        video.play();
+        loading.classList.add('hidden');
+      };
+    } catch (err) {
+      console.warn("Retrying with default video constraint:", err);
+      try {
+        editCameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = editCameraStream;
+        video.onloadedmetadata = () => {
+          video.play();
+          loading.classList.add('hidden');
+        };
+      } catch (err2) {
+        alert("Camera access denied or unavailable: " + err2.message);
+        closeEditCamera();
+      }
+    }
+  }
+
+  function switchEditCameraFacing() {
+    editFacingMode = (editFacingMode === 'user') ? 'environment' : 'user';
+    const video = document.getElementById('editWebcamVideo');
+    if (video) {
+      video.style.transform = (editFacingMode === 'user') ? 'scaleX(-1)' : 'scaleX(1)';
+    }
+    startEditCamera();
+  }
+
+  function takeEditSnapshot() {
+    const video = document.getElementById('editWebcamVideo');
+    const canvas = document.getElementById('editSnapCanvas');
+    if (!video || !video.videoWidth) return;
+
+    // Scale to max 480px maintaining aspect ratio
+    const maxDim = 480;
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) {
+        h = Math.round((h * maxDim) / w);
+        w = maxDim;
+      } else {
+        w = Math.round((w * maxDim) / h);
+        h = maxDim;
+      }
+    }
+
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'medium';
+
+    if (editFacingMode === 'user') {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, w, h);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+    // Apply captured photo to preview
+    document.getElementById('editPhotoPreview').src = dataUrl;
+    document.getElementById('editPhotoBase64').value = dataUrl;
+    document.getElementById('editPhotoInput').value = ''; // Clear file input so base64 takes precedence
+
+    // Show indicator and reset button
+    document.getElementById('newPhotoBadge')?.classList.remove('hidden');
+    document.getElementById('btnResetPhoto')?.classList.remove('hidden');
+
+    const badge = document.getElementById('photoStatusBadge');
+    if (badge) {
+      badge.textContent = '● New Photo Captured';
+      badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+    }
+
+    closeEditCamera();
+  }
+
+  function handleEditPhotoFileSelected(input) {
     if (input.files && input.files[0]) {
       const reader = new FileReader();
       reader.onload = (e) => {
         document.getElementById('editPhotoPreview').src = e.target.result;
+        // Also populate base64 for unified cloud persistence
+        document.getElementById('editPhotoBase64').value = e.target.result;
       };
       reader.readAsDataURL(input.files[0]);
+
+      document.getElementById('newPhotoBadge')?.classList.remove('hidden');
+      document.getElementById('btnResetPhoto')?.classList.remove('hidden');
+
+      const badge = document.getElementById('photoStatusBadge');
+      if (badge) {
+        badge.textContent = '● File Selected';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-deped-blue border border-blue-300';
+      }
+
+      closeEditCamera();
     }
+  }
+
+  function resetEditPhotoToOriginal() {
+    document.getElementById('editPhotoPreview').src = originalStudentPhoto || '/static/images/deped_seal.svg';
+    document.getElementById('editPhotoBase64').value = '';
+    document.getElementById('editPhotoInput').value = '';
+    document.getElementById('newPhotoBadge')?.classList.add('hidden');
+    document.getElementById('btnResetPhoto')?.classList.add('hidden');
+
+    const badge = document.getElementById('photoStatusBadge');
+    if (badge) {
+      badge.textContent = 'Current Photo';
+      badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700';
+    }
+  }
+
+  function closeCurrentEditStream() {
+    if (editCameraStream) {
+      editCameraStream.getTracks().forEach(track => track.stop());
+      editCameraStream = null;
+    }
+  }
+
+  function closeEditCamera() {
+    closeCurrentEditStream();
+    document.getElementById('editCameraBox')?.classList.add('hidden');
+    const btnText = document.getElementById('btnRecaptureText');
+    if (btnText) btnText.textContent = 'Recapture Photo';
   }
 
   function filterSectionOptionsByGrade() {

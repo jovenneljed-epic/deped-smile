@@ -133,6 +133,21 @@ class TestStudentEditDelete(unittest.TestCase):
         self.assertEqual(data['student']['first_name'], 'Johnny')
         self.assertEqual(data['student']['last_name'], 'Bravo')
 
+        # 2b. Test updating photo with base64 string (webcam recapture)
+        valid_b64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYFBgYGBwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYHCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgr/wAARCAAUABQDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD+f+iiigAooooAKKKKACiiigD/2Q=="
+        res_photo = self.app.post(
+            f'/api/update-student/{self.test_lrn}',
+            data={
+                "first_name": "Johnny",
+                "last_name": "Bravo",
+                "photo_base64": valid_b64
+            }
+        )
+        self.assertEqual(res_photo.status_code, 200)
+        data_photo = json.loads(res_photo.data)
+        self.assertTrue(data_photo['success'])
+        self.assertTrue(data_photo['student']['photo_path'].startswith("data:image/jpeg;base64,"))
+
         # 3. GET /students/edit/<lrn>
         page_res = self.app.get(f'/students/edit/{self.test_lrn}')
         self.assertEqual(page_res.status_code, 200)

@@ -153,8 +153,13 @@ def decode_image_payload(req):
     
     # 2. From JSON or Form base64 image
     b64_str = None
-    if req.is_json and req.json and 'image' in req.json:
-        b64_str = req.json['image']
+    json_payload = req.get_json(silent=True) or {}
+    if 'image' in json_payload:
+        b64_str = json_payload['image']
+    elif 'photo_base64' in json_payload:
+        b64_str = json_payload['photo_base64']
+    elif req.form.get('photo_base64'):
+        b64_str = req.form.get('photo_base64')
     elif req.form.get('webcam_image'):
         b64_str = req.form.get('webcam_image')
     elif req.form.get('image'):
@@ -1336,15 +1341,37 @@ def student_edit_page(lrn):
 
     if request.method == 'POST':
         payload = request.form.to_dict()
-        if 'photo' in request.files:
-            file = request.files['photo']
-            if file and file.filename != '':
-                ext = Path(file.filename).suffix.lower() or '.jpg'
-                new_fname = f"student_{lrn}_{int(time.time())}{ext}"
+        img = decode_image_payload(request)
+        if img is not None:
+            try:
+                h, w = img.shape[:2]
+                scale = min(360 / max(h, w), 1.0)
+                thumb = cv2.resize(img, (int(w * scale), int(h * scale))) if scale < 1.0 else img
+                _, enc = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                b64_img = base64.b64encode(enc).decode('utf-8')
+                payload['photo_path'] = f"data:image/jpeg;base64,{b64_img}"
+            except Exception as _enc_err:
+                print(f"[!] Photo encode note: {_enc_err}")
+
+            try:
+                fe = get_face_engine()
+                if fe and getattr(fe, 'available', False):
+                    faces = fe.detect_faces(img)
+                    if len(faces) > 0:
+                        best_face = max(faces, key=lambda f: f[2] * f[3])
+                        payload['face_embedding'] = fe.extract_face_embedding(img, best_face)
+            except Exception as _fe_err:
+                print(f"[!] Face embedding note: {_fe_err}")
+
+            try:
+                new_fname = f"student_{lrn}_{int(time.time())}.jpg"
                 target_path = smile_config.PHOTOS_DIR / new_fname
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                file.save(str(target_path))
-                payload['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
+                cv2.imwrite(str(target_path), img)
+                if not payload.get('photo_path'):
+                    payload['photo_path'] = f"/photos/{new_fname}"
+            except Exception:
+                pass
 
         success, res = update_student_orm(lrn, **payload)
         if success:
@@ -3560,30 +3587,42 @@ def api_update_student(lrn):
     if user_role not in ('SUPER_ADMIN', 'DIVISION_ADMIN') and existing_st.get('school_id') != current_sid:
         return jsonify({"success": False, "message": "Access Denied: Student belongs to another campus."}), 403
 
-    data = request.json or request.form.to_dict() or {}
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
     
-    # Handle optional photo upload
-    if 'photo' in request.files:
-        file = request.files['photo']
-        if file and file.filename != '':
-            ext = Path(file.filename).suffix.lower() or '.jpg'
-            new_fname = f"student_{lrn}_{int(time.time())}{ext}"
+    # Handle optional photo upload or webcam recapture
+    img = decode_image_payload(request)
+    if img is not None:
+        try:
+            h, w = img.shape[:2]
+            scale = min(360 / max(h, w), 1.0)
+            thumb = cv2.resize(img, (int(w * scale), int(h * scale))) if scale < 1.0 else img
+            _, enc = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            b64_img = base64.b64encode(enc).decode('utf-8')
+            data['photo_path'] = f"data:image/jpeg;base64,{b64_img}"
+        except Exception as _enc_err:
+            print(f"[!] Photo resize error: {_enc_err}")
+
+        # Also extract face embeddings for AI face recognition
+        try:
+            fe = get_face_engine()
+            if fe and getattr(fe, 'available', False):
+                faces = fe.detect_faces(img)
+                if len(faces) > 0:
+                    best_face = max(faces, key=lambda f: f[2] * f[3])
+                    data['face_embedding'] = fe.extract_face_embedding(img, best_face)
+        except Exception as _fe_err:
+            print(f"[!] Face embedding update note: {_fe_err}")
+
+        # Cache to disk if writable
+        try:
+            new_fname = f"student_{lrn}_{int(time.time())}.jpg"
             target_path = smile_config.PHOTOS_DIR / new_fname
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            file.save(str(target_path))
-            data['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
-    elif data.get('photo_base64'):
-        raw_b64 = data.get('photo_base64', '')
-        if ',' in raw_b64:
-            raw_b64 = raw_b64.split(',', 1)[1]
-        import base64
-        img_bytes = base64.b64decode(raw_b64)
-        new_fname = f"student_{lrn}_{int(time.time())}.jpg"
-        target_path = smile_config.PHOTOS_DIR / new_fname
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(target_path, 'wb') as f:
-            f.write(img_bytes)
-        data['photo_path'] = f"/data/student_photos/{new_fname}" if not smile_config.IS_VERCEL else f"/photos/{new_fname}"
+            cv2.imwrite(str(target_path), img)
+            if not data.get('photo_path'):
+                data['photo_path'] = f"/photos/{new_fname}"
+        except Exception:
+            pass
 
     success, res_or_msg = update_student_orm(lrn, **data)
     if success:

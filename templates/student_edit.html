@@ -48,7 +48,7 @@
       </div>
 
       <div class="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-        <!-- Photo / QR Preview -->
+        <!-- Photo / QR Preview & Recapture -->
         <div class="flex flex-col items-center gap-2.5 shrink-0 w-full sm:w-auto">
           <div class="w-28 h-36 rounded-2xl bg-slate-50 border-2 border-slate-200 overflow-hidden flex items-center justify-center p-1 shadow-sm relative group">
             {% if student.photo_path %}
@@ -56,11 +56,54 @@
             {% else %}
             <img id="photoPreviewImg" src="/static/qrcodes/{{ student.lrn }}.png" alt="Smart ID QR" class="w-full h-full object-contain p-1 rounded-xl" onerror="this.src='/static/images/deped_seal.svg'">
             {% endif %}
+            <div id="newPhotoBadgeFull" class="hidden absolute top-1 right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-xs" title="New photo ready to save"></div>
           </div>
-          <label class="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-300 shadow-2xs transition flex items-center gap-1.5 text-center">
-            <i class="fa-solid fa-camera text-deped-blue"></i> Replace Photo
-            <input type="file" name="photo" accept="image/*" class="hidden" onchange="previewSelectedPhoto(this)">
-          </label>
+
+          <div class="flex flex-col gap-1.5 w-full items-center">
+            <!-- Action Buttons: Recapture OR Upload -->
+            <button type="button" id="btnRecaptureFull" onclick="toggleFullCamera()" class="w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-camera"></i>
+              <span id="btnRecaptureFullText">Recapture Photo</span>
+            </button>
+            <label class="w-full px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer border border-slate-300 shadow-2xs transition flex items-center justify-center gap-1.5 text-center">
+              <i class="fa-solid fa-arrow-up-from-bracket text-deped-blue"></i>
+              <span>Upload File</span>
+              <input type="file" id="photoFileInputFull" name="photo" accept="image/*" class="hidden" onchange="handleFullPhotoFileSelected(this)">
+            </label>
+            <button type="button" id="btnResetFullPhoto" onclick="resetFullPhoto()" class="hidden text-[11px] text-slate-500 hover:text-rose-600 font-semibold transition flex items-center gap-1">
+              <i class="fa-solid fa-rotate-left"></i> Revert
+            </button>
+          </div>
+
+          <!-- Hidden Input for Captured Base64 Photo -->
+          <input type="hidden" id="fullPhotoBase64" name="photo_base64" value="">
+
+          <!-- Live Camera Drawer -->
+          <div id="fullCameraBox" class="hidden w-full max-w-xs mt-2 p-3 bg-slate-900 rounded-2xl text-white border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+              <span class="font-bold text-amber-400 flex items-center gap-1">
+                <i class="fa-solid fa-video"></i> Live Camera
+              </span>
+              <button type="button" onclick="closeFullCamera()" class="text-slate-400 hover:text-white text-xs">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div class="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden flex items-center justify-center border border-slate-700">
+              <video id="fullWebcamVideo" autoplay playsinline muted class="w-full h-full object-cover transform scale-x-[-1]"></video>
+              <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div class="w-28 h-36 border-2 border-dashed border-amber-400/80 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"></div>
+              </div>
+            </div>
+            <div class="flex items-center justify-center gap-2 pt-1">
+              <button type="button" onclick="takeFullSnapshot()" class="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow transition flex items-center gap-1.5">
+                <i class="fa-solid fa-camera"></i> Snap Photo
+              </button>
+              <button type="button" onclick="switchFullCameraFacing()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+          <canvas id="fullSnapCanvas" class="hidden"></canvas>
         </div>
 
         <!-- Identity Fields Grid -->
@@ -224,15 +267,142 @@
 </div>
 
 <script>
-  function previewSelectedPhoto(input) {
+  let fullCameraStream = null;
+  let fullFacingMode = 'user';
+  const originalFullPhotoSrc = document.getElementById('photoPreviewImg')?.src || '';
+
+  function toggleFullCamera() {
+    const box = document.getElementById('fullCameraBox');
+    if (box.classList.contains('hidden')) {
+      startFullCamera();
+    } else {
+      closeFullCamera();
+    }
+  }
+
+  async function startFullCamera() {
+    const box = document.getElementById('fullCameraBox');
+    const video = document.getElementById('fullWebcamVideo');
+    const btnText = document.getElementById('btnRecaptureFullText');
+
+    box.classList.remove('hidden');
+    if (btnText) btnText.textContent = 'Cancel Camera';
+
+    closeCurrentFullStream();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Live camera requires a secure context (HTTPS or localhost).");
+      closeFullCamera();
+      return;
+    }
+
+    try {
+      fullCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: fullFacingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      video.srcObject = fullCameraStream;
+      video.onloadedmetadata = () => video.play();
+    } catch (err) {
+      try {
+        fullCameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = fullCameraStream;
+        video.onloadedmetadata = () => video.play();
+      } catch (err2) {
+        alert("Camera error: " + err2.message);
+        closeFullCamera();
+      }
+    }
+  }
+
+  function switchFullCameraFacing() {
+    fullFacingMode = (fullFacingMode === 'user') ? 'environment' : 'user';
+    const video = document.getElementById('fullWebcamVideo');
+    if (video) {
+      video.style.transform = (fullFacingMode === 'user') ? 'scaleX(-1)' : 'scaleX(1)';
+    }
+    startFullCamera();
+  }
+
+  function takeFullSnapshot() {
+    const video = document.getElementById('fullWebcamVideo');
+    const canvas = document.getElementById('fullSnapCanvas');
+    if (!video || !video.videoWidth) return;
+
+    const maxDim = 480;
+    let w = video.videoWidth;
+    let h = video.videoHeight;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) {
+        h = Math.round((h * maxDim) / w);
+        w = maxDim;
+      } else {
+        w = Math.round((w * maxDim) / h);
+        h = maxDim;
+      }
+    }
+
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'medium';
+
+    if (fullFacingMode === 'user') {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, w, h);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const preview = document.getElementById('photoPreviewImg');
+    if (preview) preview.src = dataUrl;
+
+    document.getElementById('fullPhotoBase64').value = dataUrl;
+    document.getElementById('photoFileInputFull').value = '';
+    document.getElementById('newPhotoBadgeFull')?.classList.remove('hidden');
+    document.getElementById('btnResetFullPhoto')?.classList.remove('hidden');
+
+    closeFullCamera();
+  }
+
+  function handleFullPhotoFileSelected(input) {
     if (input.files && input.files[0]) {
       const reader = new FileReader();
       reader.onload = function(e) {
         const preview = document.getElementById('photoPreviewImg');
         if (preview) preview.src = e.target.result;
+        document.getElementById('fullPhotoBase64').value = e.target.result;
       };
       reader.readAsDataURL(input.files[0]);
+
+      document.getElementById('newPhotoBadgeFull')?.classList.remove('hidden');
+      document.getElementById('btnResetFullPhoto')?.classList.remove('hidden');
+      closeFullCamera();
     }
+  }
+
+  function resetFullPhoto() {
+    const preview = document.getElementById('photoPreviewImg');
+    if (preview) preview.src = originalFullPhotoSrc || '/static/images/deped_seal.svg';
+    document.getElementById('fullPhotoBase64').value = '';
+    document.getElementById('photoFileInputFull').value = '';
+    document.getElementById('newPhotoBadgeFull')?.classList.add('hidden');
+    document.getElementById('btnResetFullPhoto')?.classList.add('hidden');
+  }
+
+  function closeCurrentFullStream() {
+    if (fullCameraStream) {
+      fullCameraStream.getTracks().forEach(t => t.stop());
+      fullCameraStream = null;
+    }
+  }
+
+  function closeFullCamera() {
+    closeCurrentFullStream();
+    document.getElementById('fullCameraBox')?.classList.add('hidden');
+    const btnText = document.getElementById('btnRecaptureFullText');
+    if (btnText) btnText.textContent = 'Recapture Photo';
   }
 
   const sectionsData = [
